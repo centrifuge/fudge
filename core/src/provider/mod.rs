@@ -109,12 +109,14 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
 
     fn init(self, exec: Exec, handle: Box<dyn SpawnNamed>, keystore: Option<SyncCryptoStorePtr>, config: Option<ClientConfig<Block>>) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
         let backend = self.state.backend();
+        let mut config = config.clone().unwrap_or(Default::default());
+        config.no_genesis = true;
         // TODO: Handle unwrap
         let executor = sc_service::client::LocalCallExecutor::new(
             backend.clone(),
             exec,
             handle,
-            config.clone().unwrap_or(Default::default())
+            config.clone()
         ).unwrap();
 
         // TODO: Execution strategies default is not right. Use always wasm instead
@@ -135,7 +137,7 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
             extensions,
             None,
             None,
-            config.unwrap_or(Default::default())
+            config.clone()
         ).map_err(|_| "err".to_string()).unwrap();
 
         (client, backend)
