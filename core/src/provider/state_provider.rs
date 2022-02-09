@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
 // This file is part of the Centrifuge chain project.
@@ -10,17 +9,21 @@ use std::marker::PhantomData;
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use sc_client_api::Backend;
+use sc_client_api::{AuxStore, Backend};
 use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
 use sc_service::PruningMode;
 use sp_api::BlockId;
-use sp_core::sp_std::sync::Arc;
 use sp_database::{Database, MemDb};
 use sp_runtime::traits::Block as BlockT;
-use sp_state_machine::MemoryDB;
+use sp_storage::Storage;
+use sp_std::{marker::PhantomData, sync::Arc};
+use sp_core::storage::well_known_keys::CODE;
+use sp_runtime::BuildStorage;
+
+pub const CANONICALIZATION_DELAY: u64 = 4096;
 
 pub struct StateProvider<B, Block> {
-	backend: B,
+	backend: Arc<B>,
 	_phantom: PhantomData<Block>,
 }
 
@@ -29,7 +32,7 @@ where
 	Block: BlockT,
 	B: Backend<Block>,
 {
-	pub fn from_genesis() -> Self {
+	pub fn from_storage(storage: Storage) -> Self {
 		todo!();
 	}
 
@@ -40,15 +43,29 @@ where
 	pub fn from_spec() -> Self {
 		todo!()
 	}
+
+	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
+		// Bascially iterate over top and bottom and use aux storage. Not sure though, if the database takes this correctly
+		todo!()
+	}
+
+	pub fn backend(&self) -> Arc<B> {
+		self.backend.clone()
+	}
 }
 
 impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
-	pub fn empty(code: Option<&[u8]>) -> Self {
-		let mut provider = StateProvider::default();
-		let state = provider.backend.state_at(BlockId::Hash(Default::default()));
+	pub fn empty_default(code: Option<&[u8]>) -> Self {
+		// TODO: Handle unwrap
+		let mut provider = StateProvider::with_InMemDb().unwrap();
+
+		if let Some(code) = code {
+			// TODO: Insert code here...
+			//provider.backend.insert_aux(CODE, code);
+		}
 
         /*
 		let genesis_storage =
@@ -83,13 +100,8 @@ where
 
 		provider
 	}
-}
 
-impl<Block> Default for StateProvider<sc_client_db::Backend<Block>, Block>
-where
-	Block: BlockT,
-{
-	fn default() -> Self {
+	fn with_InMemDb() -> Result<Self, ()> {
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
@@ -100,10 +112,23 @@ where
 			transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
-		// TODO: What is the right canoncicalizatio_delay here
-		// TOOD: Unwrap here safely somehow? Mabye default is not the right impl for this. Haha.
-		let backend = sc_client_db::Backend::new(settings, 0).unwrap();
+		let backend = Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
 
-		Self { backend, _phantom: Default::default() }
+		Ok(Self { backend, _phantom: Default::default() })
+	}
+}
+
+impl<B, Block> BuildStorage for StateProvider<B, Block>
+where
+	Block: BlockT,
+	B: Backend<Block>,
+{
+	fn build_storage(&self) -> Result<Storage, String> {
+		//TODO
+		Ok(Storage::default())
+	}
+
+	fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
+		todo!()
 	}
 }

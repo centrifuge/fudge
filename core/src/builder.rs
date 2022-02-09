@@ -18,7 +18,7 @@ extern crate sp_runtime;
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use crate::externalities_provider::ExternalitiesProvider;
+use crate::provider::ExternalitiesProvider;
 use sc_client_api::{
 	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, CallExecutor, HeaderBackend,
 	UsageProvider,
@@ -36,9 +36,13 @@ use sp_core::{
 };
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use sp_std::time::Duration;
 
 use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
 use super::{traits::AuthorityProvider, Bytes, StoragePair};
+use self::sp_consensus::InherentData;
+use self::sp_runtime::{Digest, DigestItem};
+use self::sp_runtime::traits::DigestFor;
 
 pub enum Operation {
 	Commit,
@@ -94,9 +98,9 @@ where
 		+ CallApiAt<Block>,
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new(backend: B, client: C) -> Self {
+	pub fn new(backend: Arc<B>, client: C) -> Self {
 		Builder {
-			backend: Arc::new(backend),
+			backend: backend,
 			client: Arc::new(client),
 			cache: TransitionCache { extrinsics: Vec::new(), auxilliary: Vec::new() },
 			blocks: Vec::new(),
@@ -152,11 +156,6 @@ where
 		}
 	}
 
-	/// Creates a new Builder instance with `B` and `C` being default values.
-	pub fn new_with_default(db_config: DatabaseSettings) -> Self {
-		todo!();
-	}
-
 	/// Append a given set of key-value-pairs into the builder cache
 	pub fn append_transition(&mut self, trans: StoragePair) -> &mut Self {
 		self.cache.auxilliary.push(trans);
@@ -169,13 +168,11 @@ where
 		self
 	}
 
-	/// Create a block from a given state of the Builder. The block will be cached.
+	/// Create a block from a given state of the Builder.
 	///
 	/// Multiple calls of this will result in building multiple blocks, where each block
 	/// is the child of the previously build block (or the last block of the fetched state).
-	///
-	/// This does NOT alter the existing underlying database.
-	pub fn build_block(&mut self) -> &mut Self {
+	pub fn build_block(&mut self, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> &mut Self {
 		todo!()
 
 		// TODO: Uses the cached transitions and extrinsics and creates a BlockImportParams struct
@@ -193,41 +190,6 @@ where
 		// 	 - Stores struct in builder
 		//   - Cleans up TransitionCache
 	}
-
-	/// Actually apply all cached blocks to the underlying database.
-	/// This alters the provided database.
-	pub fn take_over(self) {
-		/*let mut import = self.client;
-		self.blocks.into_iter().for_each(|params| {
-			let res = futures::executor::block_on(import.import_block(params, HashMap::new()));
-
-			// TODO: Handle result of failing import?
-		});
-		 */
-	}
-}
-
-/// Creates default DatabaseSettings in the form of
-/// ```
-/// use std::path::PathBuf;
-/// use sc_client_db::*;
-///
-/// DatabaseSettings {
-/// 	state_cache_size: 0,
-/// 	/// Ratio of cache size dedicated to child tries.
-/// 	state_cache_child_ratio: None,
-/// 	/// State pruning mode.
-/// 	state_pruning: PruningMode::ArchiveAll,
-/// 	/// Where to find the database.
-/// 	source: DatabaseSource::RocksDb{path: PathBuf::from("path_of_user"), cache_size: 0},
-/// 	/// Block pruning mode.
-/// 	keep_blocks: KeepBlocks::All,
-/// 	/// Block body/Transaction storage scheme.
-/// 	transaction_storage: TransactionStorageMode::BlockBody,
-/// };
-/// ```
-pub fn default_database_settings(path: PathBuf) -> DatabaseSettings {
-	todo!()
 }
 
 // TODO: Nice code examples that could help implementing this idea of taking over a chain locally

@@ -1483,6 +1483,7 @@ dependencies = [
  "sc-client-db",
  "sc-consensus",
  "sc-executor",
+ "sc-offchain",
  "sc-service",
  "sp-api",
  "sp-block-builder",
@@ -1490,8 +1491,13 @@ dependencies = [
  "sp-core",
  "sp-database",
  "sp-externalities",
+ "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-state-machine",
+ "sp-std",
+ "sp-storage",
+ "tokio",
 ]
 
 [[package]]
@@ -6961,7 +6967,19 @@ dependencies = [
  "mio 0.7.14",
  "num_cpus",
  "pin-project-lite 0.2.8",
+ "tokio-macros",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b557f72f448c511a979e2564e55d74e6c4432fc96ff4f6241bc6bded342643b7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

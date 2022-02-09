@@ -10,28 +10,36 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::{RelaychainBuilder, StateProvider};
+use crate::RelaychainBuilder;
 //use node_primitives::{AccountId, Block as TestBlock};
 use polkadot_runtime::{Block as TestBlock, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_client_db::Backend;
-use sc_executor::WasmExecutor as TestExec;
-use sc_service::{LocalCallExecutor, TFullClient};
+use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
+use sc_service::{LocalCallExecutor, TaskManager, TFullClient};
 use sp_runtime::{AccountId32, MultiAddress};
+use crate::provider::EnvProvider;
+use tokio::runtime::{Runtime, Handle};
+use sc_executor::sp_wasm_interface::HostFunctions;
 
-#[test]
-fn dummy_test() {
-	let provider = StateProvider::<sc_client_db::Backend<TestBlock>, TestBlock>::empty(CODE);
-	let mut builder = RelaychainBuilder::<
-		TestBlock,
-		TestRtApi,
-		TestExec,
-		Backend<TestBlock>,
-		TFullClient<
-			TestBlock,
-			TestRtApi,
-			TestExec
-		>,
-	>::new(provider);
+#[tokio::test]
+async fn dummy_test() {
+	//let runtime = Runtime::new().unwrap();
+	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	/// TODO: Might need to append here from runtime, as there is no dispatch.
+	let (client, backend) = EnvProvider::<TestBlock, TestRtApi, TestExec>::with_code(CODE.unwrap())
+		.init_default(
+			TestExec::new(
+			WasmExecutionMethod::Interpreted,
+			None,
+			host_functions,
+			6,
+			None,
+		),
+			Box::new(manager.spawn_handle())
+		);
+
+	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
 
 	let res = builder.with_state(|| {
 		polkadot_runtime::Balances::transfer(
@@ -39,7 +47,7 @@ fn dummy_test() {
 			MultiAddress::Id(AccountId32::default()),
 			1_000_000_000_000u128,
 		)
-	});
+	}).unwrap();
 
 	let x = 0;
 }
