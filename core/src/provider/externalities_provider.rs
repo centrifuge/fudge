@@ -18,6 +18,7 @@ use sp_state_machine::{
 	StorageTransactionCache,
 };
 use std::panic::{AssertUnwindSafe, UnwindSafe};
+use sp_externalities::Externalities;
 
 pub struct ExternalitiesProvider<'a, H, Block, B>
 where
@@ -150,6 +151,15 @@ where
 	pub fn execute_with<R>(&mut self, execute: impl FnOnce() -> R) -> R {
 		let mut ext = self.ext();
 		sp_externalities::set_and_run_with_externalities(&mut ext, execute)
+	}
+
+	pub fn execute_with_mut<R>(&mut self, execute: impl FnOnce() -> R) -> R {
+		let mut ext = self.ext();
+		ext.storage_start_transaction();
+		let r = sp_externalities::set_and_run_with_externalities(&mut ext, execute);
+		// TODO: Why does this not commit changes to the underlying backend?
+		ext.storage_commit_transaction();
+		r
 	}
 
 	/// Execute the given closure while `self` is set as externalities.

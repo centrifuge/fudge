@@ -62,7 +62,7 @@ async fn dummy_test() {
 
 	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
 
-	let res = builder.with_state(|| {
+	let (data, data1) = builder.with_mut_state(|| {
 
 		let data = frame_system::Account::<Runtime>::get(AccountId32::default());
 
@@ -72,9 +72,12 @@ async fn dummy_test() {
 			1_000_000_000_000u128,
 		);
 
-		let data_2 = frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0));
-		let data = frame_system::Account::<Runtime>::get(AccountId32::default());
-		let x = 0;
+		(frame_system::Account::<Runtime>::get(AccountId32::default()), frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)))
+	}).unwrap();
+
+	let (data2, data3) = builder.with_mut_state(|| {
+
+		(frame_system::Account::<Runtime>::get(AccountId32::default()), frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)))
 	}).unwrap();
 
 

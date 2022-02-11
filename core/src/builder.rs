@@ -30,19 +30,21 @@ use sc_service::{LocalCallExecutor, TFullClient};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError};
-use sp_core::{
-	traits::{CodeExecutor, ReadRuntimeVersion},
-	Pair,
-};
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_core::{traits::{CodeExecutor, ReadRuntimeVersion}, Pair, Hasher};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT,};
 use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use sp_state_machine::Backend as StateMachineBackend;
 use sp_std::time::Duration;
 
 use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
 use super::{traits::AuthorityProvider, Bytes, StoragePair};
 use self::sp_consensus::InherentData;
 use self::sp_runtime::{Digest, DigestItem};
-use self::sp_runtime::traits::DigestFor;
+use self::sp_runtime::traits::{DigestFor, Header as HeaderT, One, Zero, Hash as HashT};
+use sp_core::storage::{ChildInfo, well_known_keys};
+use sp_storage::Storage;
+use self::sc_client_api::blockchain::Backend as BlockchainBackend;
+use self::sc_client_api::{BlockImportOperation, NewBlockState};
 
 pub enum Operation {
 	Commit,
@@ -122,39 +124,90 @@ where
 		};
 
 		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
 
 		match op {
 			// TODO: Does this actually commit changes to the underlying DB?
 			Operation::Commit => {
-				let inner = || {
-					let _import_lock = self.backend.get_import_lock().write();
+				let _import_lock = self.backend.get_import_lock().write();
+				let mut op = self
+					.backend
+					.begin_operation()
+					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
 
-					let mut op = self
-						.backend
-						.begin_operation()
-						.map_err(|_| "Unable to start state-operation on backend".to_string())?;
-
-					self.backend.begin_state_operation(&mut op, at);
-					let r = ext.execute_with(exec);
-
-					self.backend
-						.commit_operation(op)
-						.map_err(|_| "Unable to commit state-operation on backend".to_string())?;
-
-					Ok(r)
+				// TODO: Handle unwrap
+				let res = if self.backend.blockchain().block_number_from_id(&at).unwrap().unwrap() == Zero::zero() {
+					self.mutate_genesis(&mut op, &state, exec)
+				} else {
+					self.mutate_normal(&mut op, &state, exec, at)
 				};
-				let result = inner();
-				// TODO: The parity client does this. I am not sure, why. At least the guard is
-				// dropped here
-				//*self.backend.importing_block.write() = None;
 
-				result
+				self.backend
+					.commit_operation(op)
+					.map_err(|_| "Unable to commit state-operation on backend".to_string())?;
+
+				res
 			},
 			// TODO: Does this actually NOT change the state?
-			Operation::DryRun => Ok(ext.execute_with(exec)),
+			Operation::DryRun => Ok(ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state).execute_with(exec)),
 		}
 	}
+
+	fn mutate_genesis<R>(&self, op: &mut B::BlockImportOperation, state: &B::State, exec: impl FnOnce() -> R) -> Result<R, String> {
+		let chain_backend = self.backend.blockchain();
+
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let r = ext.execute_with_mut(exec);
+
+		let mut genesis_storage = drain_into_storage(&state);
+		// NOTE: We do not commit so that the state is available vie `state_at()`
+		let state_root = op.set_genesis_state(genesis_storage, false).map_err(|_| "Could not set genesis state.".to_string())?;
+
+		let genesis_block = Block::new(
+			Block::Header::new(
+				Zero::zero(),
+				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(Vec::new()),
+				state_root,
+				Default::default(),
+				Default::default(),
+			),
+			Default::default(),
+		);
+
+		op.set_block_data(
+			genesis_block.deconstruct().0,
+			Some(vec![]),
+			None,
+			None,
+			NewBlockState::Final,
+		).map_err(|_| "Could not set block data".to_string())?;
+
+		Ok(r)
+	}
+
+	fn mutate_normal<R>(&self, op: &mut B::BlockImportOperation, state: &B::State, exec: impl FnOnce() -> R, at: BlockId<Block>) -> Result<R, String> {
+		let chain_backend = self.backend.blockchain();
+		let mut header = chain_backend.header(at).ok().flatten().expect("State is available. qed");
+
+		self.backend.begin_state_operation(op, at);
+
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let r = ext.execute_with_mut(exec);
+
+		let state_root = storage_root_with_empty_delta(state);
+		header.set_state_root(state_root);
+
+		let storage = drain_into_storage(&state);
+		op.reset_storage(storage).unwrap();
+
+		let body = chain_backend.body(at).expect("State is available. qed.");
+		let indexed_body = chain_backend.block_indexed_body(at).expect("State is available. qed.");
+		let justifications = chain_backend.justifications(at).expect("State is available. qed.");
+
+		// TODO: We set as final, this might not be correct.
+		op.set_block_data(header,  body, indexed_body, justifications, NewBlockState::Final);
+		Ok(r)
+	}
+
 
 	/// Append a given set of key-value-pairs into the builder cache
 	pub fn append_transition(&mut self, trans: StoragePair) -> &mut Self {
@@ -190,6 +243,35 @@ where
 		// 	 - Stores struct in builder
 		//   - Cleans up TransitionCache
 	}
+}
+
+fn storage_root_with_empty_delta<H: Hasher>(state: &impl StateMachineBackend<H>) -> H::Out
+where
+	H::Out: Ord + codec::Encode
+{
+	let dummy = Storage::default();
+	let child_delta = dummy.children_default.iter().map(|(_storage_key, child_content)| {
+		(
+			&child_content.child_info,
+			child_content.data.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref()))),
+		)
+	});
+	let top_iter = dummy.top.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref())));
+	let (state_root, _) = state.full_storage_root(top_iter, child_delta);
+	state_root
+}
+
+fn drain_into_storage<H: Hasher>(state: &impl StateMachineBackend<H>) -> Storage {
+	let mut storage = Storage::default();
+	state.pairs().into_iter().for_each(|(key, value)| {
+		if well_known_keys::is_child_storage_key(key.as_slice()) {
+			// TODO: How to generate the children keys correctly from the pairs?
+			// storage.children_default.insert()
+		} else {
+			storage.top.insert(key, value);
+		}
+	});
+	storage
 }
 
 // TODO: Nice code examples that could help implementing this idea of taking over a chain locally
