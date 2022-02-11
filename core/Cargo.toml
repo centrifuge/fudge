@@ -37,6 +37,10 @@ node-primitives = { git = "https://github.com/paritytech/substrate", default-fea
 [dev-dependencies]
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.12"}
 tokio = { version = "1.15", features = ["macros"] }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+
 
 [features]
 default = ["std"]

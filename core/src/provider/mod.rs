@@ -76,6 +76,11 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
         }
     }
 
+    pub fn from_db() -> Self {
+        // TODO: This should allow to start a client from a given database. Without passing the whole configuration as above
+        todo!()
+    }
+
     pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Self {
         let mut state = StateProvider::empty_default(Some(code));
         state.insert_storage(storage);

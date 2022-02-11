@@ -9,7 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use sc_client_api::{AuxStore, Backend};
+use sc_client_api::{AuxStore, Backend, BlockImportOperation};
 use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
 use sc_service::PruningMode;
 use sp_api::BlockId;
@@ -24,6 +24,7 @@ pub const CANONICALIZATION_DELAY: u64 = 4096;
 
 pub struct StateProvider<B, Block> {
 	backend: Arc<B>,
+	pseudo_genesis: Storage,
 	_phantom: PhantomData<Block>,
 }
 
@@ -32,10 +33,6 @@ where
 	Block: BlockT,
 	B: Backend<Block>,
 {
-	pub fn from_storage(storage: Storage) -> Self {
-		todo!();
-	}
-
 	pub fn from_db() -> Self {
 		todo!()
 	}
@@ -45,59 +42,43 @@ where
 	}
 
 	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
-		// Bascially iterate over top and bottom and use aux storage. Not sure though, if the database takes this correctly
-		todo!()
+		let Storage {
+			top,
+			children_default
+		} = storage;
+
+		self.pseudo_genesis.top.extend(top.into_iter());
+		// TODO: Not sure how to handle childrens here?
+		// self.pseudo_genesis.children_default.
+		self
 	}
 
 	pub fn backend(&self) -> Arc<B> {
 		self.backend.clone()
 	}
+
 }
 
 impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
+	pub fn from_storage(storage: Storage) -> Self {
+		let mut provider = StateProvider::empty_default(None);
+		provider.insert_storage(storage);
+		provider
+	}
+
 	pub fn empty_default(code: Option<&[u8]>) -> Self {
 		// TODO: Handle unwrap
 		let mut provider = StateProvider::with_InMemDb().unwrap();
 
+		let mut storage = Storage::default();
 		if let Some(code) = code {
-			// TODO: Insert code here...
-			//provider.backend.insert_aux(CODE, code);
+			storage.top.insert(CODE.to_vec(), code.to_vec());
 		}
 
-        /*
-		let genesis_storage =
-			build_genesis_storage.build_storage().map_err(sp_blockchain::Error::Storage)?;
-		let genesis_state_version =
-			Self::resolve_state_version_from_wasm(&genesis_storage, &executor)?;
-		let mut op = backend.begin_operation()?;
-		let state_root =
-			op.set_genesis_state(genesis_storage, !config.no_genesis, genesis_state_version)?;
-		let genesis_block = genesis::construct_genesis_block::<Block>(state_root.into());
-		info!(
-				"🔨 Initializing Genesis block/state (state: {}, header-hash: {})",
-				genesis_block.header().state_root(),
-				genesis_block.header().hash()
-			);
-		// Genesis may be written after some blocks have been imported and finalized.
-		// So we only finalize it when the database is empty.
-		let block_state = if info.best_hash == Default::default() {
-			NewBlockState::Final
-		} else {
-			NewBlockState::Normal
-		};
-		op.set_block_data(
-			genesis_block.deconstruct().0,
-			Some(vec![]),
-			None,
-			None,
-			block_state,
-		)?;
-		backend.commit_operation(op)?;
-		*/
-
+		provider.insert_storage(storage);
 		provider
 	}
 
@@ -114,8 +95,9 @@ where
 
 		let backend = Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
 
-		Ok(Self { backend, _phantom: Default::default() })
+		Ok(Self { backend, pseudo_genesis: Storage::default(), _phantom: Default::default() })
 	}
+
 }
 
 impl<B, Block> BuildStorage for StateProvider<B, Block>
@@ -124,8 +106,7 @@ where
 	B: Backend<Block>,
 {
 	fn build_storage(&self) -> Result<Storage, String> {
-		//TODO
-		Ok(Storage::default())
+		Ok(self.pseudo_genesis.clone())
 	}
 
 	fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
