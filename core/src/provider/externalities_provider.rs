@@ -13,10 +13,7 @@
 use sp_api::{BlockT, NumberFor};
 use sp_core::Hasher;
 use sp_runtime::traits::Header;
-use sp_state_machine::{
-	Backend, ChangesTrieBlockNumber, Ext, InMemoryChangesTrieStorage, OverlayedChanges,
-	StorageTransactionCache,
-};
+use sp_state_machine::{Backend, ChangesTrieBlockNumber, Ext, InMemoryChangesTrieStorage, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 use sp_externalities::Externalities;
 
@@ -153,13 +150,16 @@ where
 		sp_externalities::set_and_run_with_externalities(&mut ext, execute)
 	}
 
-	pub fn execute_with_mut<R>(&mut self, execute: impl FnOnce() -> R) -> R {
+	pub fn execute_with_mut<R>(&mut self, execute: impl FnOnce() -> R) -> (R, StorageChanges<B::Transaction, H, NumberFor<Block>>) {
+		let parent_hash = self.overlay.storage_root(self.backend, &mut self.storage_transaction_cache);
+
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
 		let r = sp_externalities::set_and_run_with_externalities(&mut ext, execute);
-		// TODO: Why does this not commit changes to the underlying backend?
-		ext.storage_commit_transaction();
-		r
+		// TODO: Handle unwrap
+		ext.storage_commit_transaction().unwrap();
+
+		(r, self.overlay.drain_storage_changes::<B, H, NumberFor<Block>>(self.backend, None, parent_hash, &mut self.storage_transaction_cache).unwrap())
 	}
 
 	/// Execute the given closure while `self` is set as externalities.

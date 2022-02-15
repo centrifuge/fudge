@@ -128,11 +128,12 @@ where
 		match op {
 			// TODO: Does this actually commit changes to the underlying DB?
 			Operation::Commit => {
-				let _import_lock = self.backend.get_import_lock().write();
+				//let _import_lock = self.backend.get_import_lock().write();
 				let mut op = self
 					.backend
 					.begin_operation()
 					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
+				self.backend.begin_state_operation(&mut op, at).unwrap();
 
 				// TODO: Handle unwrap
 				let res = if self.backend.blockchain().block_number_from_id(&at).unwrap().unwrap() == Zero::zero() {
@@ -153,20 +154,20 @@ where
 	}
 
 	fn mutate_genesis<R>(&self, op: &mut B::BlockImportOperation, state: &B::State, exec: impl FnOnce() -> R) -> Result<R, String> {
-		let chain_backend = self.backend.blockchain();
-
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
-		let r = ext.execute_with_mut(exec);
+		let (r, changes) = ext.execute_with_mut(exec);
+		let (mut main_sc, child_sc, _, tx, root, _, tx_index) =
+			changes.into_inner();
 
-		let mut genesis_storage = drain_into_storage(&state);
-		// NOTE: We do not commit so that the state is available vie `state_at()`
-		let state_root = op.set_genesis_state(genesis_storage, false).map_err(|_| "Could not set genesis state.".to_string())?;
+		// We nee this in order to UNSET commited
+		op.set_genesis_state(Storage::default(), false);
+		op.update_db_storage(tx);
 
 		let genesis_block = Block::new(
 			Block::Header::new(
 				Zero::zero(),
 				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(Vec::new()),
-				state_root,
+				root,
 				Default::default(),
 				Default::default(),
 			),
@@ -188,16 +189,16 @@ where
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend.header(at).ok().flatten().expect("State is available. qed");
 
-		self.backend.begin_state_operation(op, at);
-
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
-		let r = ext.execute_with_mut(exec);
+		let (r, changes) = ext.execute_with_mut(exec);
 
-		let state_root = storage_root_with_empty_delta(state);
-		header.set_state_root(state_root);
+		let (main_sc, child_sc, _, tx, root, _, tx_index) =
+			changes.into_inner();
 
-		let storage = drain_into_storage(&state);
-		op.reset_storage(storage).unwrap();
+		header.set_state_root(root);
+		op.update_db_storage(tx);
+		op.update_storage(main_sc, child_sc).map_err(|_| "Updating storage not possible.").unwrap();
+		op.update_transaction_index(tx_index).map_err(|_| "Updating transaction index not possible.").unwrap();
 
 		let body = chain_backend.body(at).expect("State is available. qed.");
 		let indexed_body = chain_backend.block_indexed_body(at).expect("State is available. qed.");
@@ -245,20 +246,21 @@ where
 	}
 }
 
-fn storage_root_with_empty_delta<H: Hasher>(state: &impl StateMachineBackend<H>) -> H::Out
+fn full_root<H: Hasher, B, Block>(state: &B::State, storage: Storage) -> (H::Out, <B::State as StateMachineBackend<H>>::Transaction)
 where
-	H::Out: Ord + codec::Encode
+	H::Out: Ord + codec::Encode,
+	B: BackendT<Block>,
+	B::State: StateMachineBackend<H>,
+	Block: BlockT
 {
-	let dummy = Storage::default();
-	let child_delta = dummy.children_default.iter().map(|(_storage_key, child_content)| {
+	let child_delta = storage.children_default.iter().map(|(_storage_key, child_content)| {
 		(
 			&child_content.child_info,
 			child_content.data.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref()))),
 		)
 	});
-	let top_iter = dummy.top.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref())));
-	let (state_root, _) = state.full_storage_root(top_iter, child_delta);
-	state_root
+	let top_iter = storage.top.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref())));
+	state.full_storage_root(top_iter, child_delta)
 }
 
 fn drain_into_storage<H: Hasher>(state: &impl StateMachineBackend<H>) -> Storage {

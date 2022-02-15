@@ -24,6 +24,7 @@ use sp_core::{
 	traits::{CodeExecutor, ReadRuntimeVersion},
 	Pair,
 };
+use sp_inherents::InherentDataProvider;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc};
 use builder::{Builder,Operation};
@@ -131,9 +132,9 @@ where
 		todo!()
 	}
 
-	pub fn build_block<RelayBlock, RelayRtApi, RelayExec, RelayB, RelayC>(
+	pub fn build_block<RelayBlock, RelayRtApi, RelayExec, RelayI, RelayB, RelayC>(
 		&mut self,
-		relay: &mut RelaychainBuilder<RelayBlock, RelayRtApi, RelayExec, RelayB, RelayC>,
+		relay: &mut RelaychainBuilder<RelayBlock, RelayRtApi, RelayExec, RelayI, RelayB, RelayC>,
 	) -> &mut Self
 	where
 		RelayB: BackendT<RelayBlock>,
@@ -152,6 +153,7 @@ where
 			+ HeaderBackend<RelayBlock>
 			+ BlockImport<RelayBlock>
 			+ CallApiAt<RelayBlock>,
+		RelayI: InherentDataProvider
 	{
 		// TODO: Builds a block in companion with the relay-chain. This should be used
 		//       in order to actually test xcms, block production, etc.
@@ -200,6 +202,7 @@ pub struct RelaychainBuilder<
 	Block,
 	RtApi,
 	Exec,
+	I,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > where
@@ -218,11 +221,13 @@ pub struct RelaychainBuilder<
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
 		+ CallApiAt<Block>,
+	I: InherentDataProvider
 {
 	builder: Builder<Block, RtApi, Exec, B, C>,
+	_phantom: PhantomData<I>
 }
 
-impl<Block, RtApi, Exec, B, C> RelaychainBuilder<Block, RtApi, Exec, B, C>
+impl<Block, RtApi, Exec, I, B, C> RelaychainBuilder<Block, RtApi, Exec, I, B, C>
 where
 	B: BackendT<Block>,
 	Block: BlockT,
@@ -239,10 +244,12 @@ where
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
 		+ CallApiAt<Block>,
+	I: InherentDataProvider
 {
 	pub fn new(backend: Arc<B>, client: C) -> Self {
 		Self {
-			builder: Builder::new(backend, client)
+			builder: Builder::new(backend, client),
+			_phantom: Default::default()
 		}
 	}
 
@@ -282,6 +289,12 @@ where
 		// TODO: build a block with the given caches without the relay-chain.
 		todo!()
 	}
+
+	/*
+	pub fn build_block_with_limits(&mut self, weight: , time: ) -> &mut Self {
+		todo!()
+	}
+	*/
 
 	pub fn with_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, String> {
 		self.builder.with_state(Operation::DryRun, None, exec)

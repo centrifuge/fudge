@@ -21,11 +21,10 @@ use crate::provider::EnvProvider;
 use tokio::runtime::{Handle};
 use sc_executor::sp_wasm_interface::HostFunctions;
 use frame_benchmarking::account;
+use sp_timestamp::InherentDataProvider;
 
 #[tokio::test]
-async fn dummy_test() {
-	//let runtime = Runtime::new().unwrap();
-	/// TODO: Might need to append here from runtime, as there is no dispatch.
+async fn mutating_genesis_works() {
 	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
@@ -60,27 +59,22 @@ async fn dummy_test() {
 			Box::new(manager.spawn_handle())
 		);
 
-	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
+	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, InherentDataProvider, _, _>::new(backend, client);
 
-	let (data, data1) = builder.with_mut_state(|| {
-
-		let data = frame_system::Account::<Runtime>::get(AccountId32::default());
-
-		let res = polkadot_runtime::Balances::transfer(
+	let (send_data_pre, recv_data_pre) = builder.with_mut_state(|| {
+		polkadot_runtime::Balances::transfer(
 			polkadot_runtime::Origin::signed(AccountId32::default()),
 			MultiAddress::Id(account("test", 0, 0)),
 			1_000_000_000_000u128,
-		);
+		).unwrap();
 
 		(frame_system::Account::<Runtime>::get(AccountId32::default()), frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)))
 	}).unwrap();
 
-	let (data2, data3) = builder.with_mut_state(|| {
-
+	let (send_data_post, recv_data_post) = builder.with_state(|| {
 		(frame_system::Account::<Runtime>::get(AccountId32::default()), frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)))
 	}).unwrap();
 
-
-
-	let x = 0;
+	assert_eq!(send_data_pre, send_data_post);
+	assert_eq!(recv_data_pre, recv_data_post);
 }
