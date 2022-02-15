@@ -9,8 +9,8 @@ extern crate sp_runtime;
 
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
-// This file is part of the Centrifuge chain project.
-// Centrifuge is free software: you can redistribute it and/or modify
+// This file is part of the FUDGE project.
+// FUDGE is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version (see http://www.gnu.org/licenses).
@@ -18,6 +18,7 @@ extern crate sp_runtime;
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
 use crate::provider::ExternalitiesProvider;
 use sc_client_api::{
 	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, CallExecutor, HeaderBackend,
@@ -29,40 +30,204 @@ use sc_executor::RuntimeVersionOf;
 use sc_service::{LocalCallExecutor, TFullClient};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError};
+use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError, Environment};
 use sp_core::{traits::{CodeExecutor, ReadRuntimeVersion}, Pair, Hasher};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT,};
 use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use std::fmt::{Debug, Display, Formatter};
+use std::future::Future;
+use std::pin::Pin;
+use codec::Encode;
+use frame_support::dispatch::TransactionPriority;
+use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
+use frame_support::sp_runtime::traits::NumberFor;
+use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
 use sp_state_machine::Backend as StateMachineBackend;
 use sp_std::time::Duration;
 
 use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
 use super::{traits::AuthorityProvider, Bytes, StoragePair};
-use self::sp_consensus::InherentData;
+use self::sp_consensus::{InherentData, Proposal, Proposer};
 use self::sp_runtime::{Digest, DigestItem};
 use self::sp_runtime::traits::{DigestFor, Header as HeaderT, One, Zero, Hash as HashT};
 use sp_core::storage::{ChildInfo, well_known_keys};
 use sp_storage::Storage;
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
 use self::sc_client_api::{BlockImportOperation, NewBlockState};
+use self::sc_consensus::StateAction;
+use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
 
 pub enum Operation {
 	Commit,
 	DryRun,
 }
 
+#[derive(Clone)]
+pub struct SimplePool<Block: BlockT> {
+	pool: Vec<Block::Extrinsic>
+}
+
+impl<Block: BlockT> SimplePool<Block> {
+	fn new() -> Self {
+		SimplePool {
+			pool: Vec::new()
+		}
+	}
+
+	fn push(&mut self, xt: Block::Extrinsic) {
+		self.pool.push(xt)
+	}
+}
+
+pub struct ExtWrapper<Block: BlockT>(Block::Extrinsic);
+
+impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
+	type Transaction = Block::Extrinsic;
+	type Hash = Block::Hash;
+
+	fn data(&self) -> &Self::Transaction {
+		&self.0
+	}
+
+	fn hash(&self) -> &Self::Hash {
+		todo!()
+	}
+
+	fn priority(&self) -> &TransactionPriority {
+		todo!()
+	}
+
+	fn longevity(&self) -> &TransactionLongevity {
+		todo!()
+	}
+
+	fn requires(&self) -> &[TransactionTag] {
+		todo!()
+	}
+
+	fn provides(&self) -> &[TransactionTag] {
+		todo!()
+	}
+
+	fn is_propagable(&self) -> bool {
+		todo!()
+	}
+}
+
+#[derive(Debug)]
+pub enum Error {
+	Default
+}
+
+impl From<sc_transaction_pool_api::error::Error> for Error {
+	fn from(_: sc_transaction_pool_api::error::Error) -> Self {
+		todo!()
+	}
+}
+
+impl Display for Error {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		todo!()
+	}
+}
+
+impl std::error::Error for Error {
+
+}
+
+impl sc_transaction_pool_api::error::IntoPoolError for Error {
+
+}
+
+
+impl<Block: BlockT> Iterator for SimplePool<Block> {
+	type Item = Arc<ExtWrapper<Block>>;
+
+	fn next(&mut self) -> Option<Self::Item> {
+		self.pool.pop().and_then(|xt| Some(Arc::new(ExtWrapper(xt))))
+	}
+}
+
+impl<Block: BlockT> ReadyTransactions for SimplePool<Block> {
+	fn report_invalid(&mut self, _tx: &Self::Item) {
+		todo!()
+	}
+}
+
+impl<Block: BlockT> TransactionPool for SimplePool<Block> {
+	type Block = Block;
+	type Hash = Block::Hash;
+	type InPoolTransaction = ExtWrapper<Block>;
+	type Error = Error;
+
+	fn submit_at(&self, at: &BlockId<Self::Block>, source: TransactionSource, xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>) -> sc_transaction_pool_api::PoolFuture<Vec<Result<sc_transaction_pool_api::TxHash<Self>, Self::Error>>, Self::Error> {
+		todo!()
+	}
+
+	fn submit_one(&self, at: &BlockId<Self::Block>, source: TransactionSource, xt: sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
+		todo!()
+	}
+
+	fn submit_and_watch(&self, at: &BlockId<Self::Block>, source: TransactionSource, xt: sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::PoolFuture<Pin<Box<sc_transaction_pool_api::TransactionStatusStreamFor<Self>>>, Self::Error> {
+		todo!()
+	}
+
+	fn ready_at(&self, at: NumberFor<Self::Block>) -> Pin<Box<dyn Future<Output=Box<dyn sc_transaction_pool_api::ReadyTransactions<Item=Arc<Self::InPoolTransaction>> + Send>> + Send>> {
+		let i = Box::new(std::iter::empty::<Arc<Self::InPoolTransaction>>()) as Box<(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>> + std::marker::Send + 'static)>;
+		Box::pin(
+				async {
+						i
+
+				}
+			)
+	}
+
+	fn ready(&self) -> Box<dyn sc_transaction_pool_api::ReadyTransactions<Item=Arc<Self::InPoolTransaction>> + Send> {
+		Box::new(self.clone())
+	}
+
+	fn remove_invalid(&self, hashes: &[sc_transaction_pool_api::TxHash<Self>]) -> Vec<Arc<Self::InPoolTransaction>> {
+		Vec::new()
+	}
+
+	fn status(&self) -> sc_transaction_pool_api::PoolStatus {
+		PoolStatus{
+			ready: self.pool.len(),
+			ready_bytes: self.pool.iter().fold(0, |weight, xt|  weight + xt.size_hint()),
+			future: 0,
+			future_bytes: 0
+		}
+	}
+
+	fn import_notification_stream(&self) -> sc_transaction_pool_api::ImportNotificationStream<sc_transaction_pool_api::TxHash<Self>> {
+		todo!()
+	}
+
+	fn on_broadcasted(&self, propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>) {
+		todo!()
+	}
+
+	fn hash_of(&self, xt: &sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::TxHash<Self> {
+		todo!()
+	}
+
+	fn ready_transaction(&self, hash: &sc_transaction_pool_api::TxHash<Self>) -> Option<Arc<Self::InPoolTransaction>> {
+		todo!()
+	}
+}
+
 pub struct TransitionCache<Block: BlockT> {
-	extrinsics: Vec<Block::Extrinsic>,
+	extrinsics: Arc<SimplePool<Block>>,
 	auxilliary: Vec<StoragePair>,
 }
 
 pub struct Builder<Block, RtApi, Exec, B = Backend<Block>, C = TFullClient<Block, RtApi, Exec>>
 where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -72,22 +237,22 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
 	backend: Arc<B>,
 	client: Arc<C>,
 	cache: TransitionCache<Block>,
-	blocks: Vec<BlockImportParams<Block, <C as BlockImport<Block>>::Transaction>>,
 	_phantom: PhantomData<(Block, RtApi, Exec)>,
 }
 
 impl<Block, RtApi, Exec, B, C> Builder<Block, RtApi, Exec, B, C>
 where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -97,17 +262,21 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new(backend: Arc<B>, client: C) -> Self {
+	pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
 		Builder {
 			backend: backend,
-			client: Arc::new(client),
-			cache: TransitionCache { extrinsics: Vec::new(), auxilliary: Vec::new() },
-			blocks: Vec::new(),
+			client:client,
+			cache: TransitionCache { extrinsics: Arc::new(SimplePool::new()), auxilliary: Vec::new() },
 			_phantom: PhantomData::default(),
 		}
+	}
+
+	pub fn latest_block(&self) -> Block::Hash {
+		self.client.info().best_hash
 	}
 
 	pub fn with_state<R>(
@@ -218,7 +387,8 @@ where
 
 	/// Caches a given extrinsic in the builder. The extrinsic will be
 	pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> &mut Self {
-		self.cache.extrinsics.push(ext);
+		// TODO: Handle this with mutex
+		//self.cache.extrinsics.push(ext);
 		self
 	}
 
@@ -226,9 +396,27 @@ where
 	///
 	/// Multiple calls of this will result in building multiple blocks, where each block
 	/// is the child of the previously build block (or the last block of the fetched state).
-	pub fn build_block(&mut self, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> &mut Self {
-		todo!()
+	pub fn build_block(&mut self, handle: SpawnTaskHandle, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> Block {
+		let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(handle, self.client.clone(), self.cache.extrinsics.clone(), None, None,);
+		let header = self.backend.blockchain().header(BlockId::Hash(self.latest_block())).ok().flatten().expect("State is available. qed");
+		let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
+		let proposal = futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap();
+		let Proposal {
+			block,
+			proof,
+			storage_changes
+		} = proposal;
 
+		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, block.clone().deconstruct().0);
+		params.body =  Some(block.clone().deconstruct().1);
+		params.finalized = true;
+		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+
+		let mut client = self.client.as_ref() as *const C as *mut C;
+		let client = unsafe {&mut *(client)};
+		let res = futures::executor::block_on(client.import_block(params,Default::default())).unwrap();
+
+		block
 		// TODO: Uses the cached transitions and extrinsics and creates a BlockImportParams struct
 
 		// TODO: Rough overview

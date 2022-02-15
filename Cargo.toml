@@ -1,4 +1,6 @@
 [workspace]
 members = [
-    "core"
+    "core",
+    "utils",
+    "integration"
 ]

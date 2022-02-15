@@ -1,7 +1,7 @@
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
-// This file is part of the Centrifuge chain project.
-// Centrifuge is free software: you can redistribute it and/or modify
+// This file is part of the FUDGE project.
+// FUDGE is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version (see http://www.gnu.org/licenses).
@@ -9,13 +9,15 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
+use frame_support::traits::Get;
 use sc_client_api::{
 	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, HeaderBackend,
 	UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_executor::RuntimeVersionOf;
-use sc_service::{Configuration, TFullClient};
+use sc_service::{Configuration, SpawnTaskHandle, TFullClient};
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -24,9 +26,10 @@ use sp_core::{
 	traits::{CodeExecutor, ReadRuntimeVersion},
 	Pair,
 };
-use sp_inherents::InherentDataProvider;
+use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc};
+use sp_std::time::Duration;
 use builder::{Builder,Operation};
 
 mod builder;
@@ -34,10 +37,10 @@ mod provider;
 #[cfg(test)]
 mod tests;
 mod traits;
+pub mod inherent_provider;
 
 pub use provider::EnvProvider;
 pub use traits::AuthorityProvider;
-
 pub type Bytes = Vec<u8>;
 
 #[derive(Clone, Debug)]
@@ -53,11 +56,11 @@ pub struct ParachainBuilder<
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -67,18 +70,19 @@ pub struct ParachainBuilder<
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
-	builder: Builder<Block, RtApi, Exec, B, C>
+	builder: Builder<Block, RtApi, Exec, B, C>,
 }
 
 impl<Block, RtApi, Exec, B, C> ParachainBuilder<Block, RtApi, Exec, B, C>
 where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -88,11 +92,12 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
-	pub fn new(backend: Arc<B>, client: C) -> Self {
+	pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
 		Self {
-			builder: Builder::new(backend, client)
+			builder: Builder::new(backend, client),
 		}
 	}
 
@@ -132,16 +137,18 @@ where
 		todo!()
 	}
 
-	pub fn build_block<RelayBlock, RelayRtApi, RelayExec, RelayI, RelayB, RelayC>(
+	pub fn build_block<CID, CidArgs, RelayBlock, RelayRtApi, RelayExec, RelayCID, RelayCidArgs, RelayB, RelayC>(
 		&mut self,
-		relay: &mut RelaychainBuilder<RelayBlock, RelayRtApi, RelayExec, RelayI, RelayB, RelayC>,
+		cid: CID,
+		relay: &mut RelaychainBuilder<RelayBlock, RelayRtApi, RelayExec, RelayB, RelayC>,
+		relay_cid: RelayCID,
 	) -> &mut Self
 	where
-		RelayB: BackendT<RelayBlock>,
+		RelayB: BackendT<RelayBlock> + 'static,
 		RelayBlock: BlockT,
 		RelayRtApi: ConstructRuntimeApi<RelayBlock, RelayC> + Send,
 		RelayExec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-		RelayC::Api: BlockBuilder<RelayBlock> + ApiExt<RelayBlock>,
+		RelayC::Api: BlockBuilder<RelayBlock> + ApiExt<RelayBlock, StateBackend = RelayB::State>,
 		RelayC: 'static
 			+ ProvideRuntimeApi<RelayBlock>
 			+ BlockOf
@@ -152,8 +159,12 @@ where
 			+ UsageProvider<RelayBlock>
 			+ HeaderBackend<RelayBlock>
 			+ BlockImport<RelayBlock>
-			+ CallApiAt<RelayBlock>,
-		RelayI: InherentDataProvider
+			+ CallApiAt<RelayBlock>
+			+ sc_block_builder::BlockBuilderProvider<RelayB, RelayBlock, RelayC>,
+		RelayCID: CreateInherentDataProviders<RelayBlock, RelayCidArgs>,
+		RelayCidArgs: Get<RelayCidArgs>,
+		CID: CreateInherentDataProviders<Block, CidArgs>,
+		CidArgs: Get<CidArgs>
 	{
 		// TODO: Builds a block in companion with the relay-chain. This should be used
 		//       in order to actually test xcms, block production, etc.
@@ -202,15 +213,14 @@ pub struct RelaychainBuilder<
 	Block,
 	RtApi,
 	Exec,
-	I,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -220,20 +230,20 @@ pub struct RelaychainBuilder<
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
-	I: InherentDataProvider
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
 	builder: Builder<Block, RtApi, Exec, B, C>,
-	_phantom: PhantomData<I>
+	blocks: Vec<Block>
 }
 
-impl<Block, RtApi, Exec, I, B, C> RelaychainBuilder<Block, RtApi, Exec, I, B, C>
+impl<Block, RtApi, Exec, B, C> RelaychainBuilder<Block, RtApi, Exec, B, C>
 where
-	B: BackendT<Block>,
+	B: BackendT<Block> + 'static,
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block>,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -243,13 +253,13 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>,
-	I: InherentDataProvider
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
-	pub fn new(backend: Arc<B>, client: C) -> Self {
+	pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
 		Self {
 			builder: Builder::new(backend, client),
-			_phantom: Default::default()
+			blocks: Vec::new()
 		}
 	}
 
@@ -285,13 +295,15 @@ where
 		todo!()
 	}
 
-	pub fn build_block(&mut self) -> &mut Self {
-		// TODO: build a block with the given caches without the relay-chain.
-		todo!()
+	pub fn build_block<CID: CreateInherentDataProviders<Block, CidArgs>, CidArgs: Get<CidArgs>>(&mut self, cid: CID, handle: SpawnTaskHandle) -> &mut Self {
+		let provider = futures::executor::block_on(cid.create_inherent_data_providers(self.builder.latest_block(), CidArgs::get())).unwrap();
+		let block = self.builder.build_block(handle, provider.create_inherent_data().unwrap(), Default::default(), Duration::from_secs(60), 6_000_000);
+		self.blocks.push(block);
+		self
 	}
 
 	/*
-	pub fn build_block_with_limits(&mut self, weight: , time: ) -> &mut Self {
+	pub fn build_block_with_limits<CID: CreateInherentDataProviders<Block, CidArgs>, CidArgs: Get<CidArgs>>(&mut self, cid: CID weight: Duration, limit: usize ) -> &mut Self {
 		todo!()
 	}
 	*/
