@@ -11,6 +11,7 @@
 // GNU General Public License for more details.
 
 
+use std::path::PathBuf;
 use sc_executor::RuntimeVersionOf;
 use sc_service::{ChainSpec, ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TaskManager, TFullBackend, TFullCallExecutor, TFullClient};
 use sc_service::config::ExecutionStrategies;
@@ -77,9 +78,11 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
         }
     }
 
-    pub fn from_db() -> Self {
-        // TODO: This should allow to start a client from a given database. Without passing the whole configuration as above
-        todo!()
+    pub fn from_db(path: PathBuf) -> Self {
+        Self {
+            state: StateProvider::from_db(path),
+            _phantom: Default::default()
+        }
     }
 
     pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Self {
@@ -116,7 +119,7 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
     fn init(self, exec: Exec, handle: Box<dyn SpawnNamed>, keystore: Option<SyncCryptoStorePtr>, config: Option<ClientConfig<Block>>) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
         let backend = self.state.backend();
         let mut config = config.clone().unwrap_or(Default::default());
-        config.no_genesis = true;
+        //config.no_genesis = true;
         // TODO: Handle unwrap
         let executor = sc_service::client::LocalCallExecutor::new(
             backend.clone(),

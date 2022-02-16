@@ -14,6 +14,7 @@ futures = "0.3.19"
 async-trait = "0.1.52"
 tokio = { version = "1.15", features = ["macros"] }
 
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.12"}
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
@@ -24,16 +25,20 @@ sc-executor = { git = "https://github.com/paritytech/substrate", default-feature
 sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+
 polkadot-node-core-parachains-inherent = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
+polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 
 
 fudge-core = { path = "../core"}
+fudge-utils = { path = "../utils"}
 
 [features]
 default = ["std"]
@@ -46,5 +51,7 @@ std = [
     "pallet-balances/std",
     "sp-io/std",
     "sp-runtime/std",
-    "sp-storage/std"
+    "sp-storage/std",
+    "pallet-transaction-payment/std",
+    "sp-core/std"
 ]

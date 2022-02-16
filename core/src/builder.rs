@@ -387,8 +387,10 @@ where
 
 	/// Caches a given extrinsic in the builder. The extrinsic will be
 	pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> &mut Self {
-		// TODO: Handle this with mutex
-		//self.cache.extrinsics.push(ext);
+		// TODO: Handle this with mutex instead of this hack
+		let pt = self.cache.extrinsics.as_ref() as *const SimplePool<Block> as *mut SimplePool<Block>;
+		let pool = unsafe{&mut *(pt)};
+		pool.push(ext);
 		self
 	}
 
@@ -412,25 +414,17 @@ where
 		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
+		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
+		//       Check if I can put the client into a Mutex
 		let mut client = self.client.as_ref() as *const C as *mut C;
 		let client = unsafe {&mut *(client)};
 		let res = futures::executor::block_on(client.import_block(params,Default::default())).unwrap();
 
 		block
-		// TODO: Uses the cached transitions and extrinsics and creates a BlockImportParams struct
 
-		// TODO: Rough overview
-		//   - Create the `BlockImportParams` struct E.g
-		//		// NOTE: Is this the correct BlockOrigin? We want it to be stored as "checked"
-		//     let mut import = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
-		//     import.body = Some(self.cache.extrinsics);
-		//     import.aux = self.cache.auxilliary;
-		//     import.finalized = true;
-		//     import.fork_choice = Some(ForkChoiceStrategy::Custom(true));
-		//
-		//      - We need to pass the new changes via `Aux`-field
-		// 	 - Stores struct in builder
-		//   - Cleans up TransitionCache
+		// TODO: -pool implementation correctly
+		//       - auxiliary data (Check if those even go into state?)
+		//           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
 	}
 }
 

@@ -10,6 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::path::PathBuf;
 use sc_client_api::{AuxStore, Backend, BlockImportOperation};
 use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
 use sc_service::PruningMode;
@@ -34,13 +35,7 @@ where
 	Block: BlockT,
 	B: Backend<Block>,
 {
-	pub fn from_db() -> Self {
-		todo!()
-	}
 
-	pub fn from_spec() -> Self {
-		todo!()
-	}
 
 	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
 		let Storage {
@@ -64,6 +59,30 @@ impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
+	pub fn from_db(path: PathBuf) -> Self {
+		// TODO: Maybe allow to set these settings
+		let settings = DatabaseSettings {
+			state_cache_size: 0,
+			state_cache_child_ratio: None,
+			state_pruning: PruningMode::ArchiveAll,
+			source: DatabaseSource::Auto{
+				paritydb_path: path.clone(),
+				rocksdb_path: path,
+				cache_size: 0
+			},
+			keep_blocks: KeepBlocks::All,
+			transaction_storage: TransactionStorageMode::BlockBody,
+		};
+
+		let backend = Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ()).unwrap());
+
+		Self { backend, pseudo_genesis: Storage::default(), _phantom: Default::default() }
+	}
+
+	pub fn from_spec() -> Self {
+		todo!()
+	}
+
 	pub fn from_storage(storage: Storage) -> Self {
 		let mut provider = StateProvider::empty_default(None);
 		provider.insert_storage(storage);

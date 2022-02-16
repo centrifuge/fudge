@@ -302,6 +302,10 @@ where
 		self
 	}
 
+	pub fn blocks(&self) -> Vec<Block> {
+		self.blocks.clone()
+	}
+
 	/*
 	pub fn build_block_with_limits<CID: CreateInherentDataProviders<Block, CidArgs>, CidArgs: Get<CidArgs>>(&mut self, cid: CID weight: Duration, limit: usize ) -> &mut Self {
 		todo!()

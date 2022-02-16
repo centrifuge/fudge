@@ -27,11 +27,12 @@ pub type Moment = u64;
 pub struct FakeTimestamp {
     instance: Instance,
     start: Moment,
-    ticks: Ticks
+    ticks: Ticks,
+    delta: Moment
 }
 
 impl FakeTimestamp {
-    pub fn new(instance: Instance, start: Option<Moment>) -> Self {
+    pub fn new(instance: Instance, delta: Moment, start: Option<Moment>) -> Self {
         let instances = unsafe {
             if INSTANCES.is_null() {
                 let pt = Box::into_raw(Box::new(BTreeMap::<Instance, Ticks>::new()));
@@ -58,11 +59,13 @@ impl FakeTimestamp {
         FakeTimestamp {
             instance,
             start,
-            ticks
+            ticks,
+            delta
         }
     }
 
     pub fn current_time(&self) -> sp_timestamp::Timestamp {
+        //let timestamp = self.start + (self.delta * self.ticks);
         let timestamp = self.start * self.ticks;
 
         let instances = unsafe {

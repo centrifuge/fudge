@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 use codec::{Codec, Encode};
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::generic::{SignedPayload, UncheckedExtrinsic};
-use sp_runtime::{CryptoTypeId, KeyTypeId, MultiSignature};
+use sp_runtime::{CryptoTypeId, KeyTypeId, MultiAddress, MultiSignature};
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use sp_runtime::traits::SignedExtension;
 use sp_runtime::transaction_validity::TransactionValidity;
@@ -38,13 +38,13 @@ impl Signer {
         }
     }
 
-    pub fn signed_ext<Address: Codec + Clone, Call: Encode + Clone, Extra: SignedExtension<AccountId = Address> + Clone>(&self, call: Call, signed: Address, extra: Extra) -> Result<UncheckedExtrinsic<Address, Call, MultiSignature, Extra>, ()> {
+    pub fn signed_ext<Address: Codec + Clone, Call: Encode + Clone, Extra: SignedExtension + Clone>(&self, call: Call, signed: Address, extra: Extra) -> Result<UncheckedExtrinsic<Address, Call, MultiSignature, Extra>, ()> {
         let sig = self.signature(call.clone(), signed.clone(), extra.clone()).map_err(|_| ())?;
         // TODO; Only Sr25519 currently supported
         Ok(UncheckedExtrinsic::new_signed(call, signed, MultiSignature::Sr25519(sr25519::Signature::try_from(sig.as_slice()).unwrap()), extra ))
     }
 
-    pub fn signature<Address: Codec, Call: Encode, Extra: SignedExtension<AccountId = Address>>(&self, call: Call, signer: Address, extra: Extra) -> Result<Vec<u8>, ()> {
+    pub fn signature<Address: Codec, Call: Encode, Extra: SignedExtension>(&self, call: Call, signer: Address, extra: Extra) -> Result<Vec<u8>, ()> {
         let payload = SignedPayload::new(call, extra).map_err(|_| ())?;
         let crypto_pair = CryptoTypePublicPair(self.crypto, signer.encode());
         SyncCryptoStore::sign_with(&(*self.key_store), self.key_type, &crypto_pair, payload.encode().as_slice()).map(|sig| sig.unwrap()).map_err(|_| ())
