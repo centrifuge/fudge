@@ -15,21 +15,20 @@
 
 use frame_support::traits::Get;
 use sc_client_api::{
-    blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, HeaderBackend,
-    UsageProvider,
+	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_client_db::Backend;
+use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{Configuration, SpawnTaskHandle, TFullClient};
-use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError};
 use sp_core::{
-    traits::{CodeExecutor, ReadRuntimeVersion},
-    Pair,
+	traits::{CodeExecutor, ReadRuntimeVersion},
+	Pair,
 };
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-use sp_std::{marker::PhantomData, sync::Arc};
 use sp_std::time::Duration;
+use sp_std::{marker::PhantomData, sync::Arc};

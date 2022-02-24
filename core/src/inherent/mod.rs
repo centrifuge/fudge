@@ -14,22 +14,20 @@ use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::traits::Block as BlockT;
 use sp_std::marker::PhantomData;
 
-pub use timestamp::Inherent as FudgeInherentTimestamp;
 pub use para_parachain::Inherent as FudgeInherentParaParachain;
 pub use relay_parachain::Inherent as FudgeInherentRelayParachain;
+pub use timestamp::Inherent as FudgeInherentTimestamp;
 
-mod timestamp;
 mod para_parachain;
 mod relay_parachain;
+mod timestamp;
 
 pub trait ArgsProvider<ExtraArgs> {
-    fn extra() -> ExtraArgs;
+	fn extra() -> ExtraArgs;
 }
 
 impl ArgsProvider<()> for () {
-    fn extra() -> () {
-        ()
-    }
+	fn extra() -> () {
+		()
+	}
 }
-
-

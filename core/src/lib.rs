@@ -11,17 +11,15 @@
 // GNU General Public License for more details.
 
 // Library exports
+pub use builder::{parachain::ParachainBuilder, stand_alone::StandAloneBuilder};
 pub use provider::EnvProvider;
-pub use types::{
-	Bytes, StoragePair
-};
-pub use builder::{stand_alone::StandAloneBuilder, parachain::ParachainBuilder};
+pub use types::{Bytes, StoragePair};
 
 mod builder;
+mod inherent;
 mod provider;
 #[cfg(test)]
 mod tests;
-mod inherent;
 
 mod types {
 	pub type Bytes = Vec<u8>;
@@ -36,7 +34,6 @@ mod types {
 pub mod traits {
 	///! myChain traits and possible default implementations
 	use super::StoragePair;
-
 
 	/// A unification trait that must be super trait of all
 	/// providers that inject keys, values
@@ -78,5 +75,4 @@ pub mod traits {
 			Vec::new()
 		}
 	}
-
 }

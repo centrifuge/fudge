@@ -10,13 +10,15 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-
 use sp_api::{BlockT, NumberFor};
 use sp_core::Hasher;
-use sp_runtime::traits::Header;
-use sp_state_machine::{Backend, ChangesTrieBlockNumber, Ext, InMemoryChangesTrieStorage, OverlayedChanges, StorageChanges, StorageTransactionCache};
-use std::panic::{AssertUnwindSafe, UnwindSafe};
 use sp_externalities::Externalities;
+use sp_runtime::traits::Header;
+use sp_state_machine::{
+	Backend, ChangesTrieBlockNumber, Ext, InMemoryChangesTrieStorage, OverlayedChanges,
+	StorageChanges, StorageTransactionCache,
+};
+use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 pub struct ExternalitiesProvider<'a, H, Block, B>
 where
@@ -50,7 +52,13 @@ where
 
 	/// Get externalities implementation.
 	pub fn ext(&mut self) -> Ext<H, NumberFor<Block>, B> {
-		Ext::new(&mut self.overlay, &mut self.storage_transaction_cache, &self.backend, None, None)
+		Ext::new(
+			&mut self.overlay,
+			&mut self.storage_transaction_cache,
+			&self.backend,
+			None,
+			None,
+		)
 	}
 	/*
 	/// Create a new instance of `TestExternalities` with storage.
@@ -151,8 +159,13 @@ where
 		sp_externalities::set_and_run_with_externalities(&mut ext, execute)
 	}
 
-	pub fn execute_with_mut<R>(&mut self, execute: impl FnOnce() -> R) -> (R, StorageChanges<B::Transaction, H, NumberFor<Block>>) {
-		let parent_hash = self.overlay.storage_root(self.backend, &mut self.storage_transaction_cache);
+	pub fn execute_with_mut<R>(
+		&mut self,
+		execute: impl FnOnce() -> R,
+	) -> (R, StorageChanges<B::Transaction, H, NumberFor<Block>>) {
+		let parent_hash = self
+			.overlay
+			.storage_root(self.backend, &mut self.storage_transaction_cache);
 
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
@@ -160,7 +173,17 @@ where
 		// TODO: Handle unwrap
 		ext.storage_commit_transaction().unwrap();
 
-		(r, self.overlay.drain_storage_changes::<B, H, NumberFor<Block>>(self.backend, None, parent_hash, &mut self.storage_transaction_cache).unwrap())
+		(
+			r,
+			self.overlay
+				.drain_storage_changes::<B, H, NumberFor<Block>>(
+					self.backend,
+					None,
+					parent_hash,
+					&mut self.storage_transaction_cache,
+				)
+				.unwrap(),
+		)
 	}
 
 	/// Execute the given closure while `self` is set as externalities.

@@ -10,17 +10,17 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::path::PathBuf;
 use sc_client_api::{AuxStore, Backend, BlockImportOperation};
 use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
 use sc_service::PruningMode;
 use sp_api::BlockId;
+use sp_core::storage::well_known_keys::CODE;
 use sp_database::{Database, MemDb};
 use sp_runtime::traits::Block as BlockT;
-use sp_storage::Storage;
-use sp_std::{marker::PhantomData, sync::Arc};
-use sp_core::storage::well_known_keys::CODE;
 use sp_runtime::BuildStorage;
+use sp_std::{marker::PhantomData, sync::Arc};
+use sp_storage::Storage;
+use std::path::PathBuf;
 
 pub const CANONICALIZATION_DELAY: u64 = 4096;
 
@@ -35,12 +35,10 @@ where
 	Block: BlockT,
 	B: Backend<Block>,
 {
-
-
 	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
 		let Storage {
 			top,
-			children_default
+			children_default,
 		} = storage;
 
 		self.pseudo_genesis.top.extend(top.into_iter());
@@ -52,7 +50,6 @@ where
 	pub fn backend(&self) -> Arc<B> {
 		self.backend.clone()
 	}
-
 }
 
 impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
@@ -65,17 +62,25 @@ where
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
 			state_pruning: PruningMode::ArchiveAll,
-			source: DatabaseSource::RocksDb{
+			source: DatabaseSource::RocksDb {
 				path: path.clone(),
-				cache_size: 0
+				cache_size: 0,
 			},
 			keep_blocks: KeepBlocks::All,
 			transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
-		let backend = Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ()).unwrap());
+		let backend = Arc::new(
+			sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY)
+				.map_err(|_| ())
+				.unwrap(),
+		);
 
-		Self { backend, pseudo_genesis: Storage::default(), _phantom: Default::default() }
+		Self {
+			backend,
+			pseudo_genesis: Storage::default(),
+			_phantom: Default::default(),
+		}
 	}
 
 	pub fn from_spec() -> Self {
@@ -112,11 +117,15 @@ where
 			transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
-		let backend = Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
+		let backend =
+			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
 
-		Ok(Self { backend, pseudo_genesis: Storage::default(), _phantom: Default::default() })
+		Ok(Self {
+			backend,
+			pseudo_genesis: Storage::default(),
+			_phantom: Default::default(),
+		})
 	}
-
 }
 
 impl<B, Block> BuildStorage for StateProvider<B, Block>

@@ -20,398 +20,518 @@ extern crate sp_runtime;
 // GNU General Public License for more details.
 
 use crate::provider::ExternalitiesProvider;
+use codec::Encode;
+use frame_support::dispatch::TransactionPriority;
+use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
+use frame_support::sp_runtime::traits::NumberFor;
 use sc_client_api::{
-    blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, CallExecutor, HeaderBackend,
-    UsageProvider,
+	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, CallExecutor, HeaderBackend,
+	UsageProvider,
 };
 use sc_client_db::{Backend, DatabaseSettings, DatabaseSource, RefTrackingState};
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{LocalCallExecutor, TFullClient};
+use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError, Environment};
-use sp_core::{traits::{CodeExecutor, ReadRuntimeVersion}, Pair, Hasher};
-use sp_runtime::{generic::BlockId};
-use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use sp_consensus::{BlockOrigin, CanAuthorWith, Environment, Error as ConsensusError};
+use sp_core::{
+	traits::{CodeExecutor, ReadRuntimeVersion},
+	Hasher, Pair,
+};
+use sp_runtime::generic::BlockId;
+use sp_state_machine::{Backend as StateMachineBackend, StorageChanges, StorageProof};
+use sp_std::time::Duration;
 use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
-use codec::Encode;
-use frame_support::dispatch::TransactionPriority;
-use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
-use frame_support::sp_runtime::traits::NumberFor;
-use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
-use sp_state_machine::{Backend as StateMachineBackend, StorageChanges, StorageProof};
-use sp_std::time::Duration;
+use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
 
-use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
-use crate::{traits::AuthorityProvider, Bytes, StoragePair};
-use self::sp_consensus::{EnableProofRecording, InherentData, Proposal, Proposer};
-use self::sp_runtime::{Digest, DigestItem};
-use self::sp_runtime::traits::{DigestFor, Header as HeaderT, One, Zero, Hash as HashT, Block as BlockT};
-use sp_core::storage::{ChildInfo, well_known_keys};
-use sp_inherents::CreateInherentDataProviders;
-use sp_storage::Storage;
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
 use self::sc_client_api::{BlockImportOperation, NewBlockState};
 use self::sc_consensus::StateAction;
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
+use self::sp_consensus::{EnableProofRecording, InherentData, Proposal, Proposer};
+use self::sp_runtime::traits::{
+	Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT, One, Zero,
+};
+use self::sp_runtime::{Digest, DigestItem};
+use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
+use crate::{traits::AuthorityProvider, Bytes, StoragePair};
 use sc_client_api::backend::TransactionFor;
+use sp_core::storage::{well_known_keys, ChildInfo};
+use sp_inherents::CreateInherentDataProviders;
+use sp_storage::Storage;
 
 pub enum Operation {
-    Commit,
-    DryRun,
+	Commit,
+	DryRun,
 }
 
 #[derive(Clone)]
 pub struct SimplePool<Block: BlockT> {
-    pool: Vec<Block::Extrinsic>
+	pool: Vec<Block::Extrinsic>,
 }
 
 impl<Block: BlockT> SimplePool<Block> {
-    fn new() -> Self {
-        SimplePool {
-            pool: Vec::new()
-        }
-    }
+	fn new() -> Self {
+		SimplePool { pool: Vec::new() }
+	}
 
-    fn push(&mut self, xt: Block::Extrinsic) {
-        self.pool.push(xt)
-    }
+	fn push(&mut self, xt: Block::Extrinsic) {
+		self.pool.push(xt)
+	}
 }
 
-pub struct ExtWrapper<Block: BlockT>{
-    xt: Block::Extrinsic,
+pub struct ExtWrapper<Block: BlockT> {
+	xt: Block::Extrinsic,
 }
 
 impl<Block: BlockT> ExtWrapper<Block> {
-    pub fn new(xt: Block::Extrinsic) -> Self {
-        Self {
-            xt
-        }
-    }
+	pub fn new(xt: Block::Extrinsic) -> Self {
+		Self { xt }
+	}
 }
 
 impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
-    type Transaction = Block::Extrinsic;
-    type Hash = Block::Hash;
+	type Transaction = Block::Extrinsic;
+	type Hash = Block::Hash;
 
-    fn data(&self) -> &Self::Transaction {
-        &self.xt
-    }
+	fn data(&self) -> &Self::Transaction {
+		&self.xt
+	}
 
-    fn hash(&self) -> &Self::Hash {
-        todo!()
-    }
+	fn hash(&self) -> &Self::Hash {
+		todo!()
+	}
 
-    fn priority(&self) -> &TransactionPriority {
-        todo!()
-    }
+	fn priority(&self) -> &TransactionPriority {
+		todo!()
+	}
 
-    fn longevity(&self) -> &TransactionLongevity {
-        todo!()
-    }
+	fn longevity(&self) -> &TransactionLongevity {
+		todo!()
+	}
 
-    fn requires(&self) -> &[TransactionTag] {
-        todo!()
-    }
+	fn requires(&self) -> &[TransactionTag] {
+		todo!()
+	}
 
-    fn provides(&self) -> &[TransactionTag] {
-        todo!()
-    }
+	fn provides(&self) -> &[TransactionTag] {
+		todo!()
+	}
 
-    fn is_propagable(&self) -> bool {
-        todo!()
-    }
+	fn is_propagable(&self) -> bool {
+		todo!()
+	}
 }
 
 #[derive(Debug)]
 pub enum Error {
-    Default
+	Default,
 }
 
 impl From<sc_transaction_pool_api::error::Error> for Error {
-    fn from(_: sc_transaction_pool_api::error::Error) -> Self {
-        todo!()
-    }
+	fn from(_: sc_transaction_pool_api::error::Error) -> Self {
+		todo!()
+	}
 }
 
 impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		todo!()
+	}
 }
 
-impl std::error::Error for Error {
+impl std::error::Error for Error {}
 
-}
-
-impl sc_transaction_pool_api::error::IntoPoolError for Error {
-
-}
-
+impl sc_transaction_pool_api::error::IntoPoolError for Error {}
 
 impl<Block: BlockT> Iterator for SimplePool<Block> {
-    type Item = Arc<ExtWrapper<Block>>;
+	type Item = Arc<ExtWrapper<Block>>;
 
-    fn next(&mut self) -> Option<Self::Item> {
-        self.pool.pop().and_then(|xt| Some(Arc::new(ExtWrapper::new(xt))))
-    }
+	fn next(&mut self) -> Option<Self::Item> {
+		self.pool
+			.pop()
+			.and_then(|xt| Some(Arc::new(ExtWrapper::new(xt))))
+	}
 }
 
 impl<Block: BlockT> ReadyTransactions for SimplePool<Block> {
-    fn report_invalid(&mut self, _tx: &Self::Item) {
-        todo!()
-    }
+	fn report_invalid(&mut self, _tx: &Self::Item) {
+		todo!()
+	}
 }
 
 impl<Block: BlockT> TransactionPool for SimplePool<Block> {
-    type Block = Block;
-    type Hash = Block::Hash;
-    type InPoolTransaction = ExtWrapper<Block>;
-    type Error = Error;
+	type Block = Block;
+	type Hash = Block::Hash;
+	type InPoolTransaction = ExtWrapper<Block>;
+	type Error = Error;
 
-    fn submit_at(&self, at: &BlockId<Self::Block>, source: TransactionSource, xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>) -> sc_transaction_pool_api::PoolFuture<Vec<Result<sc_transaction_pool_api::TxHash<Self>, Self::Error>>, Self::Error> {
-        todo!()
-    }
+	fn submit_at(
+		&self,
+		at: &BlockId<Self::Block>,
+		source: TransactionSource,
+		xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>,
+	) -> sc_transaction_pool_api::PoolFuture<
+		Vec<Result<sc_transaction_pool_api::TxHash<Self>, Self::Error>>,
+		Self::Error,
+	> {
+		todo!()
+	}
 
-    fn submit_one(&self, at: &BlockId<Self::Block>, source: TransactionSource, xt: sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
-        todo!()
-    }
+	fn submit_one(
+		&self,
+		at: &BlockId<Self::Block>,
+		source: TransactionSource,
+		xt: sc_transaction_pool_api::TransactionFor<Self>,
+	) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
+		todo!()
+	}
 
-    fn submit_and_watch(&self, at: &BlockId<Self::Block>, source: TransactionSource, xt: sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::PoolFuture<Pin<Box<sc_transaction_pool_api::TransactionStatusStreamFor<Self>>>, Self::Error> {
-        todo!()
-    }
+	fn submit_and_watch(
+		&self,
+		at: &BlockId<Self::Block>,
+		source: TransactionSource,
+		xt: sc_transaction_pool_api::TransactionFor<Self>,
+	) -> sc_transaction_pool_api::PoolFuture<
+		Pin<Box<sc_transaction_pool_api::TransactionStatusStreamFor<Self>>>,
+		Self::Error,
+	> {
+		todo!()
+	}
 
-    fn ready_at(&self, at: NumberFor<Self::Block>) -> Pin<Box<dyn Future<Output=Box<dyn sc_transaction_pool_api::ReadyTransactions<Item=Arc<Self::InPoolTransaction>> + Send>> + Send>> {
-        let i = Box::new(std::iter::empty::<Arc<Self::InPoolTransaction>>()) as Box<(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>> + std::marker::Send + 'static)>;
-        Box::pin(
-            async {
-                i
+	fn ready_at(
+		&self,
+		at: NumberFor<Self::Block>,
+	) -> Pin<
+		Box<
+			dyn Future<
+					Output = Box<
+						dyn sc_transaction_pool_api::ReadyTransactions<
+								Item = Arc<Self::InPoolTransaction>,
+							> + Send,
+					>,
+				> + Send,
+		>,
+	> {
+		let i = Box::new(std::iter::empty::<Arc<Self::InPoolTransaction>>())
+			as Box<
+				(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>>
+				     + std::marker::Send
+				     + 'static),
+			>;
+		Box::pin(async { i })
+	}
 
-            }
-        )
-    }
+	fn ready(
+		&self,
+	) -> Box<
+		dyn sc_transaction_pool_api::ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send,
+	> {
+		Box::new(self.clone())
+	}
 
-    fn ready(&self) -> Box<dyn sc_transaction_pool_api::ReadyTransactions<Item=Arc<Self::InPoolTransaction>> + Send> {
-        Box::new(self.clone())
-    }
+	fn remove_invalid(
+		&self,
+		hashes: &[sc_transaction_pool_api::TxHash<Self>],
+	) -> Vec<Arc<Self::InPoolTransaction>> {
+		Vec::new()
+	}
 
-    fn remove_invalid(&self, hashes: &[sc_transaction_pool_api::TxHash<Self>]) -> Vec<Arc<Self::InPoolTransaction>> {
-        Vec::new()
-    }
+	fn status(&self) -> sc_transaction_pool_api::PoolStatus {
+		PoolStatus {
+			ready: self.pool.len(),
+			ready_bytes: self
+				.pool
+				.iter()
+				.fold(0, |weight, xt| weight + xt.size_hint()),
+			future: 0,
+			future_bytes: 0,
+		}
+	}
 
-    fn status(&self) -> sc_transaction_pool_api::PoolStatus {
-        PoolStatus{
-            ready: self.pool.len(),
-            ready_bytes: self.pool.iter().fold(0, |weight, xt|  weight + xt.size_hint()),
-            future: 0,
-            future_bytes: 0
-        }
-    }
+	fn import_notification_stream(
+		&self,
+	) -> sc_transaction_pool_api::ImportNotificationStream<sc_transaction_pool_api::TxHash<Self>> {
+		todo!()
+	}
 
-    fn import_notification_stream(&self) -> sc_transaction_pool_api::ImportNotificationStream<sc_transaction_pool_api::TxHash<Self>> {
-        todo!()
-    }
+	fn on_broadcasted(
+		&self,
+		propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>,
+	) {
+		todo!()
+	}
 
-    fn on_broadcasted(&self, propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>) {
-        todo!()
-    }
+	fn hash_of(
+		&self,
+		xt: &sc_transaction_pool_api::TransactionFor<Self>,
+	) -> sc_transaction_pool_api::TxHash<Self> {
+		todo!()
+	}
 
-    fn hash_of(&self, xt: &sc_transaction_pool_api::TransactionFor<Self>) -> sc_transaction_pool_api::TxHash<Self> {
-        todo!()
-    }
-
-    fn ready_transaction(&self, hash: &sc_transaction_pool_api::TxHash<Self>) -> Option<Arc<Self::InPoolTransaction>> {
-        todo!()
-    }
+	fn ready_transaction(
+		&self,
+		hash: &sc_transaction_pool_api::TxHash<Self>,
+	) -> Option<Arc<Self::InPoolTransaction>> {
+		todo!()
+	}
 }
 
 pub struct TransitionCache<Block: BlockT> {
-    extrinsics: Arc<SimplePool<Block>>,
-    auxilliary: Vec<StoragePair>,
+	extrinsics: Arc<SimplePool<Block>>,
+	auxilliary: Vec<StoragePair>,
 }
 
-pub struct Builder<Block: BlockT, RtApi, Exec, B = Backend<Block>, C = TFullClient<Block, RtApi, Exec>>
-{
-    backend: Arc<B>,
-    client: Arc<C>,
-    cache: TransitionCache<Block>,
-    _phantom: PhantomData<(Block, RtApi, Exec)>,
+pub struct Builder<
+	Block: BlockT,
+	RtApi,
+	Exec,
+	B = Backend<Block>,
+	C = TFullClient<Block, RtApi, Exec>,
+> {
+	backend: Arc<B>,
+	client: Arc<C>,
+	cache: TransitionCache<Block>,
+	_phantom: PhantomData<(Block, RtApi, Exec)>,
 }
 
 impl<Block, RtApi, Exec, B, C> Builder<Block, RtApi, Exec, B, C>
-    where
-        B: BackendT<Block> + 'static,
-        Block: BlockT,
-        RtApi: ConstructRuntimeApi<Block, C> + Send,
-        Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-        C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
-        C: 'static
-        + ProvideRuntimeApi<Block>
-        + BlockOf
-        + Send
-        + Sync
-        + AuxStore
-        + UsageProvider<Block>
-        + HeaderBackend<Block>
-        + BlockImport<Block>
-        + CallApiAt<Block>
-        + sc_block_builder::BlockBuilderProvider<B, Block, C>
+where
+	B: BackendT<Block> + 'static,
+	Block: BlockT,
+	RtApi: ConstructRuntimeApi<Block, C> + Send,
+	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
+	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
+	C: 'static
+		+ ProvideRuntimeApi<Block>
+		+ BlockOf
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ HeaderBackend<Block>
+		+ BlockImport<Block>
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
-    /// Create a new Builder with provided backend and client.
-    pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
-        Builder {
-            backend: backend,
-            client:client,
-            cache: TransitionCache { extrinsics: Arc::new(SimplePool::new()), auxilliary: Vec::new() },
-            _phantom: PhantomData::default(),
-        }
-    }
+	/// Create a new Builder with provided backend and client.
+	pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
+		Builder {
+			backend: backend,
+			client: client,
+			cache: TransitionCache {
+				extrinsics: Arc::new(SimplePool::new()),
+				auxilliary: Vec::new(),
+			},
+			_phantom: PhantomData::default(),
+		}
+	}
 
-    pub fn latest_block(&self) -> Block::Hash {
-        self.client.info().best_hash
-    }
+	pub fn latest_block(&self) -> Block::Hash {
+		self.client.info().best_hash
+	}
 
-    pub fn with_state<R>(
-        &self,
-        op: Operation,
-        at: Option<BlockId<Block>>,
-        exec: impl FnOnce() -> R,
-    ) -> Result<R, String> {
-        let (state, at) = if let Some(req_at) = at {
-            (self.backend.state_at(req_at), req_at)
-        } else {
-            let at = BlockId::Hash(self.client.info().best_hash);
-            (self.backend.state_at(at.clone()), at)
-        };
+	pub fn with_state<R>(
+		&self,
+		op: Operation,
+		at: Option<BlockId<Block>>,
+		exec: impl FnOnce() -> R,
+	) -> Result<R, String> {
+		let (state, at) = if let Some(req_at) = at {
+			(self.backend.state_at(req_at), req_at)
+		} else {
+			let at = BlockId::Hash(self.client.info().best_hash);
+			(self.backend.state_at(at.clone()), at)
+		};
 
-        let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
+		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
 
-        match op {
-            // TODO: Does this actually commit changes to the underlying DB?
-            Operation::Commit => {
-                //let _import_lock = self.backend.get_import_lock().write();
-                let mut op = self
-                    .backend
-                    .begin_operation()
-                    .map_err(|_| "Unable to start state-operation on backend".to_string())?;
-                self.backend.begin_state_operation(&mut op, at).unwrap();
+		match op {
+			// TODO: Does this actually commit changes to the underlying DB?
+			Operation::Commit => {
+				//let _import_lock = self.backend.get_import_lock().write();
+				let mut op = self
+					.backend
+					.begin_operation()
+					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
+				self.backend.begin_state_operation(&mut op, at).unwrap();
 
-                // TODO: Handle unwrap
-                let res = if self.backend.blockchain().block_number_from_id(&at).unwrap().unwrap() == Zero::zero() {
-                    self.mutate_genesis(&mut op, &state, exec)
-                } else {
-                    self.mutate_normal(&mut op, &state, exec, at)
-                };
+				// TODO: Handle unwrap
+				let res = if self
+					.backend
+					.blockchain()
+					.block_number_from_id(&at)
+					.unwrap()
+					.unwrap() == Zero::zero()
+				{
+					self.mutate_genesis(&mut op, &state, exec)
+				} else {
+					self.mutate_normal(&mut op, &state, exec, at)
+				};
 
-                self.backend
-                    .commit_operation(op)
-                    .map_err(|_| "Unable to commit state-operation on backend".to_string())?;
+				self.backend
+					.commit_operation(op)
+					.map_err(|_| "Unable to commit state-operation on backend".to_string())?;
 
-                res
-            },
-            // TODO: Does this actually NOT change the state?
-            Operation::DryRun => Ok(ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state).execute_with(exec)),
-        }
-    }
+				res
+			}
+			// TODO: Does this actually NOT change the state?
+			Operation::DryRun => Ok(
+				ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state)
+					.execute_with(exec),
+			),
+		}
+	}
 
-    fn mutate_genesis<R>(&self, op: &mut B::BlockImportOperation, state: &B::State, exec: impl FnOnce() -> R) -> Result<R, String> {
-        let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
-        let (r, changes) = ext.execute_with_mut(exec);
-        let (mut main_sc, child_sc, _, tx, root, _, tx_index) =
-            changes.into_inner();
+	fn mutate_genesis<R>(
+		&self,
+		op: &mut B::BlockImportOperation,
+		state: &B::State,
+		exec: impl FnOnce() -> R,
+	) -> Result<R, String> {
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let (r, changes) = ext.execute_with_mut(exec);
+		let (mut main_sc, child_sc, _, tx, root, _, tx_index) = changes.into_inner();
 
-        // We nee this in order to UNSET commited
-        op.set_genesis_state(Storage::default(), false);
-        op.update_db_storage(tx);
+		// We nee this in order to UNSET commited
+		op.set_genesis_state(Storage::default(), false);
+		op.update_db_storage(tx);
 
-        let genesis_block = Block::new(
-            Block::Header::new(
-                Zero::zero(),
-                <<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(Vec::new()),
-                root,
-                Default::default(),
-                Default::default(),
-            ),
-            Default::default(),
-        );
+		let genesis_block = Block::new(
+			Block::Header::new(
+				Zero::zero(),
+				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(Vec::new()),
+				root,
+				Default::default(),
+				Default::default(),
+			),
+			Default::default(),
+		);
 
-        op.set_block_data(
-            genesis_block.deconstruct().0,
-            Some(vec![]),
-            None,
-            None,
-            NewBlockState::Final,
-        ).map_err(|_| "Could not set block data".to_string())?;
+		op.set_block_data(
+			genesis_block.deconstruct().0,
+			Some(vec![]),
+			None,
+			None,
+			NewBlockState::Final,
+		)
+		.map_err(|_| "Could not set block data".to_string())?;
 
-        Ok(r)
-    }
+		Ok(r)
+	}
 
-    fn mutate_normal<R>(&self, op: &mut B::BlockImportOperation, state: &B::State, exec: impl FnOnce() -> R, at: BlockId<Block>) -> Result<R, String> {
-        let chain_backend = self.backend.blockchain();
-        let mut header = chain_backend.header(at).ok().flatten().expect("State is available. qed");
+	fn mutate_normal<R>(
+		&self,
+		op: &mut B::BlockImportOperation,
+		state: &B::State,
+		exec: impl FnOnce() -> R,
+		at: BlockId<Block>,
+	) -> Result<R, String> {
+		let chain_backend = self.backend.blockchain();
+		let mut header = chain_backend
+			.header(at)
+			.ok()
+			.flatten()
+			.expect("State is available. qed");
 
-        let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
-        let (r, changes) = ext.execute_with_mut(exec);
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let (r, changes) = ext.execute_with_mut(exec);
 
-        let (main_sc, child_sc, _, tx, root, _, tx_index) =
-            changes.into_inner();
+		let (main_sc, child_sc, _, tx, root, _, tx_index) = changes.into_inner();
 
-        header.set_state_root(root);
-        op.update_db_storage(tx);
-        op.update_storage(main_sc, child_sc).map_err(|_| "Updating storage not possible.").unwrap();
-        op.update_transaction_index(tx_index).map_err(|_| "Updating transaction index not possible.").unwrap();
+		header.set_state_root(root);
+		op.update_db_storage(tx);
+		op.update_storage(main_sc, child_sc)
+			.map_err(|_| "Updating storage not possible.")
+			.unwrap();
+		op.update_transaction_index(tx_index)
+			.map_err(|_| "Updating transaction index not possible.")
+			.unwrap();
 
-        let body = chain_backend.body(at).expect("State is available. qed.");
-        let indexed_body = chain_backend.block_indexed_body(at).expect("State is available. qed.");
-        let justifications = chain_backend.justifications(at).expect("State is available. qed.");
+		let body = chain_backend.body(at).expect("State is available. qed.");
+		let indexed_body = chain_backend
+			.block_indexed_body(at)
+			.expect("State is available. qed.");
+		let justifications = chain_backend
+			.justifications(at)
+			.expect("State is available. qed.");
 
-        // TODO: We set as final, this might not be correct.
-        op.set_block_data(header,  body, indexed_body, justifications, NewBlockState::Final);
-        Ok(r)
-    }
+		// TODO: We set as final, this might not be correct.
+		op.set_block_data(
+			header,
+			body,
+			indexed_body,
+			justifications,
+			NewBlockState::Final,
+		);
+		Ok(r)
+	}
 
+	/// Append a given set of key-value-pairs into the builder cache
+	pub fn append_transition(&mut self, trans: StoragePair) -> &mut Self {
+		self.cache.auxilliary.push(trans);
+		self
+	}
 
-    /// Append a given set of key-value-pairs into the builder cache
-    pub fn append_transition(&mut self, trans: StoragePair) -> &mut Self {
-        self.cache.auxilliary.push(trans);
-        self
-    }
+	/// Caches a given extrinsic in the builder. The extrinsic will be
+	pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> &mut Self {
+		// TODO: Handle this with mutex instead of this hack
+		let pt =
+			self.cache.extrinsics.as_ref() as *const SimplePool<Block> as *mut SimplePool<Block>;
+		let pool = unsafe { &mut *(pt) };
+		pool.push(ext);
+		self
+	}
 
-    /// Caches a given extrinsic in the builder. The extrinsic will be
-    pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> &mut Self {
-        // TODO: Handle this with mutex instead of this hack
-        let pt = self.cache.extrinsics.as_ref() as *const SimplePool<Block> as *mut SimplePool<Block>;
-        let pool = unsafe{&mut *(pt)};
-        pool.push(ext);
-        self
-    }
+	/// Create a block from a given state of the Builder.
+	pub fn build_block(
+		&mut self,
+		handle: SpawnTaskHandle,
+		inherents: InherentData,
+		digest: DigestFor<Block>,
+		time: Duration,
+		limit: usize,
+	) -> Proposal<Block, TransactionFor<B, Block>, StorageProof> {
+		let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
+			handle,
+			self.client.clone(),
+			self.cache.extrinsics.clone(),
+			None,
+			None,
+		);
+		let header = self
+			.backend
+			.blockchain()
+			.header(BlockId::Hash(self.latest_block()))
+			.ok()
+			.flatten()
+			.expect("State is available. qed");
+		let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
+		futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap()
 
-    /// Create a block from a given state of the Builder.
-    pub fn build_block(&mut self, handle: SpawnTaskHandle, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> Proposal<Block, TransactionFor<B, Block>, StorageProof>  {
-        let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(handle, self.client.clone(), self.cache.extrinsics.clone(), None, None,);
-        let header = self.backend.blockchain().header(BlockId::Hash(self.latest_block())).ok().flatten().expect("State is available. qed");
-        let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
-        futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap()
+		// TODO: -pool implementation correctly
+		//       - auxiliary data (Check if those even go into state?)
+		//           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
+	}
 
+	/// Import a block, that has been previosuly build
+	pub fn import_block(
+		&mut self,
+		params: BlockImportParams<Block, C::Transaction>,
+	) -> Result<(), ()> {
+		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
+		//       Check if I can put the client into a Mutex
+		let mut client = self.client.as_ref() as *const C as *mut C;
+		let client = unsafe { &mut *(client) };
+		let res =
+			futures::executor::block_on(client.import_block(params, Default::default())).unwrap();
 
-        // TODO: -pool implementation correctly
-        //       - auxiliary data (Check if those even go into state?)
-        //           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
-    }
-
-    /// Import a block, that has been previosuly build
-    pub fn import_block(&mut self, params: BlockImportParams<Block, C::Transaction>) -> Result<(), ()> {
-        // TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
-        //       Check if I can put the client into a Mutex
-        let mut client = self.client.as_ref() as *const C as *mut C;
-        let client = unsafe {&mut *(client)};
-        let res = futures::executor::block_on(client.import_block(params,Default::default())).unwrap();
-
-        Ok(())
-    }
+		Ok(())
+	}
 }
 
 // TODO: Nice code examples that could help implementing this idea of taking over a chain locally
