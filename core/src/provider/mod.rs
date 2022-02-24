@@ -32,9 +32,6 @@ mod state_provider;
 pub struct EnvProvider<Block, RtApi, Exec>
     where
         Block: BlockT,
-        Block::Hash: FromStr,
-        RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
-        Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static
 {
     state: StateProvider<TFullBackend<Block>, Block>,
     _phantom: PhantomData<(Block, RtApi, Exec)>

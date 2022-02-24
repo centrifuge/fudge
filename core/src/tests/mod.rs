@@ -14,74 +14,98 @@
 use crate::StandAloneBuilder;
 use polkadot_runtime::{Block as TestBlock, RuntimeApi as TestRtApi, WASM_BINARY as CODE, Runtime, SignedExtra};
 use sc_client_db::Backend;
-use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{LocalCallExecutor, TaskManager, TFullClient};
+use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor as TestExec};
+use sc_service::{LocalCallExecutor, SpawnTaskHandle, TaskManager, TFullBackend, TFullClient};
 use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, Storage};
 use crate::provider::EnvProvider;
 use tokio::runtime::{Handle};
 use sc_executor::sp_wasm_interface::HostFunctions;
 use frame_benchmarking::account;
 use frame_support::inherent::BlockT;
-use sp_api::BlockId;
+use sp_api::{BlockId, ConstructRuntimeApi};
 use sp_core::H256;
-use sp_inherents::InherentDataProvider;
+use sp_core::traits::CodeExecutor;
+use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use fudge_utils::Signer;
 use crate::inherent::{FudgeInherentTimestamp, FudgeInherentRelayParachain};
 use sp_keystore::{SyncCryptoStore};
 use sp_runtime::traits::HashFor;
+use sp_std::str::FromStr;
 use sp_std::sync::Arc;
 use sp_storage::well_known_keys::CODE as CODE_KEY;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
 
-#[tokio::test]
-async fn mutating_genesis_works() {
-	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
-	let manager = TaskManager::new(Handle::current(), None).unwrap();
-
-	let mut storage = frame_system::GenesisConfig {
-		changes_trie_config: None,
-		code: CODE.unwrap().to_vec()
-	}
-		.build_storage::<Runtime>()
-		.unwrap();
-
-	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![
-			(account("test", 0, 0), 10_000_000_000_000u128),
-			(AccountId32::default(), 10_000_000_000_000u128)
-		]
-	}
-		.assimilate_storage(&mut storage)
-		.unwrap();
-
+fn generate_default_setup_stand_alone<CIDP>(handle: SpawnTaskHandle, storage: Storage, cidp: Box<dyn FnOnce(Arc<TFullClient<TestBlock, TestRtApi, TestExec>>) -> CIDP>)
+	-> StandAloneBuilder<TestBlock, TestRtApi, TestExec, CIDP, (), TFullBackend<TestBlock>, TFullClient<TestBlock, TestRtApi, TestExec>>
+where
+	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static
+{
+	let host_functions = sp_io::SubstrateHostFunctions::host_functions();
 	let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::with_code(CODE.unwrap());
 	provider.insert_storage(storage);
 
 	let (client, backend) = provider
 		.init_default(
 			TestExec::new(
-			WasmExecutionMethod::Interpreted,
-			None,
-			host_functions,
-			6,
-			None,
-		),
-			Box::new(manager.spawn_handle())
+				WasmExecutionMethod::Interpreted,
+				None,
+				host_functions,
+				6,
+				None,
+			),
+			Box::new(handle.clone())
 		);
 	let client = Arc::new(client);
+	let clone_client = client.clone();
 
-	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(
-		manager.spawn_handle(),
+	StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(
+		handle.clone(),
 		backend,
 		client,
-		move |_, ()| {
-			async move {
-				let time = FudgeInherentTimestamp::new(0, 12, None);
-				Ok((time))
-			}
+		cidp(clone_client)
+	)
+}
+
+#[tokio::test]
+async fn mutating_genesis_works() {
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(account("test", 0, 0), 10_000_000_000_000u128),
+			(AccountId32::default(), 10_000_000_000_000u128)
+		]
+	}
+		.build_storage()
+		.unwrap();
+
+	let cidp = Box::new(|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		move |parent: H256, ()| {
+		let client = clone_client.clone();
+		let parent_header = client.header(&BlockId::Hash(parent.clone())).unwrap().unwrap();
+
+		async move {
+			let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+				&*client,
+				parent,
+			)?;
+
+			let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+
+			let slot =
+				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					timestamp.current_time(),
+					std::time::Duration::from_secs(6),
+				);
+
+			let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+			Ok((timestamp, uncles, slot, relay_para_inherent))
+		}
+	}
 	});
+
+	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
 
 	let (send_data_pre, recv_data_pre) = builder.with_mut_state(|| {
 		polkadot_runtime::Balances::transfer(
@@ -100,9 +124,10 @@ async fn mutating_genesis_works() {
 	assert_eq!(send_data_pre, send_data_post);
 	assert_eq!(recv_data_pre, recv_data_post);
 }
-/*
+
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
+/*
 	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
@@ -129,52 +154,14 @@ async fn opening_state_from_db_path_works() {
 	builder.with_state_at(BlockId::Number(20), || {
 
 	}).unwrap();
-
-}
 */
+}
+
 
 #[tokio::test]
 async fn build_relay_block_works() {
-	let key_store = sc_keystore::LocalKeystore::in_memory();
-
-	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-
-	let sender = key_store.sr25519_generate_new(KEY_TYPE, None).unwrap();
-	let receiver = key_store.sr25519_generate_new(KEY_TYPE, None).unwrap();
-
-	let mut storage = Storage::default();
-	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![
-			(AccountId32::from(sender), 10_000_000_000_000u128),
-			(AccountId32::from(receiver), 10_000_000_000_000u128)
-		]
-	}
-		.assimilate_storage(&mut storage)
-		.unwrap();
-
-	let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::with_code(CODE.unwrap());
-	provider.insert_storage(storage);
-
-	let (client, backend) = provider
-		.init_default(
-			TestExec::new(
-				WasmExecutionMethod::Interpreted,
-				None,
-				host_functions,
-				6,
-				None,
-			),
-			Box::new(manager.spawn_handle())
-		);
-
-	let client = Arc::new(client);
-	let clone_client = client.clone();
-
-	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(
-		manager.spawn_handle(),
-		backend,
-		client,
+	let cidp = Box::new(|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
 		move |parent: H256, ()| {
 			let client = clone_client.clone();
 			let parent_header = client.header(&BlockId::Hash(parent.clone())).unwrap().unwrap();
@@ -196,8 +183,66 @@ async fn build_relay_block_works() {
 				let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
 				Ok((timestamp, uncles, slot, relay_para_inherent))
 			}
-		});
+		}
+	});
+	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), Storage::default(), cidp);
 
+	let num_before = builder.with_state(|| {
+		frame_system::Pallet::<Runtime>::block_number()
+	}).unwrap();
+
+	builder.build_block();
+	builder.import_block();
+
+	let num_after = builder.with_state(|| {
+		frame_system::Pallet::<Runtime>::block_number()
+	}).unwrap();
+
+	assert_eq!(num_before + 1, num_after)
+}
+
+
+#[tokio::test]
+async fn building_relay_block_with_extrinsics_works() {
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	let key_store = sc_keystore::LocalKeystore::in_memory();
+	let sender = key_store.sr25519_generate_new(KEY_TYPE, None).unwrap();
+	let receiver = key_store.sr25519_generate_new(KEY_TYPE, None).unwrap();
+
+	let mut storage = Storage::default();
+	pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(AccountId32::from(sender), 10_000_000_000_000u128),
+			(AccountId32::from(receiver), 10_000_000_000_000u128)
+		]
+	}
+		.assimilate_storage(&mut storage)
+		.unwrap();
+	let cidp = Box::new(|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		move |parent: H256, ()| {
+			let client = clone_client.clone();
+			let parent_header = client.header(&BlockId::Hash(parent.clone())).unwrap().unwrap();
+
+			async move {
+				let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+					&*client,
+					parent,
+				)?;
+
+				let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+
+				let slot =
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						timestamp.current_time(),
+						std::time::Duration::from_secs(6),
+					);
+
+				let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+				Ok((timestamp, uncles, slot, relay_para_inherent))
+			}
+		}
+	});
+	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
 
 	let signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
 	/*
@@ -223,17 +268,6 @@ async fn build_relay_block_works() {
 		).unwrap()
 	);
 	*/
-
-	let num_before = builder.with_state(|| {
-		frame_system::Pallet::<Runtime>::block_number()
-	}).unwrap();
-
-	builder.build_block();
-	builder.import_block();
-
-	let num_after = builder.with_state(|| {
-		frame_system::Pallet::<Runtime>::block_number()
-	}).unwrap();
-
-	assert_eq!(num_before + 1, num_after)
 }
+
+
