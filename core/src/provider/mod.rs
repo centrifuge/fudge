@@ -152,15 +152,6 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
         (client, backend)
     }
 
-    #[cfg(test)]
-    fn client_config() -> ClientConfig<Block> {
-        let mut config = ClientConfig::default();
-        // During tests this seems necessary for block production
-        config.no_genesis = true;
-        config
-    }
-
-    #[cfg(not(test))]
     fn client_config() -> ClientConfig<Block> {
         ClientConfig::default()
     }

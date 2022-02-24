@@ -11,18 +11,24 @@
 // GNU General Public License for more details.
 use polkadot_primitives::v1::{InherentData as ParachainsInherentData};
 use sp_inherents::{InherentData, InherentDataProvider, InherentIdentifier, Error};
+use sp_runtime::traits::Header;
 
 const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
-pub struct Inherent(ParachainsInherentData);
+pub struct Inherent<HDR: Header>(ParachainsInherentData<HDR>);
 
-impl Inherent {
-    pub fn new() -> Self {
-        todo!()
+impl<HDR: Header> Inherent<HDR> {
+    pub fn new(parent: HDR ) -> Self {
+        Inherent(ParachainsInherentData::<HDR> {
+            bitfields: vec![],
+            backed_candidates: vec![],
+            disputes: vec![],
+            parent_header: parent
+        })
     }
 }
 
 #[async_trait::async_trait]
-impl InherentDataProvider for Inherent {
+impl<HDR: Header> InherentDataProvider for Inherent<HDR> {
     fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
         inherent_data
             .put_data(PARACHAINS_INHERENT_IDENTIFIER, &self.0);

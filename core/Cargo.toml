@@ -26,6 +26,7 @@ sp-externalities = { git = "https://github.com/paritytech/substrate", default-fe
 sp-database = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 
 # Substarte client dependencies
 sc-client-db = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
@@ -37,6 +38,7 @@ sc-consensus = { git = "https://github.com/paritytech/substrate", default-featur
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 
 node-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 

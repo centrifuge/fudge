@@ -26,4 +26,10 @@ pub trait ArgsProvider<ExtraArgs> {
     fn extra() -> ExtraArgs;
 }
 
+impl ArgsProvider<()> for () {
+    fn extra() -> () {
+        ()
+    }
+}
+
 

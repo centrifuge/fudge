@@ -79,7 +79,7 @@ impl<Block, RtApi, Exec, CIDP, ExtraArgs, B, C> StandAloneBuilder<Block, RtApi, 
         + CallApiAt<Block>
         + sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
-    pub fn new(backend: Arc<B>, client: Arc<C>, cidp: CIDP, handle: SpawnTaskHandle) -> Self {
+    pub fn new(handle: SpawnTaskHandle, backend: Arc<B>, client: Arc<C>, cidp: CIDP,) -> Self {
         Self {
             builder: Builder::new(backend, client),
             cidp,
@@ -123,6 +123,8 @@ impl<Block, RtApi, Exec, CIDP, ExtraArgs, B, C> StandAloneBuilder<Block, RtApi, 
     }
 
     pub fn build_block(&mut self) -> &mut Self {
+        assert!(self.next.is_none());
+
         let provider = self.with_state(|| {
             futures::executor::block_on(self.cidp.create_inherent_data_providers(self.builder.latest_block(), ExtraArgs::extra())).unwrap()
         }).unwrap();
@@ -134,6 +136,7 @@ impl<Block, RtApi, Exec, CIDP, ExtraArgs, B, C> StandAloneBuilder<Block, RtApi, 
             storage_changes: _changes
         } = self.builder.build_block(self.handle.clone(), provider.create_inherent_data().unwrap(), Default::default(), Duration::from_secs(60), 6_000_000);
 
+        self.next = Some(block.clone());
         self.imported_blocks.push(block);
         self
     }

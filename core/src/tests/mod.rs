@@ -23,9 +23,10 @@ use sc_executor::sp_wasm_interface::HostFunctions;
 use frame_benchmarking::account;
 use frame_support::inherent::BlockT;
 use sp_api::BlockId;
+use sp_core::H256;
 use sp_inherents::InherentDataProvider;
 use fudge_utils::Signer;
-use crate::inherent::FudgeInherentTimestamp;
+use crate::inherent::{FudgeInherentTimestamp, FudgeInherentRelayParachain};
 use sp_keystore::{SyncCryptoStore};
 use sp_runtime::traits::HashFor;
 use sp_std::sync::Arc;
@@ -71,7 +72,16 @@ async fn mutating_genesis_works() {
 		);
 	let client = Arc::new(client);
 
-	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
+	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(
+		manager.spawn_handle(),
+		backend,
+		client,
+		move |_, ()| {
+			async move {
+				let time = FudgeInherentTimestamp::new(0, 12, None);
+				Ok((time))
+			}
+	});
 
 	let (send_data_pre, recv_data_pre) = builder.with_mut_state(|| {
 		polkadot_runtime::Balances::transfer(
@@ -90,7 +100,7 @@ async fn mutating_genesis_works() {
 	assert_eq!(send_data_pre, send_data_post);
 	assert_eq!(recv_data_pre, recv_data_post);
 }
-
+/*
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
 	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
@@ -121,6 +131,7 @@ async fn opening_state_from_db_path_works() {
 	}).unwrap();
 
 }
+*/
 
 #[tokio::test]
 async fn build_relay_block_works() {
@@ -158,10 +169,37 @@ async fn build_relay_block_works() {
 		);
 
 	let client = Arc::new(client);
+	let clone_client = client.clone();
+
+	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(
+		manager.spawn_handle(),
+		backend,
+		client,
+		move |parent: H256, ()| {
+			let client = clone_client.clone();
+			let parent_header = client.header(&BlockId::Hash(parent.clone())).unwrap().unwrap();
+
+			async move {
+				let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+					&*client,
+					parent,
+				)?;
+
+				let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+
+				let slot =
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						timestamp.current_time(),
+						std::time::Duration::from_secs(6),
+					);
+
+				let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+				Ok((timestamp, uncles, slot, relay_para_inherent))
+			}
+		});
+
+
 	let signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
-	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
-
-
 	/*
 	let extra: SignedExtra = (
 		frame_system::CheckSpecVersion::<Runtime>::new(),
@@ -186,12 +224,16 @@ async fn build_relay_block_works() {
 	);
 	*/
 
-	let is_some = builder.with_state(|| {
-		let data = frame_support::storage::unhashed::get_raw(CODE_KEY).unwrap();
-		let x = frame_system::Account::<Runtime>::get(AccountId32::from(sender));
+	let num_before = builder.with_state(|| {
+		frame_system::Pallet::<Runtime>::block_number()
+	}).unwrap();
 
-		let data = frame_support::storage::unhashed::get_raw(CODE_KEY).unwrap();
-	});
+	builder.build_block();
+	builder.import_block();
 
-	builder.build_block(move |_, ()| async move { Ok(FudgeInherentTimestamp::new(0, 12, None))}, manager.spawn_handle());
+	let num_after = builder.with_state(|| {
+		frame_system::Pallet::<Runtime>::block_number()
+	}).unwrap();
+
+	assert_eq!(num_before + 1, num_after)
 }
