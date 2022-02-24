@@ -21,7 +21,7 @@ use sc_service::{Configuration, SpawnTaskHandle, TFullClient};
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError};
+use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError, Proposal};
 use sp_core::{
     traits::{CodeExecutor, ReadRuntimeVersion},
     Pair,
@@ -33,42 +33,39 @@ use crate::{
     types::{StoragePair, Bytes},
     builder::core::{Builder, Operation}
 };
+use crate::inherent::ArgsProvider;
 
 
 pub struct StandAloneBuilder<
-    Block,
+    Block: BlockT,
     RtApi,
     Exec,
+    CIDP,
+    ExtraArgs,
     B = Backend<Block>,
     C = TFullClient<Block, RtApi, Exec>,
-> where
-    B: BackendT<Block> + 'static,
-    Block: BlockT,
-    RtApi: ConstructRuntimeApi<Block, C> + Send,
-    Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-    C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
-    C: 'static
-    + ProvideRuntimeApi<Block>
-    + BlockOf
-    + Send
-    + Sync
-    + AuxStore
-    + UsageProvider<Block>
-    + HeaderBackend<Block>
-    + BlockImport<Block>
-    + CallApiAt<Block>
-    + sc_block_builder::BlockBuilderProvider<B, Block, C>
+>
 {
     builder: Builder<Block, RtApi, Exec, B, C>,
-    blocks: Vec<Block>
+    cidp: CIDP,
+    next: Option<Block>,
+    imported_blocks: Vec<Block>,
+    handle: SpawnTaskHandle,
+    _phantom: PhantomData<ExtraArgs>
 }
 
-impl<Block, RtApi, Exec, B, C> StandAloneBuilder<Block, RtApi, Exec, B, C>
+impl<Block, RtApi, Exec, CIDP, ExtraArgs, B, C> StandAloneBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, B, C>
     where
         B: BackendT<Block> + 'static,
         Block: BlockT,
         RtApi: ConstructRuntimeApi<Block, C> + Send,
         Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
+        CIDP: CreateInherentDataProviders<Block, ExtraArgs>
+           + Send
+           + Sync
+            + 'static,
+        CIDP::InherentDataProviders: Send,
+        ExtraArgs: ArgsProvider<ExtraArgs>,
         C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
         C: 'static
         + ProvideRuntimeApi<Block>
@@ -82,10 +79,14 @@ impl<Block, RtApi, Exec, B, C> StandAloneBuilder<Block, RtApi, Exec, B, C>
         + CallApiAt<Block>
         + sc_block_builder::BlockBuilderProvider<B, Block, C>
 {
-    pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
+    pub fn new(backend: Arc<B>, client: Arc<C>, cidp: CIDP, handle: SpawnTaskHandle) -> Self {
         Self {
             builder: Builder::new(backend, client),
-            blocks: Vec::new()
+            cidp,
+            next: None,
+            imported_blocks: Vec::new(),
+            handle,
+            _phantom: Default::default()
         }
     }
 
@@ -121,18 +122,39 @@ impl<Block, RtApi, Exec, B, C> StandAloneBuilder<Block, RtApi, Exec, B, C>
         todo!()
     }
 
-    pub fn build_block<CID: CreateInherentDataProviders<Block, CidArgs>, CidArgs: Get<CidArgs>>(&mut self, cid: CID, handle: SpawnTaskHandle) -> &mut Self {
-        let provider = futures::executor::block_on(cid.create_inherent_data_providers(self.builder.latest_block(), CidArgs::get())).unwrap();
-        let block = self.builder.build_block(handle, provider.create_inherent_data().unwrap(), Default::default(), Duration::from_secs(60), 6_000_000);
-        self.blocks.push(block);
+    pub fn build_block(&mut self) -> &mut Self {
+        let provider = self.with_state(|| {
+            futures::executor::block_on(self.cidp.create_inherent_data_providers(self.builder.latest_block(), ExtraArgs::extra())).unwrap()
+        }).unwrap();
+
+        // TODO: Might need proof and storage changes??
+        let Proposal {
+            block,
+            proof: _proof,
+            storage_changes: _changes
+        } = self.builder.build_block(self.handle.clone(), provider.create_inherent_data().unwrap(), Default::default(), Duration::from_secs(60), 6_000_000);
+
+        self.imported_blocks.push(block);
+        self
+    }
+
+    pub fn import_block(&mut self) -> &mut Self {
+        let block = self.next.take().unwrap();
+        let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, block.clone().deconstruct().0);
+        params.body =  Some(block.clone().deconstruct().1);
+        params.finalized = true;
+        params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+
+        self.builder.import_block(params).unwrap();
+        self.imported_blocks.push(block);
         self
     }
 
     pub fn blocks(&self) -> Vec<Block> {
-        self.blocks.clone()
+        self.imported_blocks.clone()
     }
 
-    pub fn with_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, String> {
+    pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {
         self.builder.with_state(Operation::DryRun, None, exec)
     }
 

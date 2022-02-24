@@ -22,24 +22,8 @@ mod timestamp;
 mod para_parachain;
 mod relay_parachain;
 
-pub struct InherentProvider<CIDP, Block, ExtraArgs>
-    where
-        CIDP: CreateInherentDataProviders<Block, ExtraArgs>,
-        Block: BlockT
-{
-    pub cidp: CIDP,
-    pub args: ExtraArgs,
-    _phantom: PhantomData<(Block, ExtraArgs)>
-}
-
-impl<CIDP, Block, ExtraArgs> InherentProvider<CIDP, Block, ExtraArgs>
-    where
-        CIDP: CreateInherentDataProviders<Block, ExtraArgs>,
-        Block: BlockT
-{
-    pub fn new() -> Self {
-        todo!()
-    }
+pub trait ArgsProvider<ExtraArgs> {
+    fn extra() -> ExtraArgs;
 }
 
 

@@ -32,7 +32,7 @@ use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRun
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError, Environment};
 use sp_core::{traits::{CodeExecutor, ReadRuntimeVersion}, Pair, Hasher};
-use sp_runtime::{generic::BlockId, traits::Block as BlockT,};
+use sp_runtime::{generic::BlockId};
 use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
 use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
@@ -42,20 +42,22 @@ use frame_support::dispatch::TransactionPriority;
 use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
 use frame_support::sp_runtime::traits::NumberFor;
 use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
-use sp_state_machine::Backend as StateMachineBackend;
+use sp_state_machine::{Backend as StateMachineBackend, StorageChanges, StorageProof};
 use sp_std::time::Duration;
 
 use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
 use crate::{traits::AuthorityProvider, Bytes, StoragePair};
-use self::sp_consensus::{InherentData, Proposal, Proposer};
+use self::sp_consensus::{EnableProofRecording, InherentData, Proposal, Proposer};
 use self::sp_runtime::{Digest, DigestItem};
-use self::sp_runtime::traits::{DigestFor, Header as HeaderT, One, Zero, Hash as HashT};
+use self::sp_runtime::traits::{DigestFor, Header as HeaderT, One, Zero, Hash as HashT, Block as BlockT};
 use sp_core::storage::{ChildInfo, well_known_keys};
+use sp_inherents::CreateInherentDataProviders;
 use sp_storage::Storage;
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
 use self::sc_client_api::{BlockImportOperation, NewBlockState};
 use self::sc_consensus::StateAction;
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
+use sc_client_api::backend::TransactionFor;
 
 pub enum Operation {
     Commit,
@@ -79,14 +81,24 @@ impl<Block: BlockT> SimplePool<Block> {
     }
 }
 
-pub struct ExtWrapper<Block: BlockT>(Block::Extrinsic);
+pub struct ExtWrapper<Block: BlockT>{
+    xt: Block::Extrinsic,
+}
+
+impl<Block: BlockT> ExtWrapper<Block> {
+    pub fn new(xt: Block::Extrinsic) -> Self {
+        Self {
+            xt
+        }
+    }
+}
 
 impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
     type Transaction = Block::Extrinsic;
     type Hash = Block::Hash;
 
     fn data(&self) -> &Self::Transaction {
-        &self.0
+        &self.xt
     }
 
     fn hash(&self) -> &Self::Hash {
@@ -144,7 +156,7 @@ impl<Block: BlockT> Iterator for SimplePool<Block> {
     type Item = Arc<ExtWrapper<Block>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.pool.pop().and_then(|xt| Some(Arc::new(ExtWrapper(xt))))
+        self.pool.pop().and_then(|xt| Some(Arc::new(ExtWrapper::new(xt))))
     }
 }
 
@@ -221,24 +233,7 @@ pub struct TransitionCache<Block: BlockT> {
     auxilliary: Vec<StoragePair>,
 }
 
-pub struct Builder<Block, RtApi, Exec, B = Backend<Block>, C = TFullClient<Block, RtApi, Exec>>
-    where
-        B: BackendT<Block> + 'static,
-        Block: BlockT,
-        RtApi: ConstructRuntimeApi<Block, C> + Send,
-        Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-        C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
-        C: 'static
-        + ProvideRuntimeApi<Block>
-        + BlockOf
-        + Send
-        + Sync
-        + AuxStore
-        + UsageProvider<Block>
-        + HeaderBackend<Block>
-        + BlockImport<Block>
-        + CallApiAt<Block>
-        + sc_block_builder::BlockBuilderProvider<B, Block, C>
+pub struct Builder<Block: BlockT, RtApi, Exec, B = Backend<Block>, C = TFullClient<Block, RtApi, Exec>>
 {
     backend: Arc<B>,
     client: Arc<C>,
@@ -395,67 +390,28 @@ impl<Block, RtApi, Exec, B, C> Builder<Block, RtApi, Exec, B, C>
     }
 
     /// Create a block from a given state of the Builder.
-    ///
-    /// Multiple calls of this will result in building multiple blocks, where each block
-    /// is the child of the previously build block (or the last block of the fetched state).
-    pub fn build_block(&mut self, handle: SpawnTaskHandle, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> Block {
+    pub fn build_block(&mut self, handle: SpawnTaskHandle, inherents: InherentData, digest: DigestFor<Block>, time: Duration, limit: usize) -> Proposal<Block, TransactionFor<B, Block>, StorageProof>  {
         let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(handle, self.client.clone(), self.cache.extrinsics.clone(), None, None,);
         let header = self.backend.blockchain().header(BlockId::Hash(self.latest_block())).ok().flatten().expect("State is available. qed");
         let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
-        let proposal = futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap();
-        let Proposal {
-            block,
-            proof,
-            storage_changes
-        } = proposal;
+        futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap()
 
-        let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, block.clone().deconstruct().0);
-        params.body =  Some(block.clone().deconstruct().1);
-        params.finalized = true;
-        params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
+        // TODO: -pool implementation correctly
+        //       - auxiliary data (Check if those even go into state?)
+        //           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
+    }
+
+    /// Import a block, that has been previosuly build
+    pub fn import_block(&mut self, params: BlockImportParams<Block, C::Transaction>) -> Result<(), ()> {
         // TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
         //       Check if I can put the client into a Mutex
         let mut client = self.client.as_ref() as *const C as *mut C;
         let client = unsafe {&mut *(client)};
         let res = futures::executor::block_on(client.import_block(params,Default::default())).unwrap();
 
-        block
-
-        // TODO: -pool implementation correctly
-        //       - auxiliary data (Check if those even go into state?)
-        //           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
+        Ok(())
     }
-}
-
-fn full_root<H: Hasher, B, Block>(state: &B::State, storage: Storage) -> (H::Out, <B::State as StateMachineBackend<H>>::Transaction)
-    where
-        H::Out: Ord + codec::Encode,
-        B: BackendT<Block>,
-        B::State: StateMachineBackend<H>,
-        Block: BlockT
-{
-    let child_delta = storage.children_default.iter().map(|(_storage_key, child_content)| {
-        (
-            &child_content.child_info,
-            child_content.data.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref()))),
-        )
-    });
-    let top_iter = storage.top.iter().map(|(k, v)| (k.as_ref(), Some(v.as_ref())));
-    state.full_storage_root(top_iter, child_delta)
-}
-
-fn drain_into_storage<H: Hasher>(state: &impl StateMachineBackend<H>) -> Storage {
-    let mut storage = Storage::default();
-    state.pairs().into_iter().for_each(|(key, value)| {
-        if well_known_keys::is_child_storage_key(key.as_slice()) {
-            // TODO: How to generate the children keys correctly from the pairs?
-            // storage.children_default.insert()
-        } else {
-            storage.top.insert(key, value);
-        }
-    });
-    storage
 }
 
 // TODO: Nice code examples that could help implementing this idea of taking over a chain locally

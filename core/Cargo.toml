@@ -46,6 +46,9 @@ frame-support = { git = "https://github.com/paritytech/substrate", default-featu
 # Polkadot dependencies
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 
+# Cumulus dependencies
+cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.12" }
+
 
 [dev-dependencies]
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.12"}
@@ -61,6 +64,8 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 [features]
 default = ["std"]
 std = [
+    "polkadot-primitives/std",
+    "cumulus-primitives-parachain-inherent/std",
     "sp-keystore/std",
     "sp-io/std",
     "sp-std/std",

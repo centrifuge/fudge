@@ -12,7 +12,6 @@
 
 
 use crate::StandAloneBuilder;
-//use node_primitives::{AccountId, Block as TestBlock};
 use polkadot_runtime::{Block as TestBlock, RuntimeApi as TestRtApi, WASM_BINARY as CODE, Runtime, SignedExtra};
 use sc_client_db::Backend;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
