@@ -6,7 +6,7 @@ use sc_client_db::Backend;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{LocalCallExecutor, TaskManager, TFullClient};
 use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, MultiSignature, Storage};
-use fudge_core::{EnvProvider, RelaychainBuilder};
+use fudge_core::{EnvProvider, StandAloneBuilder};
 use tokio::runtime::{Handle};
 use sc_executor::sp_wasm_interface::HostFunctions;
 use frame_support::inherent::{BlockT, InherentData, InherentIdentifier};
@@ -66,7 +66,7 @@ async fn main() {
         );
     let client = Arc::new(client);
 
-    let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client.clone());
+    let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client.clone());
 
     let clone_client = client.clone();
     let cid = move |parent: H256, ()|  {

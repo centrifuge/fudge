@@ -65,9 +65,8 @@ where
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
 			state_pruning: PruningMode::ArchiveAll,
-			source: DatabaseSource::Auto{
-				paritydb_path: path.clone(),
-				rocksdb_path: path,
+			source: DatabaseSource::RocksDb{
+				path: path.clone(),
 				cache_size: 0
 			},
 			keep_blocks: KeepBlocks::All,

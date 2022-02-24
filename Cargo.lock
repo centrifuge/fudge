@@ -1494,6 +1494,7 @@ dependencies = [
  "pallet-balances",
  "pallet-transaction-payment",
  "parity-scale-codec",
+ "polkadot-primitives",
  "polkadot-runtime",
  "sc-basic-authorship",
  "sc-block-builder",

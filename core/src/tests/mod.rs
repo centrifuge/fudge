@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 
 
-use crate::RelaychainBuilder;
+use crate::StandAloneBuilder;
 //use node_primitives::{AccountId, Block as TestBlock};
 use polkadot_runtime::{Block as TestBlock, RuntimeApi as TestRtApi, WASM_BINARY as CODE, Runtime, SignedExtra};
 use sc_client_db::Backend;
@@ -23,11 +23,13 @@ use tokio::runtime::{Handle};
 use sc_executor::sp_wasm_interface::HostFunctions;
 use frame_benchmarking::account;
 use frame_support::inherent::BlockT;
+use sp_api::BlockId;
 use sp_inherents::InherentDataProvider;
 use fudge_utils::Signer;
-use crate::inherent_provider::FakeTimestamp;
+use crate::inherent::FudgeInherentTimestamp;
 use sp_keystore::{SyncCryptoStore};
 use sp_runtime::traits::HashFor;
+use sp_std::sync::Arc;
 use sp_storage::well_known_keys::CODE as CODE_KEY;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
@@ -68,8 +70,9 @@ async fn mutating_genesis_works() {
 		),
 			Box::new(manager.spawn_handle())
 		);
+	let client = Arc::new(client);
 
-	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
+	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
 
 	let (send_data_pre, recv_data_pre) = builder.with_mut_state(|| {
 		polkadot_runtime::Balances::transfer(
@@ -87,6 +90,37 @@ async fn mutating_genesis_works() {
 
 	assert_eq!(send_data_pre, send_data_post);
 	assert_eq!(recv_data_pre, recv_data_post);
+}
+
+#[tokio::test]
+async fn opening_state_from_db_path_works() {
+	let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+
+	let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::from_db(std::path::PathBuf::from("/Users/frederik/Projects/centrifuge-fudge/core/src/tests/data/relay-chain/rococo_local_testnet/db/full"));
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(
+				WasmExecutionMethod::Interpreted,
+				None,
+				host_functions,
+				6,
+				None,
+			),
+			Box::new(manager.spawn_handle())
+		);
+	let client = Arc::new(client);
+
+	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
+
+	builder.with_state_at(BlockId::Number(1), || {
+
+	}).unwrap();
+
+	builder.with_state_at(BlockId::Number(20), || {
+
+	}).unwrap();
+
 }
 
 #[tokio::test]
@@ -124,8 +158,9 @@ async fn build_relay_block_works() {
 			Box::new(manager.spawn_handle())
 		);
 
+	let client = Arc::new(client);
 	let signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
-	let mut builder = RelaychainBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
+	let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(backend, client);
 
 
 	/*
@@ -159,5 +194,5 @@ async fn build_relay_block_works() {
 		let data = frame_support::storage::unhashed::get_raw(CODE_KEY).unwrap();
 	});
 
-	builder.build_block(move |_, ()| async move { Ok(FakeTimestamp::new(0, None,))}, manager.spawn_handle());
+	builder.build_block(move |_, ()| async move { Ok(FudgeInherentTimestamp::new(0, 12, None))}, manager.spawn_handle());
 }

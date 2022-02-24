@@ -118,8 +118,8 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
 
     fn init(self, exec: Exec, handle: Box<dyn SpawnNamed>, keystore: Option<SyncCryptoStorePtr>, config: Option<ClientConfig<Block>>) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
         let backend = self.state.backend();
-        let mut config = config.clone().unwrap_or(Default::default());
-        //config.no_genesis = true;
+        let mut config = config.clone().unwrap_or(Self::client_config());
+
         // TODO: Handle unwrap
         let executor = sc_service::client::LocalCallExecutor::new(
             backend.clone(),
@@ -151,4 +151,18 @@ impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
 
         (client, backend)
     }
+
+    #[cfg(test)]
+    fn client_config() -> ClientConfig<Block> {
+        let mut config = ClientConfig::default();
+        // During tests this seems necessary for block production
+        config.no_genesis = true;
+        config
+    }
+
+    #[cfg(not(test))]
+    fn client_config() -> ClientConfig<Block> {
+        ClientConfig::default()
+    }
+
 }

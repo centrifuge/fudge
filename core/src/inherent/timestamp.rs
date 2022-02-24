@@ -24,14 +24,14 @@ pub type Instance = u64;
 pub type Ticks = u64;
 pub type Moment = u64;
 
-pub struct FakeTimestamp {
+pub struct Inherent {
     instance: Instance,
     start: Moment,
     ticks: Ticks,
     delta: Moment
 }
 
-impl FakeTimestamp {
+impl Inherent {
     pub fn new(instance: Instance, delta: Moment, start: Option<Moment>) -> Self {
         let instances = unsafe {
             if INSTANCES.is_null() {
@@ -56,7 +56,7 @@ impl FakeTimestamp {
             dur.as_millis() as u64
         };
 
-        FakeTimestamp {
+        Inherent {
             instance,
             start,
             ticks,
@@ -79,14 +79,8 @@ impl FakeTimestamp {
     }
 }
 
-/// Unit type wrapper that represents a timestamp.
-///
-/// Such a timestamp is the time since the UNIX_EPOCH in milliseconds at a given point in time.
-#[derive(Debug, codec::Encode, codec::Decode, sp_std::cmp::Eq, sp_std::cmp::PartialEq, Clone, Copy, Default, PartialOrd, Ord)]
-pub struct Timestamp(Moment);
-
 #[async_trait::async_trait]
-impl sp_inherents::InherentDataProvider for FakeTimestamp {
+impl sp_inherents::InherentDataProvider for Inherent {
     fn provide_inherent_data(
         &self,
         inherent_data: &mut InherentData,
