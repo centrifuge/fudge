@@ -9,11 +9,12 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use polkadot_primitives::v1::InherentData as ParachainsInherentData;
+use polkadot_primitives::v1::{
+	InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
+};
 use sp_inherents::{Error, InherentData, InherentDataProvider, InherentIdentifier};
 use sp_runtime::traits::Header;
 
-const PARACHAINS_INHERENT_IDENTIFIER: InherentIdentifier = *b"parachn0";
 pub struct Inherent<HDR: Header>(ParachainsInherentData<HDR>);
 
 impl<HDR: Header> Inherent<HDR> {

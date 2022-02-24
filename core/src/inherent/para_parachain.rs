@@ -10,16 +10,28 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use cumulus_primitives_parachain_inherent::ParachainInherentData;
+use cumulus_primitives_parachain_inherent::{ParachainInherentData, INHERENT_IDENTIFIER};
 use frame_support::inherent::{InherentData, InherentIdentifier};
+use sp_api::StorageProof;
 use sp_inherents::{Error, InherentDataProvider};
 
 pub struct Inherent(ParachainInherentData);
 
+impl Inherent {
+	pub fn new() -> Self {
+		Inherent(ParachainInherentData {
+			validation_data: Default::default(),
+			relay_chain_state: StorageProof::new(vec![]),
+			downward_messages: vec![],
+			horizontal_messages: Default::default(),
+		})
+	}
+}
+
 #[async_trait::async_trait]
 impl InherentDataProvider for Inherent {
 	fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
-		todo!()
+		inherent_data.put_data(INHERENT_IDENTIFIER, &self.0)
 	}
 
 	async fn try_handle_error(
