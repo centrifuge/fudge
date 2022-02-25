@@ -36,8 +36,8 @@ impl InherentDataProvider for Inherent {
 
 	async fn try_handle_error(
 		&self,
-		identifier: &InherentIdentifier,
-		error: &[u8],
+		_identifier: &InherentIdentifier,
+		_error: &[u8],
 	) -> Option<Result<(), Error>> {
 		todo!()
 	}

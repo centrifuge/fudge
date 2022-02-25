@@ -99,7 +99,7 @@ impl sp_inherents::InherentDataProvider for Inherent {
 		}
 
 		match InherentError::try_from(&INHERENT_IDENTIFIER, error)? {
-			InherentError::ValidAtTimestamp(valid) => {
+			InherentError::ValidAtTimestamp(_valid) => {
 				/*
 				let max_drift = self.max_drift;
 				let timestamp = self.timestamp;

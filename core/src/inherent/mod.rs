@@ -10,10 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::traits::Block as BlockT;
-use sp_std::marker::PhantomData;
-
 pub use para_parachain::Inherent as FudgeInherentParaParachain;
 pub use relay_parachain::Inherent as FudgeInherentRelayParachain;
 pub use timestamp::Inherent as FudgeInherentTimestamp;

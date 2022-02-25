@@ -1,4 +1,3 @@
-#![feature(associated_type_bounds)]
 extern crate sc_client_api;
 extern crate sc_client_db;
 extern crate sc_consensus;
@@ -24,44 +23,34 @@ use codec::Encode;
 use frame_support::dispatch::TransactionPriority;
 use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
 use frame_support::sp_runtime::traits::NumberFor;
-use sc_client_api::{
-	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, CallExecutor, HeaderBackend,
-	UsageProvider,
-};
-use sc_client_db::{Backend, DatabaseSettings, DatabaseSource, RefTrackingState};
-use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
+use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
+use sc_client_db::Backend;
+use sc_consensus::{BlockImport, BlockImportParams};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{LocalCallExecutor, TFullClient};
+use sc_service::TFullClient;
 use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, CanAuthorWith, Environment, Error as ConsensusError};
-use sp_core::{
-	traits::{CodeExecutor, ReadRuntimeVersion},
-	Hasher, Pair,
-};
+use sp_consensus::Environment;
+use sp_core::traits::CodeExecutor;
 use sp_runtime::generic::BlockId;
-use sp_state_machine::{Backend as StateMachineBackend, StorageChanges, StorageProof};
+use sp_state_machine::StorageProof;
 use sp_std::time::Duration;
 use std::fmt::{Debug, Display, Formatter};
 use std::future::Future;
 use std::pin::Pin;
-use std::{collections::HashMap, marker::PhantomData, path::PathBuf, sync::Arc};
+use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
 use self::sc_client_api::{BlockImportOperation, NewBlockState};
-use self::sc_consensus::StateAction;
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
-use self::sp_consensus::{EnableProofRecording, InherentData, Proposal, Proposer};
+use self::sp_api::HashFor;
+use self::sp_consensus::{InherentData, Proposal, Proposer};
 use self::sp_runtime::traits::{
-	Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT, One, Zero,
+	Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT, Zero,
 };
-use self::sp_runtime::{Digest, DigestItem};
-use self::{sc_client_api::ClientImportOperation, sp_api::HashFor};
-use crate::{traits::AuthorityProvider, Bytes, StoragePair};
+use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
-use sp_core::storage::{well_known_keys, ChildInfo};
-use sp_inherents::CreateInherentDataProviders;
 use sp_storage::Storage;
 
 pub enum Operation {
@@ -128,9 +117,7 @@ impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
 }
 
 #[derive(Debug)]
-pub enum Error {
-	Default,
-}
+pub enum Error {}
 
 impl From<sc_transaction_pool_api::error::Error> for Error {
 	fn from(_: sc_transaction_pool_api::error::Error) -> Self {
@@ -139,7 +126,7 @@ impl From<sc_transaction_pool_api::error::Error> for Error {
 }
 
 impl Display for Error {
-	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+	fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
 		todo!()
 	}
 }
@@ -172,9 +159,9 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 
 	fn submit_at(
 		&self,
-		at: &BlockId<Self::Block>,
-		source: TransactionSource,
-		xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>,
+		_at: &BlockId<Self::Block>,
+		_source: TransactionSource,
+		_xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>,
 	) -> sc_transaction_pool_api::PoolFuture<
 		Vec<Result<sc_transaction_pool_api::TxHash<Self>, Self::Error>>,
 		Self::Error,
@@ -184,18 +171,18 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 
 	fn submit_one(
 		&self,
-		at: &BlockId<Self::Block>,
-		source: TransactionSource,
-		xt: sc_transaction_pool_api::TransactionFor<Self>,
+		_at: &BlockId<Self::Block>,
+		_source: TransactionSource,
+		_xt: sc_transaction_pool_api::TransactionFor<Self>,
 	) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
 		todo!()
 	}
 
 	fn submit_and_watch(
 		&self,
-		at: &BlockId<Self::Block>,
-		source: TransactionSource,
-		xt: sc_transaction_pool_api::TransactionFor<Self>,
+		_at: &BlockId<Self::Block>,
+		_source: TransactionSource,
+		_xt: sc_transaction_pool_api::TransactionFor<Self>,
 	) -> sc_transaction_pool_api::PoolFuture<
 		Pin<Box<sc_transaction_pool_api::TransactionStatusStreamFor<Self>>>,
 		Self::Error,
@@ -205,7 +192,7 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 
 	fn ready_at(
 		&self,
-		at: NumberFor<Self::Block>,
+		_at: NumberFor<Self::Block>,
 	) -> Pin<
 		Box<
 			dyn Future<
@@ -236,7 +223,7 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 
 	fn remove_invalid(
 		&self,
-		hashes: &[sc_transaction_pool_api::TxHash<Self>],
+		_hashes: &[sc_transaction_pool_api::TxHash<Self>],
 	) -> Vec<Arc<Self::InPoolTransaction>> {
 		Vec::new()
 	}
@@ -261,21 +248,21 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 
 	fn on_broadcasted(
 		&self,
-		propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>,
+		_propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>,
 	) {
 		todo!()
 	}
 
 	fn hash_of(
 		&self,
-		xt: &sc_transaction_pool_api::TransactionFor<Self>,
+		_xt: &sc_transaction_pool_api::TransactionFor<Self>,
 	) -> sc_transaction_pool_api::TxHash<Self> {
 		todo!()
 	}
 
 	fn ready_transaction(
 		&self,
-		hash: &sc_transaction_pool_api::TxHash<Self>,
+		_hash: &sc_transaction_pool_api::TxHash<Self>,
 	) -> Option<Arc<Self::InPoolTransaction>> {
 		todo!()
 	}
@@ -395,11 +382,11 @@ where
 	) -> Result<R, String> {
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
 		let (r, changes) = ext.execute_with_mut(exec);
-		let (mut main_sc, child_sc, _, tx, root, _, tx_index) = changes.into_inner();
+		let (_main_sc, _child_sc, _, tx, root, _, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
-		op.set_genesis_state(Storage::default(), false);
-		op.update_db_storage(tx);
+		op.set_genesis_state(Storage::default(), false).unwrap();
+		op.update_db_storage(tx).unwrap();
 
 		let genesis_block = Block::new(
 			Block::Header::new(
@@ -444,7 +431,7 @@ where
 		let (main_sc, child_sc, _, tx, root, _, tx_index) = changes.into_inner();
 
 		header.set_state_root(root);
-		op.update_db_storage(tx);
+		op.update_db_storage(tx).unwrap();
 		op.update_storage(main_sc, child_sc)
 			.map_err(|_| "Updating storage not possible.")
 			.unwrap();
@@ -467,7 +454,8 @@ where
 			indexed_body,
 			justifications,
 			NewBlockState::Final,
-		);
+		)
+		.unwrap();
 		Ok(r)
 	}
 
@@ -525,9 +513,9 @@ where
 	) -> Result<(), ()> {
 		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
 		//       Check if I can put the client into a Mutex
-		let mut client = self.client.as_ref() as *const C as *mut C;
+		let client = self.client.as_ref() as *const C as *mut C;
 		let client = unsafe { &mut *(client) };
-		let res =
+		let _res =
 			futures::executor::block_on(client.import_block(params, Default::default())).unwrap();
 
 		Ok(())

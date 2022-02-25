@@ -14,24 +14,16 @@ use crate::{
 	builder::core::{Builder, Operation},
 	types::{Bytes, StoragePair},
 };
-use frame_support::traits::Get;
-use sc_client_api::{
-	blockchain::ProvideCache, AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider,
-};
+use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
-use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
+use sc_consensus::BlockImport;
 use sc_executor::RuntimeVersionOf;
-use sc_service::{Configuration, SpawnTaskHandle, TFullClient};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, Core as CoreApi, ProvideRuntimeApi};
+use sc_service::{Configuration, TFullClient};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, CanAuthorWith, Error as ConsensusError};
-use sp_core::{
-	traits::{CodeExecutor, ReadRuntimeVersion},
-	Pair,
-};
-use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+use sp_core::traits::CodeExecutor;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
-use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
+use sp_std::sync::Arc;
 
 pub struct ParachainBuilder<
 	Block,
@@ -85,7 +77,7 @@ where
 		}
 	}
 
-	pub fn from_config(config: &Configuration, exec: Exec) -> Self {
+	pub fn from_config(_config: &Configuration, _exec: Exec) -> Self {
 		todo!()
 	}
 
@@ -113,11 +105,11 @@ where
 		self
 	}
 
-	pub fn append_xcm(&mut self, xcm: Bytes) -> &mut Self {
+	pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
 		todo!()
 	}
 
-	pub fn append_xcms(&mut self, xcms: Vec<Bytes>) -> &mut Self {
+	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
 		todo!()
 	}
 

@@ -31,15 +31,13 @@ impl<HDR: Header> Inherent<HDR> {
 #[async_trait::async_trait]
 impl<HDR: Header> InherentDataProvider for Inherent<HDR> {
 	fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
-		inherent_data.put_data(PARACHAINS_INHERENT_IDENTIFIER, &self.0);
-
-		Ok(())
+		inherent_data.put_data(PARACHAINS_INHERENT_IDENTIFIER, &self.0)
 	}
 
 	async fn try_handle_error(
 		&self,
-		identifier: &InherentIdentifier,
-		error: &[u8],
+		_identifier: &InherentIdentifier,
+		_error: &[u8],
 	) -> Option<Result<(), Error>> {
 		todo!()
 	}

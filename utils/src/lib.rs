@@ -13,15 +13,12 @@
 //! Utilities for using the core lib conveniently
 use codec::{Codec, Encode};
 use sp_core::sr25519;
-use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::SyncCryptoStore;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::app_crypto::CryptoTypePublicPair;
 use sp_runtime::generic::{SignedPayload, UncheckedExtrinsic};
 use sp_runtime::traits::SignedExtension;
-use sp_runtime::transaction_validity::TransactionValidity;
-use sp_runtime::{CryptoTypeId, KeyTypeId, MultiAddress, MultiSignature};
-use std::marker::PhantomData;
+use sp_runtime::{CryptoTypeId, KeyTypeId, MultiSignature};
 
 pub struct Signer {
 	key_store: SyncCryptoStorePtr,

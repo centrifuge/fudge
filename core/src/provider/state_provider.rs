@@ -10,12 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use sc_client_api::{AuxStore, Backend, BlockImportOperation};
+use sc_client_api::Backend;
 use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
 use sc_service::PruningMode;
-use sp_api::BlockId;
 use sp_core::storage::well_known_keys::CODE;
-use sp_database::{Database, MemDb};
+use sp_database::MemDb;
 use sp_runtime::traits::Block as BlockT;
 use sp_runtime::BuildStorage;
 use sp_std::{marker::PhantomData, sync::Arc};
@@ -38,7 +37,7 @@ where
 	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
 		let Storage {
 			top,
-			children_default,
+			children_default: _children_default,
 		} = storage;
 
 		self.pseudo_genesis.top.extend(top.into_iter());
@@ -95,7 +94,7 @@ where
 
 	pub fn empty_default(code: Option<&[u8]>) -> Self {
 		// TODO: Handle unwrap
-		let mut provider = StateProvider::with_InMemDb().unwrap();
+		let mut provider = StateProvider::with_in_mem_db().unwrap();
 
 		let mut storage = Storage::default();
 		if let Some(code) = code {
@@ -106,7 +105,7 @@ where
 		provider
 	}
 
-	fn with_InMemDb() -> Result<Self, ()> {
+	fn with_in_mem_db() -> Result<Self, ()> {
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
@@ -137,7 +136,7 @@ where
 		Ok(self.pseudo_genesis.clone())
 	}
 
-	fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
+	fn assimilate_storage(&self, _storage: &mut Storage) -> Result<(), String> {
 		todo!()
 	}
 }

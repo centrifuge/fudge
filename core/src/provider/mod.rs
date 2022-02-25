@@ -15,8 +15,8 @@ pub use externalities_provider::ExternalitiesProvider;
 use sc_executor::RuntimeVersionOf;
 use sc_service::config::ExecutionStrategies;
 use sc_service::{
-	ChainSpec, ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend,
-	TFullCallExecutor, TFullClient, TaskManager,
+	ClientConfig, Configuration, KeystoreContainer, TFullBackend, TFullCallExecutor, TFullClient,
+	TaskManager,
 };
 use sp_api::{BlockT, ConstructRuntimeApi};
 use sp_core::traits::{CodeExecutor, SpawnNamed};
@@ -153,7 +153,7 @@ where
 		config: Option<ClientConfig<Block>>,
 	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
 		let backend = self.state.backend();
-		let mut config = config.clone().unwrap_or(Self::client_config());
+		let config = config.clone().unwrap_or(Self::client_config());
 
 		// TODO: Handle unwrap
 		let executor = sc_service::client::LocalCallExecutor::new(

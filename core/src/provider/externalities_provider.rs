@@ -13,11 +13,7 @@
 use sp_api::{BlockT, NumberFor};
 use sp_core::Hasher;
 use sp_externalities::Externalities;
-use sp_runtime::traits::Header;
-use sp_state_machine::{
-	Backend, ChangesTrieBlockNumber, Ext, InMemoryChangesTrieStorage, OverlayedChanges,
-	StorageChanges, StorageTransactionCache,
-};
+use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 pub struct ExternalitiesProvider<'a, H, Block, B>
@@ -190,6 +186,7 @@ where
 	///
 	/// Returns the result of the given closure, if no panics occured.
 	/// Otherwise, returns `Err`.
+	#[allow(dead_code)]
 	pub fn execute_with_safe<R>(
 		&mut self,
 		f: impl FnOnce() -> R + UnwindSafe,

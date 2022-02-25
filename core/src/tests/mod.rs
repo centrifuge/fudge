@@ -14,25 +14,17 @@ use crate::inherent::{FudgeInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::StandAloneBuilder;
 use frame_benchmarking::account;
-use frame_support::inherent::BlockT;
 use fudge_utils::Signer;
-use polkadot_runtime::{
-	Block as TestBlock, Runtime, RuntimeApi as TestRtApi, SignedExtra, WASM_BINARY as CODE,
-};
-use sc_client_db::Backend;
+use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_executor::sp_wasm_interface::HostFunctions;
-use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{LocalCallExecutor, SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
-use sp_api::{BlockId, ConstructRuntimeApi};
-use sp_core::traits::CodeExecutor;
+use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
+use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+use sp_api::BlockId;
 use sp_core::H256;
-use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::SyncCryptoStore;
-use sp_runtime::traits::HashFor;
 use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, Storage};
-use sp_std::str::FromStr;
 use sp_std::sync::Arc;
-use sp_storage::well_known_keys::CODE as CODE_KEY;
 use tokio::runtime::Handle;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
@@ -82,7 +74,7 @@ where
 #[tokio::test]
 async fn mutating_genesis_works() {
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
+	let storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
 			(AccountId32::default(), 10_000_000_000_000u128),
@@ -275,9 +267,9 @@ async fn building_relay_block_with_extrinsics_works() {
 			}
 		},
 	);
-	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
+	let _builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
 
-	let signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
+	let _signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
 	/*
 	let extra: SignedExtra = (
 		frame_system::CheckSpecVersion::<Runtime>::new(),
