@@ -204,13 +204,16 @@ async fn build_relay_block_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp =
-						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
-
+					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					let timestamp = FudgeInherentTimestamp::new(
+						0,
+						sp_std::time::Duration::from_millis(slot_duration),
+						None,
+					);
 					let slot =
 					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
 						timestamp.current_time(),
-						std::time::Duration::from_secs(6),
+						std::time::Duration::from_millis(slot_duration),
 					);
 
 					let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
@@ -222,7 +225,9 @@ async fn build_relay_block_works() {
 	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(FudgeInherentTimestamp::get_instance(0).current_time(), 6),
+			FudgeBabeDigest::pre_digest::<Runtime>(
+				FudgeInherentTimestamp::get_instance(0).current_time(),
+			),
 		));
 
 		Ok(digest)

@@ -12,16 +12,18 @@
 
 use pallet_babe;
 use sp_consensus_babe::digests::{PreDigest, SecondaryPlainPreDigest};
+use sp_runtime::traits::UniqueSaturatedInto;
 use sp_timestamp::Timestamp;
 
 pub struct Digest;
 
 impl Digest {
-	pub fn pre_digest(timestamp: Timestamp, slot_duration: u64) -> PreDigest {
+	pub fn pre_digest<Runtime: pallet_babe::Config>(timestamp: Timestamp) -> PreDigest {
+		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
 		let slot_wrap =
 			sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
 				timestamp,
-				std::time::Duration::from_secs(slot_duration),
+				std::time::Duration::from_millis(slot_duration.unique_saturated_into()),
 			);
 
 		PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
