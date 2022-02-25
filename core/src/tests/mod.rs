@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::{BabeDigest, DigestCreator};
+use crate::digest::{DigestCreator, FudgeBabeDigest};
 use crate::inherent::{FudgeInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::StandAloneBuilder;
@@ -27,7 +27,6 @@ use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::SyncCryptoStore;
 use sp_runtime::{AccountId32, CryptoTypeId, DigestItem, KeyTypeId, MultiAddress, Storage};
 use sp_std::sync::Arc;
-use sp_std::time::Duration;
 use tokio::runtime::Handle;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
@@ -223,7 +222,10 @@ async fn build_relay_block_works() {
 	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
-			BabeDigest::pre_digest::<Runtime>(),
+			FudgeBabeDigest::pre_digest::<Runtime>(
+				FudgeInherentTimestamp::get_instance(0).current_time(),
+				6,
+			),
 		));
 
 		Ok(digest)

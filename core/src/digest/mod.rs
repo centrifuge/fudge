@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 use sp_runtime::Digest;
 
-pub use babe::Digest as BabeDigest;
+pub use babe::Digest as FudgeBabeDigest;
 mod babe;
 
 #[async_trait::async_trait]

@@ -18,22 +18,25 @@ use sp_std::collections::btree_map::BTreeMap;
 use sp_std::time::Duration;
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
 
-static mut INSTANCES: *mut BTreeMap<Instance, Ticks> = 0usize as *mut BTreeMap<Instance, Ticks>;
+static mut INSTANCES: *mut BTreeMap<Instance, CurrTimeProvider> =
+	0usize as *mut BTreeMap<Instance, CurrTimeProvider>;
 
 pub type Instance = u64;
-pub type Ticks = u64;
+pub type Ticks = u128;
 
-pub struct Inherent {
+#[derive(Clone)]
+pub struct CurrTimeProvider {
 	instance: Instance,
 	start: Duration,
 	delta: Duration,
+	ticks: Ticks,
 }
 
-impl Inherent {
-	pub fn new(instance: Instance, delta: Duration, start: Option<Duration>) -> Self {
+impl CurrTimeProvider {
+	pub fn get_instance(instance: Instance) -> Self {
 		let instances = unsafe {
 			if INSTANCES.is_null() {
-				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, Ticks>::new()));
+				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, CurrTimeProvider>::new()));
 				INSTANCES = pt;
 
 				&mut *INSTANCES
@@ -42,7 +45,21 @@ impl Inherent {
 			}
 		};
 
-		instances.entry(instance).or_insert(0);
+		instances.get(&instance).unwrap().clone()
+	}
+
+	pub fn new(instance: Instance, delta: Duration, start: Option<Duration>) -> Self {
+		let instances = unsafe {
+			if INSTANCES.is_null() {
+				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, CurrTimeProvider>::new()));
+				INSTANCES = pt;
+
+				&mut *INSTANCES
+			} else {
+				&mut *INSTANCES
+			}
+		};
+
 		let start = if let Some(start) = start {
 			start
 		} else {
@@ -54,34 +71,39 @@ impl Inherent {
 			dur
 		};
 
-		Inherent {
-			instance,
-			start,
-			delta,
-		}
+		instances
+			.entry(instance)
+			.or_insert(CurrTimeProvider {
+				instance,
+				start,
+				delta,
+				ticks: 0,
+			})
+			.clone()
 	}
 
 	pub fn update_time(&self) {
 		let instances = unsafe { &mut *INSTANCES };
-		let ticks = instances
-			.get_mut(&self.instance)
-			.expect("Instance is initialised. qed.");
-		*ticks = *ticks + 1;
+		instances.insert(
+			self.instance,
+			CurrTimeProvider {
+				start: self.start,
+				instance: self.instance,
+				delta: self.delta,
+				ticks: self.ticks + 1,
+			},
+		);
 	}
 
 	pub fn current_time(&self) -> sp_timestamp::Timestamp {
-		let instances = unsafe { &mut *INSTANCES };
-		let ticks = instances
-			.get_mut(&self.instance)
-			.expect("Instance is initialised. qed.");
-		let delta: u128 = self.delta.as_millis() * Into::<u128>::into(*ticks);
+		let delta: u128 = self.delta.as_millis() * self.ticks;
 		let timestamp: u128 = self.start.as_millis() + delta;
 		sp_timestamp::Timestamp::new(timestamp.saturated_into::<u64>())
 	}
 }
 
 #[async_trait::async_trait]
-impl sp_inherents::InherentDataProvider for Inherent {
+impl sp_inherents::InherentDataProvider for CurrTimeProvider {
 	fn provide_inherent_data(
 		&self,
 		inherent_data: &mut InherentData,
