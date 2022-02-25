@@ -13,26 +13,24 @@
 //! Inherent data providers that should only be used within FUDGE
 
 use sp_inherents::{InherentData, InherentIdentifier};
+use sp_runtime::SaturatedConversion;
 use sp_std::collections::btree_map::BTreeMap;
-use sp_timestamp::InherentError;
+use sp_std::time::Duration;
+use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
 
 static mut INSTANCES: *mut BTreeMap<Instance, Ticks> = 0usize as *mut BTreeMap<Instance, Ticks>;
 
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"timstap0";
-
 pub type Instance = u64;
 pub type Ticks = u64;
-pub type Moment = u64;
 
 pub struct Inherent {
 	instance: Instance,
-	start: Moment,
-	ticks: Ticks,
-	delta: Moment,
+	start: Duration,
+	delta: Duration,
 }
 
 impl Inherent {
-	pub fn new(instance: Instance, delta: Moment, start: Option<Moment>) -> Self {
+	pub fn new(instance: Instance, delta: Duration, start: Option<Duration>) -> Self {
 		let instances = unsafe {
 			if INSTANCES.is_null() {
 				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, Ticks>::new()));
@@ -44,7 +42,7 @@ impl Inherent {
 			}
 		};
 
-		let ticks = instances.entry(instance).or_insert(0).clone();
+		instances.entry(instance).or_insert(0);
 		let start = if let Some(start) = start {
 			start
 		} else {
@@ -53,30 +51,32 @@ impl Inherent {
 				.duration_since(std::time::SystemTime::UNIX_EPOCH)
 				.expect("Current time is always after unix epoch; qed");
 
-			// TODO: Is this correct?
-			dur.as_millis() as u64
+			dur
 		};
 
 		Inherent {
 			instance,
 			start,
-			ticks,
 			delta,
 		}
 	}
 
-	pub fn current_time(&self) -> sp_timestamp::Timestamp {
-		//let timestamp = self.start + (self.delta * self.ticks);
-		let timestamp = self.start * self.ticks;
-
+	pub fn update_time(&self) {
 		let instances = unsafe { &mut *INSTANCES };
-
-		let val = instances
+		let ticks = instances
 			.get_mut(&self.instance)
 			.expect("Instance is initialised. qed.");
-		*val = *val + 1;
+		*ticks = *ticks + 1;
+	}
 
-		sp_timestamp::Timestamp::new(timestamp)
+	pub fn current_time(&self) -> sp_timestamp::Timestamp {
+		let instances = unsafe { &mut *INSTANCES };
+		let ticks = instances
+			.get_mut(&self.instance)
+			.expect("Instance is initialised. qed.");
+		let delta: u128 = self.delta.as_millis() * Into::<u128>::into(*ticks);
+		let timestamp: u128 = self.start.as_millis() + delta;
+		sp_timestamp::Timestamp::new(timestamp.saturated_into::<u64>())
 	}
 }
 
@@ -86,7 +86,11 @@ impl sp_inherents::InherentDataProvider for Inherent {
 		&self,
 		inherent_data: &mut InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		inherent_data.put_data(INHERENT_IDENTIFIER, &self.current_time())
+		inherent_data
+			.put_data(INHERENT_IDENTIFIER, &self.current_time())
+			.unwrap();
+		self.update_time();
+		Ok(())
 	}
 
 	async fn try_handle_error(

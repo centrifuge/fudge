@@ -10,6 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
 use crate::{
 	builder::core::{Builder, Operation},
@@ -34,19 +35,21 @@ pub struct StandAloneBuilder<
 	Exec,
 	CIDP,
 	ExtraArgs,
+	DP,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > {
 	builder: Builder<Block, RtApi, Exec, B, C>,
 	cidp: CIDP,
+	dp: DP,
 	next: Option<Block>,
 	imported_blocks: Vec<Block>,
 	handle: SpawnTaskHandle,
 	_phantom: PhantomData<ExtraArgs>,
 }
 
-impl<Block, RtApi, Exec, CIDP, ExtraArgs, B, C>
-	StandAloneBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, B, C>
+impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
+	StandAloneBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -54,6 +57,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
+	DP: DigestCreator<Block::Hash>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
@@ -68,10 +72,17 @@ where
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
-	pub fn new(handle: SpawnTaskHandle, backend: Arc<B>, client: Arc<C>, cidp: CIDP) -> Self {
+	pub fn new(
+		handle: SpawnTaskHandle,
+		backend: Arc<B>,
+		client: Arc<C>,
+		cidp: CIDP,
+		dp: DP,
+	) -> Self {
 		Self {
 			builder: Builder::new(backend, client),
 			cidp,
+			dp,
 			next: None,
 			imported_blocks: Vec::new(),
 			handle,
@@ -124,6 +135,10 @@ where
 			})
 			.unwrap();
 
+		let digest = self
+			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.unwrap();
+
 		// TODO: Might need proof and storage changes??
 		let Proposal {
 			block,
@@ -132,7 +147,7 @@ where
 		} = self.builder.build_block(
 			self.handle.clone(),
 			provider.create_inherent_data().unwrap(),
-			Default::default(),
+			digest,
 			Duration::from_secs(60),
 			6_000_000,
 		);

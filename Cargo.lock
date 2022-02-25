@@ -1544,7 +1544,9 @@ dependencies = [
  "fudge-utils",
  "futures 0.3.21",
  "node-primitives",
+ "pallet-babe",
  "pallet-balances",
+ "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "polkadot-primitives",
@@ -1563,6 +1565,7 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-consensus",
+ "sp-consensus-aura",
  "sp-consensus-babe",
  "sp-core",
  "sp-database",
@@ -1576,6 +1579,8 @@ dependencies = [
  "sp-storage",
  "sp-timestamp",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -6658,6 +6663,24 @@ dependencies = [
  "sp-std",
  "sp-version",
  "thiserror",
+]
+
+[[package]]
+name = "sp-consensus-aura"
+version = "0.10.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=polkadot-v0.9.12#d76f39995315ec36980908e4b99709bd14927044"
+dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-consensus",
+ "sp-consensus-slots",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
+ "sp-timestamp",
 ]
 
 [[package]]

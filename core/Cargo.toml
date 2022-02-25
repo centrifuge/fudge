@@ -20,6 +20,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 sp-storage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
@@ -44,7 +45,7 @@ node-primitives = { git = "https://github.com/paritytech/substrate", default-fea
 
 # Substrate frame dependencies
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
-
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 # Polkadot dependencies
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 
@@ -57,15 +58,18 @@ polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-fea
 tokio = { version = "1.15", features = ["macros"] }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 fudge-utils = { path = "../utils", default-features = true }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
-
+tracing = "0.1"
+tracing-subscriber = "0.2"
 
 [features]
 default = ["std"]
 std = [
+    "sp-consensus-aura/std",
     "polkadot-primitives/std",
     "cumulus-primitives-parachain-inherent/std",
     "sp-keystore/std",
@@ -78,5 +82,6 @@ std = [
     "sp-consensus/default",
     "node-primitives/std",
     "sc-executor/std",
-    "frame-support/std"
+    "frame-support/std",
+    "pallet-babe/std"
 ]

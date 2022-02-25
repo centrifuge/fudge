@@ -10,6 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use crate::digest::{BabeDigest, DigestCreator};
 use crate::inherent::{FudgeInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::StandAloneBuilder;
@@ -20,31 +21,36 @@ use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
+use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::SyncCryptoStore;
-use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, Storage};
+use sp_runtime::{AccountId32, CryptoTypeId, DigestItem, KeyTypeId, MultiAddress, Storage};
 use sp_std::sync::Arc;
+use sp_std::time::Duration;
 use tokio::runtime::Handle;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
 
-fn generate_default_setup_stand_alone<CIDP>(
+fn generate_default_setup_stand_alone<CIDP, DP>(
 	handle: SpawnTaskHandle,
 	storage: Storage,
 	cidp: Box<dyn FnOnce(Arc<TFullClient<TestBlock, TestRtApi, TestExec>>) -> CIDP>,
+	dp: DP,
 ) -> StandAloneBuilder<
 	TestBlock,
 	TestRtApi,
 	TestExec,
 	CIDP,
 	(),
+	DP,
 	TFullBackend<TestBlock>,
 	TFullClient<TestBlock, TestRtApi, TestExec>,
 >
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
+	DP: DigestCreator<H256> + 'static,
 {
 	let host_functions = sp_io::SubstrateHostFunctions::host_functions();
 	let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::with_code(CODE.unwrap());
@@ -63,11 +69,12 @@ where
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
-	StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _>::new(
+	StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _, _>::new(
 		handle.clone(),
 		backend,
 		client,
 		cidp(clone_client),
+		dp,
 	)
 }
 
@@ -97,7 +104,8 @@ async fn mutating_genesis_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+					let timestamp =
+						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
 
 					let slot =
 				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
@@ -112,7 +120,9 @@ async fn mutating_genesis_works() {
 		},
 	);
 
-	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
+	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
+
+	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
 
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
@@ -177,6 +187,9 @@ async fn opening_state_from_db_path_works() {
 
 #[tokio::test]
 async fn build_relay_block_works() {
+	// install global collector configured based on RUST_LOG env var.
+	tracing_subscriber::fmt::init();
+
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(
 		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
@@ -192,7 +205,8 @@ async fn build_relay_block_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+					let timestamp =
+						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
 
 					let slot =
 					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
@@ -201,13 +215,21 @@ async fn build_relay_block_works() {
 					);
 
 					let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
-					Ok((timestamp, uncles, slot, relay_para_inherent))
+					Ok((timestamp, slot, uncles, relay_para_inherent))
 				}
 			}
 		},
 	);
+	let dp = Box::new(move || async move {
+		let mut digest = sp_runtime::Digest::default();
+		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
+			BabeDigest::pre_digest::<Runtime>(),
+		));
+
+		Ok(digest)
+	});
 	let mut builder =
-		generate_default_setup_stand_alone(manager.spawn_handle(), Storage::default(), cidp);
+		generate_default_setup_stand_alone(manager.spawn_handle(), Storage::default(), cidp, dp);
 
 	let num_before = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
@@ -220,7 +242,20 @@ async fn build_relay_block_works() {
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
 		.unwrap();
 
-	assert_eq!(num_before + 1, num_after)
+	assert_eq!(num_before + 1, num_after);
+
+	let num_before = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	builder.build_block();
+	builder.import_block();
+
+	let num_after = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_before + 1, num_after);
 }
 
 #[tokio::test]
@@ -253,7 +288,8 @@ async fn building_relay_block_with_extrinsics_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::new(0, 12, None);
+					let timestamp =
+						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
 
 					let slot =
 					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
@@ -267,7 +303,8 @@ async fn building_relay_block_with_extrinsics_works() {
 			}
 		},
 	);
-	let _builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp);
+	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
+	let _builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
 
 	let _signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
 	/*
@@ -294,3 +331,199 @@ async fn building_relay_block_with_extrinsics_works() {
 	);
 	*/
 }
+
+// NOTE ######### Building valid blocks an signing extr example ### FROM bin/node/cli/src/service.rs
+/*
+
+   fn test_sync() {
+	   sp_tracing::try_init_simple();
+
+	   let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+	   let keystore: SyncCryptoStorePtr =
+		   Arc::new(LocalKeystore::open(keystore_path.path(), None).expect("Creates keystore"));
+	   let alice: sp_consensus_babe::AuthorityId =
+		   SyncCryptoStore::sr25519_generate_new(&*keystore, BABE, Some("//Alice"))
+			   .expect("Creates authority pair")
+			   .into();
+
+	   let chain_spec = crate::chain_spec::tests::integration_test_config_with_single_authority();
+
+	   // For the block factory
+	   let mut slot = 1u64;
+
+	   // For the extrinsics factory
+	   let bob = Arc::new(AccountKeyring::Bob.pair());
+	   let charlie = Arc::new(AccountKeyring::Charlie.pair());
+	   let mut index = 0;
+
+	   sc_service_test::sync(
+		   chain_spec,
+		   |config| {
+			   let mut setup_handles = None;
+			   let NewFullBase { task_manager, client, network, transaction_pool, .. } =
+				   new_full_base(
+					   config,
+					   |block_import: &sc_consensus_babe::BabeBlockImport<Block, _, _>,
+						babe_link: &sc_consensus_babe::BabeLink<Block>| {
+						   setup_handles = Some((block_import.clone(), babe_link.clone()));
+					   },
+				   )?;
+
+			   let node = sc_service_test::TestNetComponents::new(
+				   task_manager,
+				   client,
+				   network,
+				   transaction_pool,
+			   );
+			   Ok((node, setup_handles.unwrap()))
+		   },
+		   |service, &mut (ref mut block_import, ref babe_link)| {
+			   let parent_id = BlockId::number(service.client().chain_info().best_number);
+			   let parent_header = service.client().header(&parent_id).unwrap().unwrap();
+			   let parent_hash = parent_header.hash();
+			   let parent_number = *parent_header.number();
+
+			   futures::executor::block_on(service.transaction_pool().maintain(
+				   ChainEvent::NewBestBlock { hash: parent_header.hash(), tree_route: None },
+			   ));
+
+			   let mut proposer_factory = sc_basic_authorship::ProposerFactory::new(
+				   service.spawn_handle(),
+				   service.client(),
+				   service.transaction_pool(),
+				   None,
+				   None,
+			   );
+
+			   let mut digest = Digest::default();
+
+			   // even though there's only one authority some slots might be empty,
+			   // so we must keep trying the next slots until we can claim one.
+			   let (babe_pre_digest, epoch_descriptor) = loop {
+				   let epoch_descriptor = babe_link
+					   .epoch_changes()
+					   .shared_data()
+					   .epoch_descriptor_for_child_of(
+						   descendent_query(&*service.client()),
+						   &parent_hash,
+						   parent_number,
+						   slot.into(),
+					   )
+					   .unwrap()
+					   .unwrap();
+
+				   let epoch = babe_link
+					   .epoch_changes()
+					   .shared_data()
+					   .epoch_data(&epoch_descriptor, |slot| {
+						   sc_consensus_babe::Epoch::genesis(&babe_link.config(), slot)
+					   })
+					   .unwrap();
+
+				   if let Some(babe_pre_digest) =
+					   sc_consensus_babe::authorship::claim_slot(slot.into(), &epoch, &keystore)
+						   .map(|(digest, _)| digest)
+				   {
+					   break (babe_pre_digest, epoch_descriptor)
+				   }
+
+				   slot += 1;
+			   };
+
+			   let inherent_data = (
+				   sp_timestamp::InherentDataProvider::new(
+					   std::time::Duration::from_millis(SLOT_DURATION * slot).into(),
+				   ),
+				   sp_consensus_babe::inherents::InherentDataProvider::new(slot.into()),
+			   )
+				   .create_inherent_data()
+				   .expect("Creates inherent data");
+
+			   digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(babe_pre_digest));
+
+			   let new_block = futures::executor::block_on(async move {
+				   let proposer = proposer_factory.init(&parent_header).await;
+				   proposer
+					   .unwrap()
+					   .propose(inherent_data, digest, std::time::Duration::from_secs(1), None)
+					   .await
+			   })
+			   .expect("Error making test block")
+			   .block;
+
+			   let (new_header, new_body) = new_block.deconstruct();
+			   let pre_hash = new_header.hash();
+			   // sign the pre-sealed hash of the block and then
+			   // add it to a digest item.
+			   let to_sign = pre_hash.encode();
+			   let signature = SyncCryptoStore::sign_with(
+				   &*keystore,
+				   sp_consensus_babe::AuthorityId::ID,
+				   &alice.to_public_crypto_pair(),
+				   &to_sign,
+			   )
+			   .unwrap()
+			   .unwrap()
+			   .try_into()
+			   .unwrap();
+			   let item = <DigestItem as CompatibleDigestItem>::babe_seal(signature);
+			   slot += 1;
+
+			   let mut params = BlockImportParams::new(BlockOrigin::File, new_header);
+			   params.post_digests.push(item);
+			   params.body = Some(new_body);
+			   params.intermediates.insert(
+				   Cow::from(INTERMEDIATE_KEY),
+				   Box::new(BabeIntermediate::<Block> { epoch_descriptor }) as Box<_>,
+			   );
+			   params.fork_choice = Some(ForkChoiceStrategy::LongestChain);
+
+			   futures::executor::block_on(block_import.import_block(params, Default::default()))
+				   .expect("error importing test block");
+		   },
+		   |service, _| {
+			   let amount = 5 * CENTS;
+			   let to: Address = AccountPublic::from(bob.public()).into_account().into();
+			   let from: Address = AccountPublic::from(charlie.public()).into_account().into();
+			   let genesis_hash = service.client().block_hash(0).unwrap().unwrap();
+			   let best_block_id = BlockId::number(service.client().chain_info().best_number);
+			   let (spec_version, transaction_version) = {
+				   let version = service.client().runtime_version_at(&best_block_id).unwrap();
+				   (version.spec_version, version.transaction_version)
+			   };
+			   let signer = charlie.clone();
+
+			   let function =
+				   Call::Balances(BalancesCall::transfer { dest: to.into(), value: amount });
+
+			   let check_non_zero_sender = frame_system::CheckNonZeroSender::new();
+			   let check_spec_version = frame_system::CheckSpecVersion::new();
+			   let check_tx_version = frame_system::CheckTxVersion::new();
+			   let check_genesis = frame_system::CheckGenesis::new();
+			   let check_era = frame_system::CheckEra::from(Era::Immortal);
+			   let check_nonce = frame_system::CheckNonce::from(index);
+			   let check_weight = frame_system::CheckWeight::new();
+			   let tx_payment = pallet_asset_tx_payment::ChargeAssetTxPayment::from(0, None);
+			   let extra = (
+				   check_non_zero_sender,
+				   check_spec_version,
+				   check_tx_version,
+				   check_genesis,
+				   check_era,
+				   check_nonce,
+				   check_weight,
+				   tx_payment,
+			   );
+			   let raw_payload = SignedPayload::from_raw(
+				   function,
+				   extra,
+				   ((), spec_version, transaction_version, genesis_hash, genesis_hash, (), (), ()),
+			   );
+			   let signature = raw_payload.using_encoded(|payload| signer.sign(payload));
+			   let (function, extra, _) = raw_payload.deconstruct();
+			   index += 1;
+			   UncheckedExtrinsic::new_signed(function, from.into(), signature.into(), extra)
+				   .into()
+		   },
+	   );
+*/

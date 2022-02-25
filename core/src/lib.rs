@@ -19,6 +19,7 @@ pub use provider::EnvProvider;
 pub use types::{Bytes, StoragePair};
 
 mod builder;
+mod digest;
 mod inherent;
 mod provider;
 #[cfg(test)]
