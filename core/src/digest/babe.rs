@@ -17,10 +17,7 @@ use sp_timestamp::Timestamp;
 pub struct Digest;
 
 impl Digest {
-	pub fn pre_digest<Runtime: pallet_babe::Config>(
-		timestamp: Timestamp,
-		slot_duration: u64,
-	) -> PreDigest {
+	pub fn pre_digest(timestamp: Timestamp, slot_duration: u64) -> PreDigest {
 		let slot_wrap =
 			sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
 				timestamp,

@@ -222,10 +222,7 @@ async fn build_relay_block_works() {
 	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest::<Runtime>(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
-				6,
-			),
+			FudgeBabeDigest::pre_digest(FudgeInherentTimestamp::get_instance(0).current_time(), 6),
 		));
 
 		Ok(digest)
