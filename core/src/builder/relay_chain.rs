@@ -16,8 +16,6 @@ use crate::{
 	builder::core::{Builder, Operation},
 	types::{Bytes, StoragePair},
 };
-use codec::Encode;
-use polkadot_parachain::primitives::{BlockData, HeadData};
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -31,12 +29,7 @@ use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 
-pub struct FudgeParaBuild {
-	pub parent_head: HeadData,
-	pub block: BlockData,
-}
-
-pub struct ParachainBuilder<
+pub struct RelayChainBuilder<
 	Block: BlockT,
 	RtApi,
 	Exec,
@@ -56,7 +49,7 @@ pub struct ParachainBuilder<
 }
 
 impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
-	ParachainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
+	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -129,7 +122,7 @@ where
 		todo!()
 	}
 
-	pub fn build_block(&mut self) -> Result<FudgeParaBuild, ()> {
+	pub fn build_block(&mut self) -> Result<Block, ()> {
 		assert!(self.next.is_none());
 
 		let provider = self
@@ -156,13 +149,9 @@ where
 			Duration::from_secs(60),
 			6_000_000,
 		);
-		let parent_head = self.builder.latest_header();
 		self.next = Some((block.clone(), proof));
 
-		Ok(FudgeParaBuild {
-			parent_head: HeadData(parent_head.encode()),
-			block: BlockData(block.encode()),
-		})
+		Ok(block)
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {

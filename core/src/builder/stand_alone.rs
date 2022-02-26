@@ -27,6 +27,7 @@ use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_state_machine::StorageProof;
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 
 pub struct StandAloneBuilder<
@@ -42,8 +43,8 @@ pub struct StandAloneBuilder<
 	builder: Builder<Block, RtApi, Exec, B, C>,
 	cidp: CIDP,
 	dp: DP,
-	next: Option<Block>,
-	imported_blocks: Vec<Block>,
+	next: Option<(Block, StorageProof)>,
+	imports: Vec<(Block, StorageProof)>,
 	handle: SpawnTaskHandle,
 	_phantom: PhantomData<ExtraArgs>,
 }
@@ -84,7 +85,7 @@ where
 			cidp,
 			dp,
 			next: None,
-			imported_blocks: Vec::new(),
+			imports: Vec::new(),
 			handle,
 			_phantom: Default::default(),
 		}
@@ -122,7 +123,7 @@ where
 		todo!()
 	}
 
-	pub fn build_block(&mut self) -> &mut Self {
+	pub fn build_block(&mut self) -> Result<Block, ()> {
 		assert!(self.next.is_none());
 
 		let provider = self
@@ -138,42 +139,37 @@ where
 		let digest = self
 			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
 			.unwrap();
+		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
+		//       afterwards
+		let inherent = provider.create_inherent_data().unwrap();
 
-		// TODO: Might need proof and storage changes??
-		let Proposal {
-			block,
-			proof: _proof,
-			storage_changes: _changes,
-		} = self.builder.build_block(
+		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			provider.create_inherent_data().unwrap(),
+			inherent,
 			digest,
 			Duration::from_secs(60),
 			6_000_000,
 		);
+		self.next = Some((block.clone(), proof));
 
-		self.next = Some(block.clone());
-		self.imported_blocks.push(block);
-		self
+		Ok(block)
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {
-		let block = self.next.take().unwrap();
-		let mut params = BlockImportParams::new(
-			BlockOrigin::ConsensusBroadcast,
-			block.clone().deconstruct().0,
-		);
-		params.body = Some(block.clone().deconstruct().1);
+		let (block, proof) = self.next.take().unwrap();
+		let (header, body) = block.clone().deconstruct();
+		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
+		params.body = Some(body);
 		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();
-		self.imported_blocks.push(block);
+		self.imports.push((block, proof));
 		self
 	}
 
-	pub fn blocks(&self) -> Vec<Block> {
-		self.imported_blocks.clone()
+	pub fn imports(&self) -> Vec<(Block, StorageProof)> {
+		self.imports.clone()
 	}
 
 	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {

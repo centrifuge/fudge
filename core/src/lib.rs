@@ -14,7 +14,9 @@
 // GNU General Public License for more details.
 
 // Library exports
-pub use builder::{parachain::ParachainBuilder, stand_alone::StandAloneBuilder};
+pub use builder::{
+	parachain::ParachainBuilder, relay_chain::RelayChainBuilder, stand_alone::StandAloneBuilder,
+};
 pub use provider::EnvProvider;
 pub use types::{Bytes, StoragePair};
 

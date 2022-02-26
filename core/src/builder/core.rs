@@ -322,6 +322,15 @@ where
 		self.client.info().best_hash
 	}
 
+	pub fn latest_header(&self) -> Block::Header {
+		self.backend
+			.blockchain()
+			.header(BlockId::Hash(self.latest_block()))
+			.ok()
+			.flatten()
+			.expect("State is available. qed")
+	}
+
 	pub fn with_state<R>(
 		&self,
 		op: Operation,

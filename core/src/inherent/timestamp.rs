@@ -98,7 +98,7 @@ impl CurrTimeProvider {
 	pub fn current_time(&self) -> sp_timestamp::Timestamp {
 		let delta: u128 = self.delta.as_millis() * self.ticks;
 		let timestamp: u128 = self.start.as_millis() + delta;
-		sp_timestamp::Timestamp::new(timestamp.saturated_into::<u64>())
+		sp_timestamp::Timestamp::new(timestamp as u64)
 	}
 }
 

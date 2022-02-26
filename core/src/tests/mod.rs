@@ -112,7 +112,8 @@ async fn mutating_genesis_works() {
 					std::time::Duration::from_secs(6),
 				);
 
-					let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+					let relay_para_inherent =
+						FudgeInherentRelayParachain::new(parent_header, Vec::new());
 					Ok((timestamp, uncles, slot, relay_para_inherent))
 				}
 			}
@@ -213,10 +214,11 @@ async fn build_relay_block_works() {
 					let slot =
 					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
 						timestamp.current_time(),
-						std::time::Duration::from_millis(slot_duration),
+						sp_std::time::Duration::from_millis(slot_duration),
 					);
 
-					let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+					let relay_para_inherent =
+						FudgeInherentRelayParachain::new(parent_header, Vec::new());
 					Ok((timestamp, slot, uncles, relay_para_inherent))
 				}
 			}
@@ -224,9 +226,12 @@ async fn build_relay_block_works() {
 	);
 	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
+
+		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
 		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest::<Runtime>(
+			FudgeBabeDigest::pre_digest(
 				FudgeInherentTimestamp::get_instance(0).current_time(),
+				sp_std::time::Duration::from_millis(slot_duration),
 			),
 		));
 
@@ -239,7 +244,7 @@ async fn build_relay_block_works() {
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
 		.unwrap();
 
-	builder.build_block();
+	builder.build_block().unwrap();
 	builder.import_block();
 
 	let num_after = builder
@@ -252,7 +257,7 @@ async fn build_relay_block_works() {
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
 		.unwrap();
 
-	builder.build_block();
+	builder.build_block().unwrap();
 	builder.import_block();
 
 	let num_after = builder
@@ -301,7 +306,8 @@ async fn building_relay_block_with_extrinsics_works() {
 						std::time::Duration::from_secs(6),
 					);
 
-					let relay_para_inherent = FudgeInherentRelayParachain::new(parent_header);
+					let relay_para_inherent =
+						FudgeInherentRelayParachain::new(parent_header, Vec::new());
 					Ok((timestamp, uncles, slot, relay_para_inherent))
 				}
 			}
