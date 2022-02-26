@@ -537,3 +537,122 @@ async fn building_relay_block_with_extrinsics_works() {
 		   },
 	   );
 */
+
+#[tokio::test]
+async fn build_relay_block_works_and_mut_is_build_upon() {
+	// install global collector configured based on RUST_LOG env var.
+	// tracing_subscriber::fmt::init();
+
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	let cidp = Box::new(
+		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
+
+					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					let timestamp = FudgeInherentTimestamp::new(
+						0,
+						sp_std::time::Duration::from_millis(slot_duration),
+						None,
+					);
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+							timestamp.current_time(),
+							sp_std::time::Duration::from_millis(slot_duration),
+						);
+
+					let relay_para_inherent =
+						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					Ok((timestamp, slot, uncles, relay_para_inherent))
+				}
+			}
+		},
+	);
+	let dp = Box::new(move || async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
+			FudgeBabeDigest::pre_digest(
+				FudgeInherentTimestamp::get_instance(0).current_time(),
+				sp_std::time::Duration::from_millis(slot_duration),
+			),
+		));
+
+		Ok(digest)
+	});
+
+	let storage = pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(account("test", 0, 0), 10_000_000_000_000u128),
+			(AccountId32::default(), 10_000_000_000_000u128),
+		],
+	}
+	.build_storage()
+	.unwrap();
+
+	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
+
+	let num_before = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	builder.build_block().unwrap();
+	builder.import_block();
+
+	let num_after = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_before + 1, num_after);
+
+	let (send_data_pre, recv_data_pre) = builder
+		.with_mut_state(|| {
+			polkadot_runtime::Balances::transfer(
+				polkadot_runtime::Origin::signed(AccountId32::default()),
+				MultiAddress::Id(account("test", 0, 0)),
+				1_000_000_000_000u128,
+			)
+			.unwrap();
+
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	let num_before = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	builder.build_block().unwrap();
+	builder.import_block();
+
+	let num_after = builder
+		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_before + 1, num_after);
+
+	let (send_data_post, recv_data_post) = builder
+		.with_state(|| {
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	assert_eq!(send_data_pre, send_data_post);
+	assert_eq!(recv_data_pre, recv_data_post);
+}

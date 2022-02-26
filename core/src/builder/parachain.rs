@@ -166,6 +166,19 @@ where
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {
+		// Finalize previous block if there was one.
+		// This is needed as we can not alter the latest state on a finalized block
+		// and hence `with_state_mut` would fail
+		if let Some((prev_block, _)) = self.imports.last() {
+			let (header, body) = prev_block.clone().deconstruct();
+			let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
+			params.body = Some(body);
+			params.finalized = true;
+			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+
+			self.builder.import_block(params).unwrap();
+		}
+
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
@@ -176,6 +189,22 @@ where
 		self.builder.import_block(params).unwrap();
 		self.imports.push((block, proof));
 		self
+	}
+
+	/// This will result in mutating the state of this block via `with_state_mut` to error out.
+	pub fn finalize_latest(&mut self) -> Result<(), ()> {
+		if let Some((prev_block, _)) = self.imports.last() {
+			let (header, body) = prev_block.clone().deconstruct();
+			let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
+			params.body = Some(body);
+			params.finalized = true;
+			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
+
+			self.builder.import_block(params).unwrap();
+			Ok(())
+		} else {
+			Err(())
+		}
 	}
 
 	pub fn imports(&self) -> Vec<(Block, StorageProof)> {
@@ -198,7 +227,8 @@ where
 		self.builder.with_state(Operation::Commit, None, exec)
 	}
 
-	pub fn with_mut_state_at<R>(
+	/// Mutating past states not supported yet...
+	fn with_mut_state_at<R>(
 		&mut self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
