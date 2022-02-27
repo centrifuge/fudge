@@ -10,9 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use pallet_babe;
 use sp_consensus_babe::digests::{PreDigest, SecondaryPlainPreDigest};
-use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::time::Duration;
 use sp_timestamp::Timestamp;
 

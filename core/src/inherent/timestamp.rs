@@ -13,7 +13,6 @@
 //! Inherent data providers that should only be used within FUDGE
 
 use sp_inherents::{InherentData, InherentIdentifier};
-use sp_runtime::SaturatedConversion;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_std::time::Duration;
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};

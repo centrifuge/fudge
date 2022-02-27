@@ -14,7 +14,7 @@ use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
 use crate::{
 	builder::core::{Builder, Operation},
-	types::{Bytes, StoragePair},
+	types::StoragePair,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
@@ -113,14 +113,6 @@ where
 			self.builder.append_transition(aux);
 		});
 		self
-	}
-
-	pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
-		todo!()
-	}
-
-	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
-		todo!()
 	}
 
 	pub fn build_block(&mut self) -> Result<Block, ()> {

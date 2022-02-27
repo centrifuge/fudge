@@ -1552,6 +1552,7 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime",
+ "polkadot-runtime-parachains",
  "sc-basic-authorship",
  "sc-block-builder",
  "sc-client-api",

@@ -44,12 +44,14 @@ sc-consensus-uncles = { git = "https://github.com/paritytech/substrate", default
 node-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 
 # Substrate frame dependencies
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
+
 # Polkadot dependencies
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
-
+polkadot-runtime-parachains =  { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.12" }
 # Cumulus dependencies
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.12" }
 
@@ -58,7 +60,6 @@ cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/c
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.12"}
 tokio = { version = "1.15", features = ["macros"] }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
@@ -85,5 +86,6 @@ std = [
     "sc-executor/std",
     "frame-support/std",
     "pallet-babe/std",
-    "polkadot-parachain/std"
+    "polkadot-parachain/std",
+    "frame-system/std"
 ]

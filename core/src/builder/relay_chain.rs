@@ -10,12 +10,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use crate::builder::parachain::FudgeParaChain;
 use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
 use crate::{
 	builder::core::{Builder, Operation},
 	types::{Bytes, StoragePair},
 };
+use polkadot_runtime_parachains::paras;
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -28,6 +30,84 @@ use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
+use types::*;
+
+/// Recreating private storage types for easier handling storage access
+mod types {
+	use frame_support::traits::StorageInstance;
+	use frame_support::{
+		storage::types::{StorageMap, StorageValue, ValueQuery},
+		Identity, Twox64Concat,
+	};
+	use polkadot_parachain::primitives::{
+		HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
+	};
+
+	pub struct ParachainsPrefix;
+	impl StorageInstance for ParachainsPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "Parachains";
+	}
+	pub type Parachains = StorageValue<ParachainsPrefix, Vec<ParaId>, ValueQuery>;
+
+	pub struct HeadsPrefix;
+	impl StorageInstance for HeadsPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "Heads";
+	}
+	pub type Heads = StorageMap<HeadsPrefix, Twox64Concat, ParaId, HeadData>;
+
+	pub struct CurrentCodeHashPrefix;
+	impl StorageInstance for CurrentCodeHashPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "CurrentCodeHash";
+	}
+	pub type CurrentCodeHash =
+		StorageMap<CurrentCodeHashPrefix, Twox64Concat, ParaId, ValidationCodeHash>;
+
+	pub struct CodeByHashPrefix;
+	impl StorageInstance for CodeByHashPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "CodeByHash";
+	}
+	pub type CodeByHash =
+		StorageMap<CodeByHashPrefix, Identity, ValidationCodeHash, ValidationCode>;
+
+	pub struct CodeByHashRefsPrefix;
+	impl StorageInstance for CodeByHashRefsPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "CodeByHashRefs";
+	}
+	pub type CodeByHashRefs =
+		StorageMap<CodeByHashRefsPrefix, Identity, ValidationCodeHash, u32, ValueQuery>;
+
+	pub struct PastCodeHashPrefix;
+	impl StorageInstance for PastCodeHashPrefix {
+		fn pallet_prefix() -> &'static str {
+			"Paras"
+		}
+
+		const STORAGE_PREFIX: &'static str = "PastCodeHash";
+	}
+	#[allow(type_alias_bounds)]
+	pub type PastCodeHash<T: frame_system::Config> =
+		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+}
 
 pub struct RelayChainBuilder<
 	Block: BlockT,
@@ -36,6 +116,7 @@ pub struct RelayChainBuilder<
 	CIDP,
 	ExtraArgs,
 	DP,
+	Runtime,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > {
@@ -45,11 +126,11 @@ pub struct RelayChainBuilder<
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
 	handle: SpawnTaskHandle,
-	_phantom: PhantomData<ExtraArgs>,
+	_phantom: PhantomData<(ExtraArgs, Runtime)>,
 }
 
-impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
-	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
+impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
+	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -59,6 +140,7 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block::Hash>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
+	Runtime: paras::Config + frame_system::Config,
 	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
@@ -122,9 +204,52 @@ where
 		todo!()
 	}
 
+	pub fn onboard_para(&mut self, para: FudgeParaChain) -> &mut Self {
+		self.with_mut_state(|| {
+			let FudgeParaChain { id, head, code } = para;
+			let current_block = frame_system::Pallet::<Runtime>::block_number();
+			let code_hash = code.hash();
+
+			Parachains::try_mutate::<(), (), _>(|paras| {
+				if !paras.contains(&id) {
+					paras.push(id);
+					paras.sort();
+				}
+				Ok(())
+			})
+			.unwrap();
+
+			let curr_code_hash = if let Some(curr_code_hash) = CurrentCodeHash::get(&id) {
+				curr_code_hash
+			} else {
+				Default::default()
+			};
+
+			if curr_code_hash != code_hash {
+				PastCodeHash::<Runtime>::insert(&(id, current_block), curr_code_hash);
+				CurrentCodeHash::insert(&id, code_hash);
+				CodeByHash::insert(code_hash, code);
+				CodeByHashRefs::mutate(code_hash, |refs| {
+					if *refs == 0 {
+						*refs += 1;
+					}
+				});
+			}
+
+			Heads::insert(&id, head);
+		})
+		.unwrap();
+
+		self
+	}
+
 	pub fn build_block(&mut self) -> Result<Block, ()> {
 		assert!(self.next.is_none());
 
+		// TODO: -A) The FudgeParaBuild should be used in order to create the correct inherents here.
+		//       Probably one should be able to append it
+		//       -B) We generate the inherents from the outside. This would mean, that the parachain-builder
+		//           are passed to some struct and build their blocks their in the inherent creation...
 		let provider = self
 			.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
@@ -172,7 +297,6 @@ where
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
 		params.body = Some(body);
-		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();

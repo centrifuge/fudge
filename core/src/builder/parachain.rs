@@ -17,7 +17,7 @@ use crate::{
 	types::{Bytes, StoragePair},
 };
 use codec::Encode;
-use polkadot_parachain::primitives::{BlockData, HeadData};
+use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -34,6 +34,12 @@ use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 pub struct FudgeParaBuild {
 	pub parent_head: HeadData,
 	pub block: BlockData,
+}
+
+pub struct FudgeParaChain {
+	pub id: Id,
+	pub head: HeadData,
+	pub code: ValidationCode,
 }
 
 pub struct ParachainBuilder<
@@ -183,7 +189,6 @@ where
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
 		params.body = Some(body);
-		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();
