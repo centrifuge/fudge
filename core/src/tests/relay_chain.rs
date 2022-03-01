@@ -150,8 +150,6 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	//builder.build_block().unwrap();
-	//builder.import_block();
 	builder.onboard_para(dummy_para);
 	builder.build_block().unwrap();
 	builder.import_block();
@@ -185,7 +183,7 @@ async fn onboarding_parachain_works() {
 	builder.import_block();
 
 	let res = builder
-		.with_state(|| {
+		.with_state_at(BlockId::Number(2), || {
 			let mut chains = RelayChainTypes::Parachains::get();
 			chains.retain(|para_id| para_id == &id);
 			let head = RelayChainTypes::Heads::get(&id).unwrap();

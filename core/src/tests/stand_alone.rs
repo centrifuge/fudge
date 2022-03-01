@@ -78,6 +78,8 @@ where
 
 #[tokio::test]
 async fn mutating_genesis_works() {
+	super::utils::init_logs();
+
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
@@ -156,6 +158,8 @@ async fn mutating_genesis_works() {
 
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
+	super::utils::init_logs();
+
 	/*
 		let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
 		let manager = TaskManager::new(Handle::current(), None).unwrap();
@@ -189,7 +193,7 @@ async fn opening_state_from_db_path_works() {
 #[tokio::test]
 async fn build_relay_block_works() {
 	// install global collector configured based on RUST_LOG env var.
-	//super::utils::init_logs();
+	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(
@@ -272,6 +276,8 @@ async fn build_relay_block_works() {
 
 #[tokio::test]
 async fn building_relay_block_with_extrinsics_works() {
+	super::utils::init_logs();
+
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let key_store = sc_keystore::LocalKeystore::in_memory();
 	let sender = key_store.sr25519_generate_new(KEY_TYPE, None).unwrap();
@@ -545,8 +551,7 @@ async fn building_relay_block_with_extrinsics_works() {
 
 #[tokio::test]
 async fn build_relay_block_works_and_mut_is_build_upon() {
-	// install global collector configured based on RUST_LOG env var.
-	// tracing_subscriber::fmt::init();
+	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(

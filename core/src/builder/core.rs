@@ -51,7 +51,7 @@ use self::sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT
 use self::sp_runtime::Digest;
 use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
-use sp_storage::{StateVersion, Storage};
+use sp_storage::StateVersion;
 
 pub enum Operation {
 	Commit,
