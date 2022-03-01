@@ -9,7 +9,13 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-mod parachain;
-mod relay_chain;
-mod stand_alone;
-mod utils;
+static mut INIT: bool = false;
+
+pub fn init_logs() {
+	unsafe {
+		if !INIT {
+			tracing_subscriber::fmt::init();
+			INIT = true;
+		}
+	}
+}

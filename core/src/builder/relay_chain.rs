@@ -33,7 +33,7 @@ use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use types::*;
 
 /// Recreating private storage types for easier handling storage access
-mod types {
+pub mod types {
 	use frame_support::traits::StorageInstance;
 	use frame_support::{
 		storage::types::{StorageMap, StorageValue, ValueQuery},
@@ -220,13 +220,13 @@ where
 			.unwrap();
 
 			let curr_code_hash = if let Some(curr_code_hash) = CurrentCodeHash::get(&id) {
+				PastCodeHash::<Runtime>::insert(&(id, current_block), curr_code_hash);
 				curr_code_hash
 			} else {
 				Default::default()
 			};
 
 			if curr_code_hash != code_hash {
-				PastCodeHash::<Runtime>::insert(&(id, current_block), curr_code_hash);
 				CurrentCodeHash::insert(&id, code_hash);
 				CodeByHash::insert(code_hash, code);
 				CodeByHashRefs::mutate(code_hash, |refs| {
@@ -246,10 +246,6 @@ where
 	pub fn build_block(&mut self) -> Result<Block, ()> {
 		assert!(self.next.is_none());
 
-		// TODO: -A) The FudgeParaBuild should be used in order to create the correct inherents here.
-		//       Probably one should be able to append it
-		//       -B) We generate the inherents from the outside. This would mean, that the parachain-builder
-		//           are passed to some struct and build their blocks their in the inherent creation...
 		let provider = self
 			.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
@@ -280,23 +276,11 @@ where
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {
-		// Finalize previous block if there was one.
-		// This is needed as we can not alter the latest state on a finalized block
-		// and hence `with_state_mut` would fail
-		if let Some((prev_block, _)) = self.imports.last() {
-			let (header, body) = prev_block.clone().deconstruct();
-			let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
-			params.body = Some(body);
-			params.finalized = true;
-			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
-
-			self.builder.import_block(params).unwrap();
-		}
-
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
 		params.body = Some(body);
+		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();

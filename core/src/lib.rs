@@ -15,7 +15,9 @@
 
 // Library exports
 pub use builder::{
-	parachain::ParachainBuilder, relay_chain::RelayChainBuilder, stand_alone::StandAloneBuilder,
+	parachain::{FudgeParaBuild, FudgeParaChain, ParachainBuilder},
+	relay_chain::{types as RelayChainTypes, RelayChainBuilder},
+	stand_alone::StandAloneBuilder,
 };
 pub use provider::EnvProvider;
 pub use types::{Bytes, StoragePair};

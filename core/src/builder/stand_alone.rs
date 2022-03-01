@@ -148,23 +148,11 @@ where
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {
-		// Finalize previous block if there was one.
-		// This is needed as we can not alter the latest state on a finalized block
-		// and hence `with_state_mut` would fail
-		if let Some((prev_block, _)) = self.imports.last() {
-			let (header, body) = prev_block.clone().deconstruct();
-			let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
-			params.body = Some(body);
-			params.finalized = true;
-			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
-
-			self.builder.import_block(params).unwrap();
-		}
-
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
 		params.body = Some(body);
+		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();

@@ -67,6 +67,7 @@ fudge-utils = { path = "../utils", default-features = true }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.12" }
 tracing = "0.1"
 tracing-subscriber = "0.2"
+centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", default-features = true, rev = "072c4c8a6bf005a19b37fd078c85591c7c1de06a"}
 
 [features]
 default = ["std"]

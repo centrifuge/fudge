@@ -33,7 +33,7 @@ use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::Environment;
 use sp_core::traits::CodeExecutor;
-use sp_runtime::generic::BlockId;
+use sp_runtime::{generic::BlockId, traits::One};
 use sp_state_machine::StorageProof;
 use sp_std::time::Duration;
 use std::fmt::{Debug, Display, Formatter};
@@ -427,6 +427,13 @@ where
 		exec: impl FnOnce() -> R,
 		at: BlockId<Block>,
 	) -> Result<R, String> {
+		let info = self.client.info();
+		if info.best_hash == info.finalized_hash {
+			self.backend
+				.revert(NumberFor::<Block>::one(), true)
+				.unwrap();
+		}
+
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend
 			.header(at)
