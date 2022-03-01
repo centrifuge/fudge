@@ -43,6 +43,7 @@ use std::{collections::HashMap, marker::PhantomData, sync::Arc};
 
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
 use self::sc_client_api::{BlockImportOperation, NewBlockState};
+use self::sc_consensus::ImportResult;
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
 use self::sp_api::HashFor;
 use self::sp_consensus::{InherentData, Proposal, Proposer};
@@ -346,16 +347,13 @@ where
 		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
 
 		match op {
-			// TODO: Does this actually commit changes to the underlying DB?
 			Operation::Commit => {
-				//let _import_lock = self.backend.get_import_lock().write();
 				let mut op = self
 					.backend
 					.begin_operation()
 					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
 				self.backend.begin_state_operation(&mut op, at).unwrap();
 
-				// TODO: Handle unwrap
 				let res = if self
 					.backend
 					.blockchain()
@@ -365,6 +363,14 @@ where
 				{
 					self.mutate_genesis(&mut op, &state, exec)
 				} else {
+					// We need to unfinalize the latest block and re-import it again in order to
+					// mutate it
+					let info = self.client.info();
+					if info.best_hash == info.finalized_hash {
+						self.backend
+							.revert(NumberFor::<Block>::one(), true)
+							.unwrap();
+					}
 					self.mutate_normal(&mut op, &state, exec, at)
 				};
 
@@ -392,8 +398,8 @@ where
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
-		op.set_genesis_state(Storage::default(), false, StateVersion::V0)
-			.unwrap();
+		// op.set_genesis_state(Storage::default(), true, StateVersion::V0)
+		//	.unwrap();
 		op.update_db_storage(tx).unwrap();
 
 		let genesis_block = Block::new(
@@ -429,13 +435,6 @@ where
 		exec: impl FnOnce() -> R,
 		at: BlockId<Block>,
 	) -> Result<R, String> {
-		let info = self.client.info();
-		if info.best_hash == info.finalized_hash {
-			self.backend
-				.revert(NumberFor::<Block>::one(), true)
-				.unwrap();
-		}
-
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend
 			.header(at)
@@ -533,10 +532,14 @@ where
 		//       Check if I can put the client into a Mutex
 		let client = self.client.as_ref() as *const C as *mut C;
 		let client = unsafe { &mut *(client) };
-		let _res =
-			futures::executor::block_on(client.import_block(params, Default::default())).unwrap();
-
-		Ok(())
+		match futures::executor::block_on(client.import_block(params, Default::default())).unwrap()
+		{
+			ImportResult::Imported(_) => Ok(()),
+			ImportResult::AlreadyInChain => Err(()),
+			ImportResult::KnownBad => Err(()),
+			ImportResult::UnknownParent => Err(()),
+			ImportResult::MissingState => Err(()),
+		}
 	}
 }
 

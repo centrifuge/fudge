@@ -189,7 +189,7 @@ async fn opening_state_from_db_path_works() {
 #[tokio::test]
 async fn build_relay_block_works() {
 	// install global collector configured based on RUST_LOG env var.
-	super::utils::init_logs();
+	//super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(

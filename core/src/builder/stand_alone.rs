@@ -160,22 +160,6 @@ where
 		self
 	}
 
-	/// This will result in mutating the state of this block via `with_state_mut` to error out.
-	pub fn finalize_latest(&mut self) -> Result<(), ()> {
-		if let Some((prev_block, _)) = self.imports.last() {
-			let (header, body) = prev_block.clone().deconstruct();
-			let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
-			params.body = Some(body);
-			params.finalized = true;
-			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
-
-			self.builder.import_block(params).unwrap();
-			Ok(())
-		} else {
-			Err(())
-		}
-	}
-
 	pub fn imports(&self) -> Vec<(Block, StorageProof)> {
 		self.imports.clone()
 	}
