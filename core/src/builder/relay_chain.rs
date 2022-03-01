@@ -17,6 +17,7 @@ use crate::{
 	builder::core::{Builder, Operation},
 	types::{Bytes, StoragePair},
 };
+use polkadot_parachain::primitives::ValidationCodeHash;
 use polkadot_runtime_parachains::paras;
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
@@ -27,6 +28,7 @@ use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageP
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
+use sp_core::H256;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
@@ -138,7 +140,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator<Block::Hash>,
+	DP: DigestCreator,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	Runtime: paras::Config + frame_system::Config,
 	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
@@ -223,7 +225,7 @@ where
 				PastCodeHash::<Runtime>::insert(&(id, current_block), curr_code_hash);
 				curr_code_hash
 			} else {
-				Default::default()
+				ValidationCodeHash::from(H256::zero())
 			};
 
 			if curr_code_hash != code_hash {

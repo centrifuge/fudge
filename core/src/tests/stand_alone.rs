@@ -17,7 +17,6 @@ use crate::StandAloneBuilder;
 use frame_benchmarking::account;
 use fudge_utils::Signer;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
-use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
@@ -35,40 +34,40 @@ const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
 fn generate_default_setup_stand_alone<CIDP, DP>(
 	handle: SpawnTaskHandle,
 	storage: Storage,
-	cidp: Box<dyn FnOnce(Arc<TFullClient<TestBlock, TestRtApi, TestExec>>) -> CIDP>,
+	cidp: Box<
+		dyn FnOnce(
+			Arc<TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>>,
+		) -> CIDP,
+	>,
 	dp: DP,
 ) -> StandAloneBuilder<
 	TestBlock,
 	TestRtApi,
-	TestExec,
+	TestExec<sp_io::SubstrateHostFunctions>,
 	CIDP,
 	(),
 	DP,
 	TFullBackend<TestBlock>,
-	TFullClient<TestBlock, TestRtApi, TestExec>,
+	TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 >
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
-	DP: DigestCreator<H256> + 'static,
+	DP: DigestCreator + 'static,
 {
-	let host_functions = sp_io::SubstrateHostFunctions::host_functions();
-	let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::with_code(CODE.unwrap());
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
+			CODE.unwrap(),
+		);
 	provider.insert_storage(storage);
 
 	let (client, backend) = provider.init_default(
-		TestExec::new(
-			WasmExecutionMethod::Interpreted,
-			None,
-			host_functions,
-			6,
-			None,
-		),
+		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
 		Box::new(handle.clone()),
 	);
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
-	StandAloneBuilder::<TestBlock, TestRtApi, TestExec, _, _, _>::new(
+	StandAloneBuilder::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
 		handle.clone(),
 		backend,
 		client,
@@ -90,7 +89,9 @@ async fn mutating_genesis_works() {
 	.unwrap();
 
 	let cidp = Box::new(
-		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		|clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
 			move |parent: H256, ()| {
 				let client = clone_client.clone();
 				let parent_header = client
@@ -192,7 +193,9 @@ async fn build_relay_block_works() {
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(
-		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		|clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
 			move |parent: H256, ()| {
 				let client = clone_client.clone();
 				let parent_header = client
@@ -228,7 +231,7 @@ async fn build_relay_block_works() {
 		let mut digest = sp_runtime::Digest::default();
 
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
+		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
 			FudgeBabeDigest::pre_digest(
 				FudgeInherentTimestamp::get_instance(0).current_time(),
 				sp_std::time::Duration::from_millis(slot_duration),
@@ -284,7 +287,9 @@ async fn building_relay_block_with_extrinsics_works() {
 	.assimilate_storage(&mut storage)
 	.unwrap();
 	let cidp = Box::new(
-		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		|clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
 			move |parent: H256, ()| {
 				let client = clone_client.clone();
 				let parent_header = client
@@ -545,7 +550,9 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	let cidp = Box::new(
-		|clone_client: Arc<TFullClient<TestBlock, TestRtApi, TestExec>>| {
+		|clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
 			move |parent: H256, ()| {
 				let client = clone_client.clone();
 				let parent_header = client
@@ -581,7 +588,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 		let mut digest = sp_runtime::Digest::default();
 
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem<H256> as CompatibleDigestItem>::babe_pre_digest(
+		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
 			FudgeBabeDigest::pre_digest(
 				FudgeInherentTimestamp::get_instance(0).current_time(),
 				sp_std::time::Duration::from_millis(slot_duration),

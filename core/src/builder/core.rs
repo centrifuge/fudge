@@ -46,12 +46,11 @@ use self::sc_client_api::{BlockImportOperation, NewBlockState};
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
 use self::sp_api::HashFor;
 use self::sp_consensus::{InherentData, Proposal, Proposer};
-use self::sp_runtime::traits::{
-	Block as BlockT, DigestFor, Hash as HashT, Header as HeaderT, Zero,
-};
+use self::sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, Zero};
+use self::sp_runtime::Digest;
 use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
-use sp_storage::Storage;
+use sp_storage::{StateVersion, Storage};
 
 pub enum Operation {
 	Commit,
@@ -377,8 +376,7 @@ where
 			}
 			// TODO: Does this actually NOT change the state?
 			Operation::DryRun => Ok(
-				ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state)
-					.execute_with(exec),
+				ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state).execute_with(exec),
 			),
 		}
 	}
@@ -389,18 +387,22 @@ where
 		state: &B::State,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 		let (r, changes) = ext.execute_with_mut(exec);
-		let (_main_sc, _child_sc, _, tx, root, _, _tx_index) = changes.into_inner();
+		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
-		op.set_genesis_state(Storage::default(), false).unwrap();
+		op.set_genesis_state(Storage::default(), false, StateVersion::V0)
+			.unwrap();
 		op.update_db_storage(tx).unwrap();
 
 		let genesis_block = Block::new(
 			Block::Header::new(
 				Zero::zero(),
-				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(Vec::new()),
+				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
+					Vec::new(),
+					StateVersion::V0,
+				),
 				root,
 				Default::default(),
 				Default::default(),
@@ -441,10 +443,10 @@ where
 			.flatten()
 			.expect("State is available. qed");
 
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, Block, B::State>::new(&state);
+		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 		let (r, changes) = ext.execute_with_mut(exec);
 
-		let (main_sc, child_sc, _, tx, root, _, tx_index) = changes.into_inner();
+		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
 		header.set_state_root(root);
 		op.update_db_storage(tx).unwrap();
@@ -496,7 +498,7 @@ where
 		&mut self,
 		handle: SpawnTaskHandle,
 		inherents: InherentData,
-		digest: DigestFor<Block>,
+		digest: Digest,
 		time: Duration,
 		limit: usize,
 	) -> Proposal<Block, TransactionFor<B, Block>, StorageProof> {

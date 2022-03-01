@@ -15,30 +15,30 @@ pub use babe::Digest as FudgeBabeDigest;
 mod babe;
 
 #[async_trait::async_trait]
-pub trait DigestCreator<Hash> {
-	async fn create_digest(&self) -> Result<Digest<Hash>, ()>;
+pub trait DigestCreator {
+	async fn create_digest(&self) -> Result<Digest, ()>;
 }
 
 #[async_trait::async_trait]
-pub trait DigestProvider<Hash> {
-	async fn build_digest(&self) -> Result<Digest<Hash>, ()>;
-	async fn append_digest(&self, digest: &mut Digest<Hash>) -> Result<(), ()>;
+pub trait DigestProvider {
+	async fn build_digest(&self) -> Result<Digest, ()>;
+	async fn append_digest(&self, digest: &mut Digest) -> Result<(), ()>;
 }
 
 #[async_trait::async_trait]
-impl<F, Fut, Hash> DigestCreator<Hash> for F
+impl<F, Fut> DigestCreator for F
 where
 	F: Fn() -> Fut + Sync + Send,
-	Fut: std::future::Future<Output = Result<Digest<Hash>, ()>> + Send + 'static,
+	Fut: std::future::Future<Output = Result<Digest, ()>> + Send + 'static,
 {
-	async fn create_digest(&self) -> Result<Digest<Hash>, ()> {
+	async fn create_digest(&self) -> Result<Digest, ()> {
 		(*self)().await
 	}
 }
 
 #[async_trait::async_trait]
-impl<Hash> DigestCreator<Hash> for Box<dyn DigestCreator<Hash> + Send + Sync> {
-	async fn create_digest(&self) -> Result<Digest<Hash>, ()> {
+impl DigestCreator for Box<dyn DigestCreator + Send + Sync> {
+	async fn create_digest(&self) -> Result<Digest, ()> {
 		(*self).create_digest().await
 	}
 }

@@ -10,33 +10,30 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use sp_api::{BlockT, NumberFor};
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
+use sp_storage::StateVersion;
 use std::panic::{AssertUnwindSafe, UnwindSafe};
 
-pub struct ExternalitiesProvider<'a, H, Block, B>
+pub struct ExternalitiesProvider<'a, H, B>
 where
 	H: Hasher,
 	H::Out: codec::Codec + Ord + 'static,
 	B: Backend<H>,
-	Block: BlockT,
 {
 	overlay: OverlayedChanges,
 	// TODO: Do we need an offchain-db here?
 	//offchain_db: TestPersistentOffchainDB,
-	storage_transaction_cache:
-		StorageTransactionCache<<B as Backend<H>>::Transaction, H, NumberFor<Block>>,
+	storage_transaction_cache: StorageTransactionCache<<B as Backend<H>>::Transaction, H>,
 	backend: &'a B,
 }
 
-impl<'a, H, Block, B> ExternalitiesProvider<'a, H, Block, B>
+impl<'a, H, B> ExternalitiesProvider<'a, H, B>
 where
 	H: Hasher,
 	H::Out: codec::Codec + Ord + 'static,
 	B: Backend<H>,
-	Block: BlockT,
 {
 	pub fn new(backend: &'a B) -> Self {
 		Self {
@@ -47,12 +44,11 @@ where
 	}
 
 	/// Get externalities implementation.
-	pub fn ext(&mut self) -> Ext<H, NumberFor<Block>, B> {
+	pub fn ext(&mut self) -> Ext<H, B> {
 		Ext::new(
 			&mut self.overlay,
 			&mut self.storage_transaction_cache,
 			&self.backend,
-			None,
 			None,
 		)
 	}
@@ -158,10 +154,12 @@ where
 	pub fn execute_with_mut<R>(
 		&mut self,
 		execute: impl FnOnce() -> R,
-	) -> (R, StorageChanges<B::Transaction, H, NumberFor<Block>>) {
-		let parent_hash = self
-			.overlay
-			.storage_root(self.backend, &mut self.storage_transaction_cache);
+	) -> (R, StorageChanges<B::Transaction, H>) {
+		let parent_hash = self.overlay.storage_root(
+			self.backend,
+			&mut self.storage_transaction_cache,
+			StateVersion::V0,
+		);
 
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
@@ -172,11 +170,11 @@ where
 		(
 			r,
 			self.overlay
-				.drain_storage_changes::<B, H, NumberFor<Block>>(
+				.drain_storage_changes::<B, H>(
 					self.backend,
-					None,
 					parent_hash,
 					&mut self.storage_transaction_cache,
+					StateVersion::V0,
 				)
 				.unwrap(),
 		)
