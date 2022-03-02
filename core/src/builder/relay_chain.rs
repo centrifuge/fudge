@@ -316,6 +316,8 @@ where
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
+		assert!(self.next.is_none());
+
 		self.builder.with_state(Operation::Commit, Some(at), exec)
 	}
 }
