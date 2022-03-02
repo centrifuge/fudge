@@ -331,6 +331,13 @@ where
 			.expect("State is available. qed")
 	}
 
+	pub fn latest_code(&self) -> Vec<u8> {
+		self.with_state(Operation::DryRun, None, || {
+			frame_support::storage::unhashed::get_raw(sp_storage::well_known_keys::CODE).unwrap()
+		})
+		.unwrap()
+	}
+
 	pub fn with_state<R>(
 		&self,
 		op: Operation,

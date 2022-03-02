@@ -34,6 +34,7 @@ use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 pub struct FudgeParaBuild {
 	pub parent_head: HeadData,
 	pub block: BlockData,
+	pub code: ValidationCode,
 }
 
 pub struct FudgeParaChain {
@@ -135,7 +136,7 @@ where
 		todo!()
 	}
 
-	pub fn build_block(&mut self) -> Result<FudgeParaBuild, ()> {
+	pub fn build_block(&mut self) -> Result<(), ()> {
 		assert!(self.next.is_none());
 
 		let provider = self
@@ -162,13 +163,21 @@ where
 			Duration::from_secs(60),
 			6_000_000,
 		);
-		let parent_head = self.builder.latest_header();
-		self.next = Some((block.clone(), proof));
+		self.next = Some((block, proof));
 
-		Ok(FudgeParaBuild {
-			parent_head: HeadData(parent_head.encode()),
-			block: BlockData(block.encode()),
-		})
+		Ok(())
+	}
+
+	pub fn next_build(&self) -> Option<FudgeParaBuild> {
+		if let Some((ref block, _)) = self.next {
+			Some(FudgeParaBuild {
+				parent_head: HeadData(self.builder.latest_header().encode()),
+				block: BlockData(block.clone().encode()),
+				code: ValidationCode(self.builder.latest_code()),
+			})
+		} else {
+			None
+		}
 	}
 
 	pub fn import_block(&mut self) -> &mut Self {
