@@ -15,6 +15,10 @@ use frame_support::inherent::{InherentData, InherentIdentifier};
 use sp_api::StorageProof;
 use sp_inherents::{Error, InherentDataProvider};
 
+// TODO: Real ParachainInherentData creation
+//       - create RelayChainInterface implementor with RelayChainLocal
+//       - ParachainInherentData::create_at() -> creates the inherent data
+//            - Inherent creation extra args must hence take: |parent_hash_para, (relay_parent, validation_data)|
 pub struct Inherent(ParachainInherentData);
 
 impl Inherent {

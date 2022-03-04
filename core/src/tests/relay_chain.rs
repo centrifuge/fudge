@@ -13,7 +13,7 @@
 // TODO: test onbotd parachain with dummy data. i.e. see if storage of latest block is updated to contain wanted data
 
 use crate::digest::{DigestCreator, FudgeBabeDigest};
-use crate::inherent::{FudgeInherentRelayParachain, FudgeInherentTimestamp};
+use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::FudgeParaChain;
 use crate::RelayChainBuilder;
@@ -113,8 +113,7 @@ async fn onboarding_parachain_works() {
 							std::time::Duration::from_secs(6),
 						);
 
-					let relay_para_inherent =
-						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 					Ok((timestamp, uncles, slot, relay_para_inherent))
 				}
 			}

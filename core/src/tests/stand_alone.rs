@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 
 use crate::digest::{DigestCreator, FudgeBabeDigest};
-use crate::inherent::{FudgeInherentRelayParachain, FudgeInherentTimestamp};
+use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::StandAloneBuilder;
 use frame_benchmarking::account;
@@ -115,8 +115,7 @@ async fn mutating_genesis_works() {
                             std::time::Duration::from_secs(6),
                         );
 
-					let relay_para_inherent =
-						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 					Ok((timestamp, uncles, slot, relay_para_inherent))
 				}
 			}
@@ -224,8 +223,7 @@ async fn build_relay_block_works() {
                             sp_std::time::Duration::from_millis(slot_duration),
                         );
 
-					let relay_para_inherent =
-						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 					Ok((timestamp, slot, uncles, relay_para_inherent))
 				}
 			}
@@ -317,8 +315,7 @@ async fn building_relay_block_with_extrinsics_works() {
                             std::time::Duration::from_secs(6),
                         );
 
-					let relay_para_inherent =
-						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 					Ok((timestamp, uncles, slot, relay_para_inherent))
 				}
 			}
@@ -582,8 +579,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
                             sp_std::time::Duration::from_millis(slot_duration),
                         );
 
-					let relay_para_inherent =
-						FudgeInherentRelayParachain::new(parent_header, Vec::new());
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 					Ok((timestamp, slot, uncles, relay_para_inherent))
 				}
 			}
