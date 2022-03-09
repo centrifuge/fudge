@@ -12,7 +12,6 @@
 
 use cumulus_primitives_parachain_inherent::{ParachainInherentData, INHERENT_IDENTIFIER};
 use frame_support::inherent::{InherentData, InherentIdentifier};
-use sp_api::StorageProof;
 use sp_inherents::{Error, InherentDataProvider};
 
 // TODO: Real ParachainInherentData creation
@@ -22,13 +21,8 @@ use sp_inherents::{Error, InherentDataProvider};
 pub struct Inherent(ParachainInherentData);
 
 impl Inherent {
-	pub fn new() -> Self {
-		Inherent(ParachainInherentData {
-			validation_data: Default::default(),
-			relay_chain_state: StorageProof::new(vec![]),
-			downward_messages: vec![],
-			horizontal_messages: Default::default(),
-		})
+	pub fn new(inherent: ParachainInherentData) -> Self {
+		Inherent(inherent)
 	}
 }
 

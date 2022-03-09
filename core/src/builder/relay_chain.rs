@@ -17,16 +17,21 @@ use crate::{
 	builder::core::{Builder, Operation},
 	types::{Bytes, StoragePair},
 };
-use polkadot_parachain::primitives::ValidationCodeHash;
+use cumulus_primitives_parachain_inherent::ParachainInherentData;
+use cumulus_relay_chain_local::RelayChainLocal;
+use parking_lot::Mutex;
+use polkadot_parachain::primitives::{Id, ValidationCodeHash};
+use polkadot_primitives::v1::{OccupiedCoreAssumption, PersistedValidationData};
+use polkadot_primitives::v2::ParachainHost;
 use polkadot_runtime_parachains::paras;
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullClient};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, Proposal};
+use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
 use sp_core::traits::CodeExecutor;
 use sp_core::H256;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
@@ -119,10 +124,9 @@ pub struct RelayChainBuilder<
 	ExtraArgs,
 	DP,
 	Runtime,
-	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
 > {
-	builder: Builder<Block, RtApi, Exec, B, C>,
+	builder: Builder<Block, RtApi, Exec, Backend<Block>, C>,
 	cidp: CIDP,
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
@@ -131,11 +135,11 @@ pub struct RelayChainBuilder<
 	_phantom: PhantomData<(ExtraArgs, Runtime)>,
 }
 
-impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
-	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
+impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, C>
+	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, C>
 where
 	B: BackendT<Block> + 'static,
-	Block: BlockT,
+	Block: BlockT<Hash = H256>,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
@@ -143,7 +147,7 @@ where
 	DP: DigestCreator,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	Runtime: paras::Config + frame_system::Config,
-	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
+	C::Api: BlockBuilder<Block> + ParachainHost<Block> + ApiExt<Block, StateBackend = B::State>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -204,6 +208,42 @@ where
 
 	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
 		todo!()
+	}
+
+	fn persisted_validation_data(
+		&self,
+		parent: Block::Hash,
+		para_id: Id,
+	) -> PersistedValidationData {
+		let api = self.builder.client().runtime_api();
+		// We use the runtime api as if the block was enacted
+		api.persisted_validation_data(
+			&BlockId::Hash(parent),
+			para_id,
+			OccupiedCoreAssumption::Included,
+		)
+		.unwrap()
+		.unwrap()
+	}
+
+	pub fn parachain_inherent(&self, para_id: Id) -> Option<ParachainInherentData> {
+		let parent = self.builder.latest_block();
+		let relay_interface = RelayChainLocal::new(
+			self.builder.client(),
+			self.builder.backend(),
+			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+			None,
+		);
+		let persisted_validation_data = self.persisted_validation_data(parent, para_id);
+
+		let res = futures::executor::block_on(ParachainInherentData::create_at(
+			parent,
+			&relay_interface,
+			&persisted_validation_data,
+			para_id,
+		));
+
+		res
 	}
 
 	pub fn onboard_para(&mut self, para: FudgeParaChain) -> &mut Self {

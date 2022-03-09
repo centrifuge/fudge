@@ -10,6 +10,7 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 futures = "0.3.19"
 async-trait = "0.1.52"
+parking_lot = "0.11.1"
 
 # Substrate primitives dependencies
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.16" }
@@ -52,9 +53,10 @@ pallet-babe = { git = "https://github.com/paritytech/substrate", default-feature
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.16" }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.16" }
 polkadot-runtime-parachains =  { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.16" }
+
 # Cumulus dependencies
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.16" }
-
+cumulus-relay-chain-local = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.16" }
 
 [dev-dependencies]
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.16" }

@@ -318,6 +318,14 @@ where
 		}
 	}
 
+	pub fn client(&self) -> Arc<C> {
+		self.client.clone()
+	}
+
+	pub fn backend(&self) -> Arc<B> {
+		self.backend.clone()
+	}
+
 	pub fn latest_block(&self) -> Block::Hash {
 		self.client.info().best_hash
 	}

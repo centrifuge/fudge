@@ -10,8 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-// TODO: test onbotd parachain with dummy data. i.e. see if storage of latest block is updated to contain wanted data
-
 use crate::digest::{DigestCreator, FudgeBabeDigest};
 use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
