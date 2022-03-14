@@ -17,15 +17,14 @@ use crate::inherent::{
 };
 use crate::provider::EnvProvider;
 use crate::RelayChainBuilder;
-use crate::RelayChainTypes;
 use crate::{FudgeParaChain, ParachainBuilder};
 use centrifuge_runtime::{
 	Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi, WASM_BINARY as PCODE,
 };
-use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
-use polkadot_runtime::{
-	Block as RTestBlock, Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE,
-};
+use frame_support::traits::GenesisBuild;
+use polkadot_core_primitives::{Block as RTestBlock, Header as RTestHeader};
+use polkadot_parachain::primitives::Id;
+use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
@@ -33,10 +32,33 @@ use sp_api::BlockId;
 use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::traits::Hash as _;
 use sp_runtime::{DigestItem, Storage};
 use sp_std::sync::Arc;
+use sp_std::sync::Mutex;
 use tokio::runtime::Handle;
+
+type RelayBuilder<R> = RelayChainBuilder<
+	RTestBlock,
+	RTestRtApi,
+	TestExec<sp_io::SubstrateHostFunctions>,
+	Box<
+		dyn CreateInherentDataProviders<
+			RTestBlock,
+			(),
+			InherentDataProviders = (
+				FudgeInherentTimestamp,
+				sp_consensus_babe::inherents::InherentDataProvider,
+				sp_authorship::InherentDataProvider<RTestHeader>,
+				FudgeDummyInherentRelayParachain<RTestHeader>,
+			),
+		>,
+	>,
+	(),
+	Box<dyn DigestCreator + Send + Sync>,
+	R,
+	TFullBackend<RTestBlock>,
+	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+>;
 
 fn generate_default_setup_parachain<CIDP, DP>(
 	handle: SpawnTaskHandle,
@@ -83,29 +105,45 @@ where
 	)
 }
 
-fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
+fn generate_default_setup_relay_chain<Runtime>(
 	handle: SpawnTaskHandle,
 	storage: Storage,
 ) -> RelayChainBuilder<
 	RTestBlock,
 	RTestRtApi,
 	TestExec<sp_io::SubstrateHostFunctions>,
-	CIDP,
+	Box<
+		dyn CreateInherentDataProviders<
+			RTestBlock,
+			(),
+			InherentDataProviders = (
+				FudgeInherentTimestamp,
+				sp_consensus_babe::inherents::InherentDataProvider,
+				sp_authorship::InherentDataProvider<RTestHeader>,
+				FudgeDummyInherentRelayParachain<RTestHeader>,
+			),
+		>,
+	>,
 	(),
-	DP,
+	Box<dyn DigestCreator + Send + Sync>,
 	Runtime,
 	TFullBackend<RTestBlock>,
 	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 >
 where
-	CIDP: CreateInherentDataProviders<RTestBlock, ()> + 'static,
-	DP: DigestCreator + 'static,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime: pallet_babe::Config
+		+ polkadot_runtime_parachains::configuration::Config
+		+ paras::Config
+		+ frame_system::Config
+		+ pallet_timestamp::Config<Moment = u64>,
 {
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			RCODE.unwrap(),
 		);
+	let storage = polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
+		.build_storage()
+		.unwrap();
 	provider.insert_storage(storage);
 
 	let (client, backend) = provider.init_default(
@@ -141,11 +179,12 @@ where
 						);
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
-					Ok((timestamp, uncles, slot, relay_para_inherent))
+					Ok((timestamp, slot, uncles, relay_para_inherent))
 				}
 			}
 		},
 	);
+
 	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 
@@ -168,7 +207,13 @@ where
 		_,
 		_,
 		Runtime,
-	>::new(handle.clone(), backend, client, cidp(clone_client), dp)
+	>::new(
+		handle.clone(),
+		backend,
+		client,
+		Box::new(cidp(clone_client)),
+		dp,
+	)
 }
 
 #[tokio::test]
@@ -176,21 +221,20 @@ async fn parachain_creates_correct_inherents() {
 	super::utils::init_logs();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
-	let mut relay_builder = generate_default_setup_relay_chain::<_, _, RRuntime>(
-		manager.spawn_handle(),
-		Storage::default(),
-	);
-
+	let mut relay_builder =
+		generate_default_setup_relay_chain::<RRuntime>(manager.spawn_handle(), Storage::default());
 	let mut relay_builder = Arc::new(relay_builder);
+	let relay_builder_clone = relay_builder.clone();
 	let para_id = Id::from(2001u32);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
 			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
-			let relay_builder = relay_builder.clone();
 			move |parent: H256, ()| {
+				let inherent_provider = relay_builder_clone.clone();
 				let client = clone_client.clone();
+
 				let parent_header = client
 					.header(&BlockId::Hash(parent.clone()))
 					.unwrap()
@@ -205,10 +249,11 @@ async fn parachain_creates_correct_inherents() {
                             timestamp.current_time(),
                             std::time::Duration::from_secs(6),
                         );
-
-					let relay_para_inherent = FudgeInherentParaParachain::new(
-						relay_builder.parachain_inherent(para_id).unwrap(),
-					);
+					let inherent = inherent_provider
+						.as_ref()
+						.parachain_inherent(Id::from(2001u32));
+					let inherent = inherent.await.unwrap();
+					let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
 					Ok((timestamp, slot, relay_para_inherent))
 				}
 			}
@@ -222,6 +267,45 @@ async fn parachain_creates_correct_inherents() {
 	let mut builder =
 		generate_default_setup_parachain(manager.spawn_handle(), Storage::default(), cidp, dp);
 
+	let dummy_para = FudgeParaChain {
+		id: para_id,
+		head: builder.head(),
+		code: builder.code(),
+	};
+
+	// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
+	//       Check if I can put the client into a Mutex
+	let client =
+		relay_builder.as_ref() as *const RelayBuilder<RRuntime> as *mut RelayBuilder<RRuntime>;
+	let client = unsafe { &mut *(client) };
+
+	client.onboard_para(dummy_para);
+	let num_start = builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+		.unwrap();
+
+	let v = futures::executor::block_on(client.parachain_inherent(Id::from(2001u32)));
+
 	builder.build_block().unwrap();
 	builder.import_block();
+
+	let v = futures::executor::block_on(client.parachain_inherent(Id::from(2001u32)));
+
+	let num_after_one = builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_start + 1, num_after_one);
+
+	/*
+	builder.build_block().unwrap();
+	builder.import_block();
+
+	let num_after_two = builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_start + 2, num_after_two);
+
+	 */
 }

@@ -168,6 +168,14 @@ where
 		Ok(())
 	}
 
+	pub fn head(&self) -> HeadData {
+		HeadData(self.builder.latest_header().encode())
+	}
+
+	pub fn code(&self) -> ValidationCode {
+		ValidationCode(self.builder.latest_code())
+	}
+
 	pub fn next_build(&self) -> Option<FudgeParaBuild> {
 		if let Some((ref block, _)) = self.next {
 			Some(FudgeParaBuild {

@@ -1,5 +1,4 @@
 #![feature(associated_type_bounds)]
-#![feature(proc_macro_is_available)]
 // TODO: Remove before release
 #![allow(dead_code)]
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).

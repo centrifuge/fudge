@@ -84,7 +84,7 @@ async fn mutating_genesis_works() {
 	let storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
-			(AccountId32::default(), 10_000_000_000_000u128),
+			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
 		],
 	}
 	.build_storage()
@@ -129,14 +129,14 @@ async fn mutating_genesis_works() {
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
 			polkadot_runtime::Balances::transfer(
-				polkadot_runtime::Origin::signed(AccountId32::default()),
+				polkadot_runtime::Origin::signed(AccountId32::new([0u8; 32])),
 				MultiAddress::Id(account("test", 0, 0)),
 				1_000_000_000_000u128,
 			)
 			.unwrap();
 
 			(
-				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
 				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
 			)
 		})
@@ -145,7 +145,7 @@ async fn mutating_genesis_works() {
 	let (send_data_post, recv_data_post) = builder
 		.with_state(|| {
 			(
-				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
 				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
 			)
 		})
@@ -602,7 +602,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	let storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
-			(AccountId32::default(), 10_000_000_000_000u128),
+			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
 		],
 	}
 	.build_storage()
@@ -626,14 +626,14 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
 			polkadot_runtime::Balances::transfer(
-				polkadot_runtime::Origin::signed(AccountId32::default()),
+				polkadot_runtime::Origin::signed(AccountId32::new([0u8; 32])),
 				MultiAddress::Id(account("test", 0, 0)),
 				1_000_000_000_000u128,
 			)
 			.unwrap();
 
 			(
-				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
 				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
 			)
 		})
@@ -655,7 +655,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	let (send_data_post, recv_data_post) = builder
 		.with_state(|| {
 			(
-				frame_system::Account::<Runtime>::get(AccountId32::default()),
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
 				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
 			)
 		})
