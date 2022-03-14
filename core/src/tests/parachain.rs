@@ -223,42 +223,27 @@ async fn parachain_creates_correct_inherents() {
 
 	let mut relay_builder =
 		generate_default_setup_relay_chain::<RRuntime>(manager.spawn_handle(), Storage::default());
-	let mut relay_builder = Arc::new(relay_builder);
-	let relay_builder_clone = relay_builder.clone();
 	let para_id = Id::from(2001u32);
+	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 
-	let cidp = Box::new(
-		|clone_client: Arc<
-			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
-		>| {
-			move |parent: H256, ()| {
-				let inherent_provider = relay_builder_clone.clone();
-				let client = clone_client.clone();
+	let cidp = Box::new(|_| {
+		move |parent: H256, ()| {
+			let inherent_builder_clone = inherent_builder.clone();
+			async move {
+				let timestamp =
+					FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
 
-				let parent_header = client
-					.header(&BlockId::Hash(parent.clone()))
-					.unwrap()
-					.unwrap();
-
-				async move {
-					let timestamp =
-						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
-
-					let slot =
-                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-                            timestamp.current_time(),
-                            std::time::Duration::from_secs(6),
-                        );
-					let inherent = inherent_provider
-						.as_ref()
-						.parachain_inherent(Id::from(2001u32));
-					let inherent = inherent.await.unwrap();
-					let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
-					Ok((timestamp, slot, relay_para_inherent))
-				}
+				let slot =
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						timestamp.current_time(),
+						std::time::Duration::from_secs(6),
+					);
+				let inherent = inherent_builder_clone.parachain_inherent().await.unwrap();
+				let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
+				Ok((timestamp, slot, relay_para_inherent))
 			}
-		},
-	);
+		}
+	});
 	let dp = Box::new(move || async move {
 		// TODO: Do I need digests for Centrifuge
 		let mut digest = sp_runtime::Digest::default();
@@ -273,23 +258,16 @@ async fn parachain_creates_correct_inherents() {
 		code: builder.code(),
 	};
 
-	// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
-	//       Check if I can put the client into a Mutex
-	let client =
-		relay_builder.as_ref() as *const RelayBuilder<RRuntime> as *mut RelayBuilder<RRuntime>;
-	let client = unsafe { &mut *(client) };
+	relay_builder.onboard_para(dummy_para);
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block();
 
-	client.onboard_para(dummy_para);
 	let num_start = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
-	let v = futures::executor::block_on(client.parachain_inherent(Id::from(2001u32)));
-
 	builder.build_block().unwrap();
 	builder.import_block();
-
-	let v = futures::executor::block_on(client.parachain_inherent(Id::from(2001u32)));
 
 	let num_after_one = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
@@ -297,7 +275,18 @@ async fn parachain_creates_correct_inherents() {
 
 	assert_eq!(num_start + 1, num_after_one);
 
-	/*
+	let dummy_para = FudgeParaChain {
+		id: para_id,
+		head: builder.head(),
+		code: builder.code(),
+	};
+	relay_builder.onboard_para(dummy_para);
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block();
+
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block();
+
 	builder.build_block().unwrap();
 	builder.import_block();
 
@@ -306,6 +295,4 @@ async fn parachain_creates_correct_inherents() {
 		.unwrap();
 
 	assert_eq!(num_start + 2, num_after_two);
-
-	 */
 }

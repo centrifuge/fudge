@@ -21,7 +21,7 @@ use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_local::RelayChainLocal;
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
-use polkadot_parachain::primitives::{Id, ValidationCodeHash};
+use polkadot_parachain::primitives::{HeadData, Id, ValidationCodeHash};
 use polkadot_primitives::v1::{OccupiedCoreAssumption, PersistedValidationData};
 use polkadot_primitives::v2::ParachainHost;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
@@ -131,6 +131,72 @@ pub mod types {
 		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
 }
 
+pub struct InherentBuilder<C, B> {
+	id: Id,
+	client: Arc<C>,
+	backend: Arc<B>,
+}
+
+impl<C, B> Clone for InherentBuilder<C, B> {
+	fn clone(&self) -> Self {
+		InherentBuilder {
+			id: self.id.clone(),
+			client: self.client.clone(),
+			backend: self.backend.clone(),
+		}
+	}
+
+	fn clone_from(&mut self, source: &Self) {
+		todo!()
+	}
+}
+
+impl<C> InherentBuilder<C, TFullBackend<PBlock>>
+where
+	C::Api: BlockBuilder<PBlock>
+		+ ParachainHost<PBlock>
+		+ BabeApi<PBlock>
+		+ ApiExt<PBlock, StateBackend = <TFullBackend<PBlock> as BackendT<PBlock>>::State>,
+	C: 'static
+		+ ProvideRuntimeApi<PBlock>
+		+ BlockOf
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<PBlock>
+		+ BlockchainEvents<PBlock>
+		+ HeaderBackend<PBlock>
+		+ BlockImport<PBlock>
+		+ CallApiAt<PBlock>
+		+ sc_block_builder::BlockBuilderProvider<TFullBackend<PBlock>, PBlock, C>,
+{
+	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
+		let parent = self.client.info().best_hash;
+		let relay_interface = RelayChainLocal::new(
+			self.client.clone(),
+			self.backend.clone(),
+			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+			None,
+		);
+		let api = self.client.runtime_api();
+		let persisted_validation_data = api
+			.persisted_validation_data(
+				&BlockId::Hash(parent),
+				self.id,
+				OccupiedCoreAssumption::TimedOut,
+			)
+			.unwrap()
+			.unwrap();
+		ParachainInherentData::create_at(
+			parent,
+			&relay_interface,
+			&persisted_validation_data,
+			self.id,
+		)
+		.await
+	}
+}
+
 pub struct RelayChainBuilder<
 	Block: BlockT,
 	RtApi,
@@ -149,53 +215,6 @@ pub struct RelayChainBuilder<
 	imports: Vec<(Block, StorageProof)>,
 	handle: SpawnTaskHandle,
 	_phantom: PhantomData<(ExtraArgs, Runtime)>,
-}
-
-impl<RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, C>
-	RelayChainBuilder<PBlock, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, TFullBackend<PBlock>, C>
-where
-	RtApi: ConstructRuntimeApi<PBlock, C> + Send,
-	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	CIDP: CreateInherentDataProviders<PBlock, ExtraArgs> + Send + Sync + 'static,
-	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
-	ExtraArgs: ArgsProvider<ExtraArgs>,
-	Runtime: paras::Config + frame_system::Config,
-	C::Api: BlockBuilder<PBlock>
-		+ ParachainHost<PBlock>
-		+ BabeApi<PBlock>
-		+ ApiExt<PBlock, StateBackend = <TFullBackend<PBlock> as BackendT<PBlock>>::State>,
-	C: 'static
-		+ ProvideRuntimeApi<PBlock>
-		+ BlockOf
-		+ Send
-		+ Sync
-		+ AuxStore
-		+ UsageProvider<PBlock>
-		+ BlockchainEvents<PBlock>
-		+ HeaderBackend<PBlock>
-		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<TFullBackend<PBlock>, PBlock, C>,
-{
-	pub async fn parachain_inherent(&self, para_id: Id) -> Option<ParachainInherentData> {
-		let parent = self.builder.latest_block();
-		let relay_interface = RelayChainLocal::new(
-			self.builder.client(),
-			self.builder.backend(),
-			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
-			None,
-		);
-		let persisted_validation_data = self.persisted_validation_data(parent, para_id);
-
-		ParachainInherentData::create_at(
-			parent,
-			&relay_interface,
-			&persisted_validation_data,
-			para_id,
-		)
-		.await
-	}
 }
 
 impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
@@ -274,21 +293,12 @@ where
 		todo!()
 	}
 
-	fn persisted_validation_data(
-		&self,
-		parent: Block::Hash,
-		para_id: Id,
-	) -> PersistedValidationData {
-		let client = self.builder.client();
-		let api = client.runtime_api();
-		// We use the runtime api as if the block was enacted
-		api.persisted_validation_data(
-			&BlockId::Hash(parent),
-			para_id,
-			OccupiedCoreAssumption::TimedOut,
-		)
-		.unwrap()
-		.unwrap()
+	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<C, B> {
+		InherentBuilder {
+			id: para_id,
+			client: self.builder.client(),
+			backend: self.builder.backend(),
+		}
 	}
 
 	pub fn onboard_para(&mut self, para: FudgeParaChain) -> &mut Self {
