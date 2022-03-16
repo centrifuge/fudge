@@ -20,6 +20,7 @@ extern crate sp_runtime;
 
 use crate::provider::ExternalitiesProvider;
 use codec::Encode;
+use frame_benchmarking::frame_support::sp_runtime::Storage;
 use frame_support::dispatch::TransactionPriority;
 use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
 use frame_support::sp_runtime::traits::NumberFor;
@@ -413,7 +414,7 @@ where
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
-		// op.set_genesis_state(Storage::default(), true, StateVersion::V0)
+		//op.set_genesis_state(sp_runtime::Storage::default(), true, StateVersion::V0)
 		//	.unwrap();
 		op.update_db_storage(tx).unwrap();
 

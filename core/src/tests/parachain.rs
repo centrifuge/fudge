@@ -105,9 +105,10 @@ where
 	)
 }
 
-fn generate_default_setup_relay_chain<Runtime>(
+fn generate_default_setup_relay_chain<Runtime, Fn>(
 	handle: SpawnTaskHandle,
 	storage: Storage,
+	dp: Fn,
 ) -> RelayChainBuilder<
 	RTestBlock,
 	RTestRtApi,
@@ -125,7 +126,7 @@ fn generate_default_setup_relay_chain<Runtime>(
 		>,
 	>,
 	(),
-	Box<dyn DigestCreator + Send + Sync>,
+	Fn,
 	Runtime,
 	TFullBackend<RTestBlock>,
 	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -136,6 +137,7 @@ where
 		+ paras::Config
 		+ frame_system::Config
 		+ pallet_timestamp::Config<Moment = u64>,
+	Fn: core::ops::Fn() -> Result<sp_runtime::Digest, ()> + Send + Sync,
 {
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
@@ -185,20 +187,6 @@ where
 		},
 	);
 
-	let dp = Box::new(move || async move {
-		let mut digest = sp_runtime::Digest::default();
-
-		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
-			),
-		));
-
-		Ok(digest)
-	});
-
 	RelayChainBuilder::<
 		RTestBlock,
 		RTestRtApi,
@@ -221,8 +209,25 @@ async fn parachain_creates_correct_inherents() {
 	super::utils::init_logs();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
-	let mut relay_builder =
-		generate_default_setup_relay_chain::<RRuntime>(manager.spawn_handle(), Storage::default());
+	let dp = move || {
+		let mut digest = sp_runtime::Digest::default();
+
+		let slot_duration = pallet_babe::Pallet::<RRuntime>::slot_duration();
+		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
+			FudgeBabeDigest::pre_digest(
+				FudgeInherentTimestamp::get_instance(0).current_time(),
+				sp_std::time::Duration::from_millis(slot_duration),
+			),
+		));
+
+		Ok(digest)
+	};
+
+	let mut relay_builder = generate_default_setup_relay_chain::<RRuntime, _>(
+		manager.spawn_handle(),
+		Storage::default(),
+		dp,
+	);
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 
@@ -244,7 +249,7 @@ async fn parachain_creates_correct_inherents() {
 			}
 		}
 	});
-	let dp = Box::new(move || async move {
+	let dp = Box::new(move || {
 		// TODO: Do I need digests for Centrifuge
 		let mut digest = sp_runtime::Digest::default();
 		Ok(digest)
@@ -257,7 +262,8 @@ async fn parachain_creates_correct_inherents() {
 		head: builder.head(),
 		code: builder.code(),
 	};
-
+	//relay_builder.build_block().unwrap();
+	//relay_builder.import_block();
 	relay_builder.onboard_para(dummy_para);
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block();

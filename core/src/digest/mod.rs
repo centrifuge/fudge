@@ -14,31 +14,26 @@ use sp_runtime::Digest;
 pub use babe::Digest as FudgeBabeDigest;
 mod babe;
 
-#[async_trait::async_trait]
 pub trait DigestCreator {
-	async fn create_digest(&self) -> Result<Digest, ()>;
+	fn create_digest(&self) -> Result<Digest, ()>;
 }
 
-#[async_trait::async_trait]
 pub trait DigestProvider {
-	async fn build_digest(&self) -> Result<Digest, ()>;
-	async fn append_digest(&self, digest: &mut Digest) -> Result<(), ()>;
+	fn build_digest(&self) -> Result<Digest, ()>;
+	fn append_digest(&self, digest: &mut Digest) -> Result<(), ()>;
 }
 
-#[async_trait::async_trait]
-impl<F, Fut> DigestCreator for F
+impl<F> DigestCreator for F
 where
-	F: Fn() -> Fut + Sync + Send,
-	Fut: std::future::Future<Output = Result<Digest, ()>> + Send + 'static,
+	F: Fn() -> Result<Digest, ()> + Sync + Send,
 {
-	async fn create_digest(&self) -> Result<Digest, ()> {
-		(*self)().await
+	fn create_digest(&self) -> Result<Digest, ()> {
+		(*self)()
 	}
 }
 
-#[async_trait::async_trait]
 impl DigestCreator for Box<dyn DigestCreator + Send + Sync> {
-	async fn create_digest(&self) -> Result<Digest, ()> {
-		(*self).create_digest().await
+	fn create_digest(&self) -> Result<Digest, ()> {
+		(*self).create_digest()
 	}
 }

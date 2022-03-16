@@ -365,7 +365,7 @@ where
 			.unwrap();
 
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| self.dp.create_digest().unwrap())
 			.unwrap();
 		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
 		//       afterwards
@@ -386,7 +386,7 @@ where
 	pub fn import_block(&mut self) -> &mut Self {
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
-		let mut params = BlockImportParams::new(BlockOrigin::ConsensusBroadcast, header);
+		let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 		params.body = Some(body);
 		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));

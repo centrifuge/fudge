@@ -129,7 +129,8 @@ where
 			.unwrap();
 
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| self.dp.create_digest())
+			.unwrap()
 			.unwrap();
 		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
 		//       afterwards
