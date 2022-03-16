@@ -35,7 +35,6 @@ use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{DigestItem, Storage};
 use sp_std::sync::Arc;
-use sp_std::sync::Mutex;
 use tokio::runtime::Handle;
 
 type RelayBuilder<R> = RelayChainBuilder<
@@ -108,7 +107,7 @@ where
 
 fn generate_default_setup_relay_chain<Runtime, Fn>(
 	handle: SpawnTaskHandle,
-	storage: Storage,
+	mut storage: Storage,
 	dp: Fn,
 ) -> RelayChainBuilder<
 	RTestBlock,
@@ -144,8 +143,8 @@ where
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			RCODE.unwrap(),
 		);
-	let storage = polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
-		.build_storage()
+	polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
+		.assimilate_storage(&mut storage)
 		.unwrap();
 	provider.insert_storage(storage);
 
@@ -233,7 +232,7 @@ async fn parachain_creates_correct_inherents() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 
 	let cidp = Box::new(|_| {
-		move |parent: H256, ()| {
+		move |_parent: H256, ()| {
 			let inherent_builder_clone = inherent_builder.clone();
 			async move {
 				let timestamp =

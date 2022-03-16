@@ -34,6 +34,6 @@ where
 
 impl DigestCreator for Box<dyn DigestCreator + Send + Sync> {
 	fn create_digest(&self) -> Result<Digest, ()> {
-		(*self).create_digest()
+		(**self).create_digest()
 	}
 }

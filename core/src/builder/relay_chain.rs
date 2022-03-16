@@ -21,8 +21,8 @@ use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_local::RelayChainLocal;
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
-use polkadot_parachain::primitives::{HeadData, Id, ValidationCodeHash};
-use polkadot_primitives::v1::{OccupiedCoreAssumption, PersistedValidationData};
+use polkadot_parachain::primitives::{Id, ValidationCodeHash};
+use polkadot_primitives::v1::OccupiedCoreAssumption;
 use polkadot_primitives::v2::ParachainHost;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use sc_client_api::{
@@ -146,7 +146,7 @@ impl<C, B> Clone for InherentBuilder<C, B> {
 		}
 	}
 
-	fn clone_from(&mut self, source: &Self) {
+	fn clone_from(&mut self, _source: &Self) {
 		todo!()
 	}
 }

@@ -20,7 +20,6 @@ extern crate sp_runtime;
 
 use crate::provider::ExternalitiesProvider;
 use codec::Encode;
-use frame_benchmarking::frame_support::sp_runtime::Storage;
 use frame_support::dispatch::TransactionPriority;
 use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
 use frame_support::sp_runtime::traits::NumberFor;
