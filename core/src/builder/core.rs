@@ -533,10 +533,6 @@ where
 			.expect("State is available. qed");
 		let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
 		futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap()
-
-		// TODO: -pool implementation correctly
-		//       - auxiliary data (Check if those even go into state?)
-		//           - If NOT: Append set-storage calls here manually. This will of course prevent syncing, but we don't care
 	}
 
 	/// Import a block, that has been previosuly build

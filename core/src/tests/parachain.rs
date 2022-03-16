@@ -262,8 +262,7 @@ async fn parachain_creates_correct_inherents() {
 		head: builder.head(),
 		code: builder.code(),
 	};
-	//relay_builder.build_block().unwrap();
-	//relay_builder.import_block();
+
 	relay_builder.onboard_para(dummy_para);
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block();
