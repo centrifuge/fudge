@@ -2841,40 +2841,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "integration"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "frame-support",
- "frame-system",
- "fudge-core",
- "fudge-utils",
- "futures 0.3.21",
- "pallet-balances",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "polkadot-node-core-parachains-inherent",
- "polkadot-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "sc-client-db",
- "sc-consensus-uncles",
- "sc-executor",
- "sc-keystore",
- "sc-service",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-runtime",
- "sp-storage",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "io-lifetimes"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

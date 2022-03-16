@@ -10,6 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use crate::builder::relay_chain::types::Heads;
 ///! Test for the ParachainBuilder
 use crate::digest::{DigestCreator, FudgeBabeDigest};
 use crate::inherent::{
@@ -249,21 +250,16 @@ async fn parachain_creates_correct_inherents() {
 			}
 		}
 	});
-	let dp = Box::new(move || {
-		// TODO: Do I need digests for Centrifuge
-		let mut digest = sp_runtime::Digest::default();
-		Ok(digest)
-	});
+	let dp = Box::new(move || Ok(sp_runtime::Digest::default()));
 	let mut builder =
 		generate_default_setup_parachain(manager.spawn_handle(), Storage::default(), cidp, dp);
 
-	let dummy_para = FudgeParaChain {
+	let para = FudgeParaChain {
 		id: para_id,
 		head: builder.head(),
 		code: builder.code(),
 	};
-
-	relay_builder.onboard_para(dummy_para);
+	relay_builder.onboard_para(para);
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block();
 
@@ -280,15 +276,6 @@ async fn parachain_creates_correct_inherents() {
 
 	assert_eq!(num_start + 1, num_after_one);
 
-	let dummy_para = FudgeParaChain {
-		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
-	};
-	relay_builder.onboard_para(dummy_para);
-	relay_builder.build_block().unwrap();
-	relay_builder.import_block();
-
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block();
 
@@ -300,4 +287,19 @@ async fn parachain_creates_correct_inherents() {
 		.unwrap();
 
 	assert_eq!(num_start + 2, num_after_two);
+
+	let para = FudgeParaChain {
+		id: para_id,
+		head: builder.head(),
+		code: builder.code(),
+	};
+	relay_builder.onboard_para(para);
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block();
+
+	let para_head = relay_builder
+		.with_state(|| Heads::try_get(para_id).unwrap())
+		.unwrap();
+
+	assert_eq!(builder.head(), para_head);
 }
