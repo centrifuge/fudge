@@ -117,7 +117,7 @@ async fn onboarding_parachain_works() {
 			}
 		},
 	);
-	let dp = Box::new(move || {
+	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();

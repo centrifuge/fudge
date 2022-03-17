@@ -122,7 +122,7 @@ async fn mutating_genesis_works() {
 		},
 	);
 
-	let dp = Box::new(move || Ok(sp_runtime::Digest::default()));
+	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
 
 	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
 
@@ -229,7 +229,7 @@ async fn build_relay_block_works() {
 			}
 		},
 	);
-	let dp = Box::new(move || {
+	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
@@ -321,7 +321,7 @@ async fn building_relay_block_with_extrinsics_works() {
 			}
 		},
 	);
-	let dp = Box::new(move || Ok(sp_runtime::Digest::default()));
+	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
 	let _builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
 
 	let _signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
@@ -585,7 +585,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 			}
 		},
 	);
-	let dp = Box::new(move || {
+	let dp = Box::new(move || async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();

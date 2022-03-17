@@ -105,10 +105,9 @@ where
 	)
 }
 
-fn generate_default_setup_relay_chain<Runtime, Fn>(
+fn generate_default_setup_relay_chain<Runtime>(
 	handle: SpawnTaskHandle,
 	mut storage: Storage,
-	dp: Fn,
 ) -> RelayChainBuilder<
 	RTestBlock,
 	RTestRtApi,
@@ -126,7 +125,7 @@ fn generate_default_setup_relay_chain<Runtime, Fn>(
 		>,
 	>,
 	(),
-	Fn,
+	Box<dyn DigestCreator + Send + Sync>,
 	Runtime,
 	TFullBackend<RTestBlock>,
 	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -137,7 +136,6 @@ where
 		+ paras::Config
 		+ frame_system::Config
 		+ pallet_timestamp::Config<Moment = u64>,
-	Fn: core::ops::Fn() -> Result<sp_runtime::Digest, ()> + Send + Sync,
 {
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
@@ -187,6 +185,20 @@ where
 		},
 	);
 
+	let dp = Box::new(move || async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
+			FudgeBabeDigest::pre_digest(
+				FudgeInherentTimestamp::get_instance(0).current_time(),
+				sp_std::time::Duration::from_millis(slot_duration),
+			),
+		));
+
+		Ok(digest)
+	});
+
 	RelayChainBuilder::<
 		RTestBlock,
 		RTestRtApi,
@@ -209,25 +221,8 @@ async fn parachain_creates_correct_inherents() {
 	super::utils::init_logs();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
-	let dp = move || {
-		let mut digest = sp_runtime::Digest::default();
-
-		let slot_duration = pallet_babe::Pallet::<RRuntime>::slot_duration();
-		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
-			),
-		));
-
-		Ok(digest)
-	};
-
-	let mut relay_builder = generate_default_setup_relay_chain::<RRuntime, _>(
-		manager.spawn_handle(),
-		Storage::default(),
-		dp,
-	);
+	let mut relay_builder =
+		generate_default_setup_relay_chain::<RRuntime>(manager.spawn_handle(), Storage::default());
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 
@@ -249,7 +244,7 @@ async fn parachain_creates_correct_inherents() {
 			}
 		}
 	});
-	let dp = Box::new(move || Ok(sp_runtime::Digest::default()));
+	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
 	let mut builder =
 		generate_default_setup_parachain(manager.spawn_handle(), Storage::default(), cidp, dp);
 
