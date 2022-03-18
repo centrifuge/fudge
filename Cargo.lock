@@ -2179,6 +2179,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
+name = "fudge"
+version = "0.1.0"
+
+[[package]]
+name = "fudge-companion"
+version = "0.1.0"
+
+[[package]]
 name = "fudge-core"
 version = "0.1.0"
 dependencies = [
@@ -2189,6 +2197,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "fudge-companion",
  "fudge-utils",
  "futures 0.3.21",
  "node-primitives",

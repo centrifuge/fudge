@@ -2,4 +2,6 @@
 members = [
     "core",
     "utils",
+    "core/src/builder/companion",
+    "fudge"
 ]
