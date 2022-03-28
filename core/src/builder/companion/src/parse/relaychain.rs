@@ -9,17 +9,9 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-mod core;
-pub mod parachain;
-pub mod relay_chain;
-pub mod stand_alone;
-pub use fudge_companion;
 
-pub struct Dummy;
+use proc_macro2::Ident;
 
-#[fudge_companion::companion]
-pub struct TestEnv {
-	parachain_1: Dummy,
-	parachain_2: Dummy,
-	relay_chain: Dummy,
+pub struct RelayChainDef {
+	pub name: Ident,
 }
