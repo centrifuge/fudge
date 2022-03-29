@@ -19,6 +19,7 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 	let vis = def.vis.to_token_stream();
 	let name = def.companion_name.to_token_stream();
 	let parachains = parachain::helper::parachains(&def);
+	let parachain_types = parachain::helper::parachain_types(&def);
 	let parachain_names = parachain::helper::parachain_names(&def);
 	let parachain_ids = parachain::helper::parachain_ids(&def);
 	let relay_chain_name = def.relaychain.name;
@@ -39,11 +40,23 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 		}
 
 		impl #name {
-			pub fn new() -> FudgeResult<()> {
-				todo!();
-				// pass builder as parameters
-				//
-				// Onboard parachains
+			pub fn new(#relay_chain_name: (), #(#parachain_names: #parachain_types,)*) -> FudgeResult<Self> {
+				let companion = Self {
+					#relay_chain_name,
+					#(#parachain_names,)*
+				};
+
+				#(
+					let para = FudgeParaChain {
+						id: #parachain_ids,
+						head: companion.#parachain_names.head(),
+						code: companion.#parachain_names.code(),
+					};
+					companion.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
+
+				)*
+
+				Ok(companion)
 			}
 
 			pub fn with_state<R>(&self, chain: Chain, exec: impl FnOnce() -> R,) -> FudgeResult<()> {
@@ -77,12 +90,13 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 				#(
 					self.#parachain_names.build_block().map_err(|_| ()).map(|_| ())?;
 					self.#parachain_names.import_block().map_err(|_| ()).map(|_| ())?;
+
 					let para = FudgeParaChain {
 						id: #parachain_ids,
 						head: self.#parachain_names.head(),
 						code: self.#parachain_names.code(),
 					};
-					self.#relay_chain_name.onboard_para(para)?;
+					self.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
 				)*
 
 				self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;

@@ -36,6 +36,13 @@ pub mod helper {
 			.collect()
 	}
 
+	pub fn parachain_types(def: &CompanionDef) -> Vec<TokenStream> {
+		def.parachains
+			.iter()
+			.map(|para| para.builder.clone().to_token_stream())
+			.collect()
+	}
+
 	pub fn parachains(def: &CompanionDef) -> Vec<TokenStream> {
 		def.parachains
 			.iter()

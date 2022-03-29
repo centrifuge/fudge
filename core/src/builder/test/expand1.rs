@@ -1286,8 +1286,37 @@ mod builder {
             relay_chain: (),
         }
         impl TestEnv {
-            pub fn new() -> FudgeResult<()> {
-                ::core::panicking::panic("not yet implemented");
+            pub fn new(
+                relay_chain: (),
+                parachain_1: ParachainBuilder<(), ()>,
+                parachain_2: ParachainBuilder<u32, u32>,
+            ) -> FudgeResult<Self> {
+                let companion = Self {
+                    relay_chain,
+                    parachain_1,
+                    parachain_2,
+                };
+                let para = FudgeParaChain {
+                    id: (2001),
+                    head: companion.parachain_1.head(),
+                    code: companion.parachain_1.code(),
+                };
+                companion
+                    .relay_chain
+                    .onboard_para(para)
+                    .map_err(|_| ())
+                    .map(|_| ())?;
+                let para = FudgeParaChain {
+                    id: (2002),
+                    head: companion.parachain_2.head(),
+                    code: companion.parachain_2.code(),
+                };
+                companion
+                    .relay_chain
+                    .onboard_para(para)
+                    .map_err(|_| ())
+                    .map(|_| ())?;
+                Ok(companion)
             }
             pub fn with_state<R>(&self, chain: Chain, exec: impl FnOnce() -> R) -> FudgeResult<()> {
                 match chain {
@@ -1345,7 +1374,10 @@ mod builder {
                     head: self.parachain_1.head(),
                     code: self.parachain_1.code(),
                 };
-                self.relay_chain.onboard_para(para)?;
+                self.relay_chain
+                    .onboard_para(para)
+                    .map_err(|_| ())
+                    .map(|_| ())?;
                 self.parachain_2.build_block().map_err(|_| ()).map(|_| ())?;
                 self.parachain_2
                     .import_block()
@@ -1356,7 +1388,10 @@ mod builder {
                     head: self.parachain_2.head(),
                     code: self.parachain_2.code(),
                 };
-                self.relay_chain.onboard_para(para)?;
+                self.relay_chain
+                    .onboard_para(para)
+                    .map_err(|_| ())
+                    .map(|_| ())?;
                 self.relay_chain.build_block().map_err(|_| ()).map(|_| ())?;
                 self.relay_chain
                     .import_block()
