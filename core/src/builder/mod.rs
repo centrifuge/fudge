@@ -13,13 +13,5 @@ mod core;
 pub mod parachain;
 pub mod relay_chain;
 pub mod stand_alone;
-pub use fudge_companion;
 
-pub struct Dummy;
-
-#[fudge_companion::companion]
-pub struct TestEnv {
-	parachain_1: Dummy,
-	parachain_2: Dummy,
-	relay_chain: Dummy,
-}
+pub mod test;

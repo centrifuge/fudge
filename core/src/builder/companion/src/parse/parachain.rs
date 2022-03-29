@@ -10,29 +10,42 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
+use syn::{parse::Parse, spanned::Spanned, Type, Visibility};
 
 pub struct ParachainDef {
 	pub name: Ident,
+	pub id: TokenStream,
+	pub builder: Type,
+	pub vis: Visibility,
 }
 
 pub mod helper {
 	use crate::parse::CompanionDef;
-	use proc_macro2::{Ident, TokenStream};
-	use quote::quote;
+	use proc_macro2::{Ident, Literal, TokenStream, TokenTree};
+	use quote::{quote, ToTokens, TokenStreamExt};
 
-	pub fn parachain_names(def: &CompanionDef) -> Vec<Ident> {
+	pub fn parachain_ids(def: &CompanionDef) -> Vec<TokenStream> {
+		def.parachains.iter().map(|para| para.id.clone()).collect()
+	}
+
+	pub fn parachain_names(def: &CompanionDef) -> Vec<TokenStream> {
 		def.parachains
 			.iter()
-			.map(|para| para.name.clone())
+			.map(|para| para.name.clone().to_token_stream())
 			.collect()
 	}
 
 	pub fn parachains(def: &CompanionDef) -> Vec<TokenStream> {
 		def.parachains
 			.iter()
-			.map(|_para| {
-				quote! { () }
+			.map(|para| {
+				let vis = para.vis.to_token_stream();
+				let name = para.name.to_token_stream();
+				let builder = para.builder.to_token_stream();
+				quote! {
+					#vis #name: (u32, #builder)
+				}
 			})
 			.collect()
 	}

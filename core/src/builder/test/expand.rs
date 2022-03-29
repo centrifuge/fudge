@@ -1269,23 +1269,34 @@ mod builder {
             }
         }
     }
-    pub use fudge_companion;
-    pub struct Dummy;
-    pub type FudgeResult<T> = std::result::Result<T, ()>;
-    pub struct TestEnv {
-        parachain_1: (),
-        parachain_2: (),
-        relay_chain: (),
-    }
-    impl TestEnv {
-        pub fn with_state(&self) -> FudgeResult<()> {
-            ::core::panicking::panic("not yet implemented")
+    pub mod test {
+        use fudge_companion;
+        use std::marker::PhantomData;
+        pub struct ParachainBuilder<Block, RtApi>(PhantomData<(Block, RtApi)>);
+        pub struct RelaychainBuilder<RtApi>(PhantomData<RtApi>);
+        pub type FudgeResult<T> = std::result::Result<T, ()>;
+        pub enum Chain {
+            Relay,
+            Para(u32),
         }
-        pub fn with_mut_state(&self) -> FudgeResult<()> {
-            ::core::panicking::panic("not yet implemented")
+        pub struct TestEnv {
+            parachain_1: (u32, ParachainBuilder<(), ()>),
+            parachain_2: (u32, ParachainBuilder<u32, u32>),
+            relay_chain: (),
         }
-        pub fn evolve(&mut self) -> FudgeResult<()> {
-            ::core::panicking::panic("not yet implemented")
+        impl TestEnv {
+            pub fn with_state(&self, chain: Chain) -> FudgeResult<()> {
+                match chain {
+                    Chain::Relay => (),
+                    _ => (),
+                }
+            }
+            pub fn with_mut_state(&self) -> FudgeResult<()> {
+                ::core::panicking::panic("not yet implemented")
+            }
+            pub fn evolve(&mut self) -> FudgeResult<()> {
+                ::core::panicking::panic("not yet implemented")
+            }
         }
     }
 }

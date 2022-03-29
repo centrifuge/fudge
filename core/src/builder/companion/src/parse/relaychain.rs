@@ -10,8 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use proc_macro2::Ident;
+use proc_macro2::{Ident, TokenStream};
+use syn::{parse::Parse, spanned::Spanned, Type, Visibility};
 
-pub struct RelayChainDef {
+pub struct RelaychainDef {
 	pub name: Ident,
+	pub builder: Type,
+	pub vis: Visibility,
 }

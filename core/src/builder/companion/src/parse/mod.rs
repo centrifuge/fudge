@@ -10,12 +10,12 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 use crate::parse::parachain::ParachainDef;
-use crate::parse::relaychain::RelayChainDef;
+use crate::parse::relaychain::RelaychainDef;
 use proc_macro2::Span;
 use syn::{
 	parse::{Parse, ParseStream},
 	spanned::Spanned,
-	Attribute, Error, FieldsNamed, Ident, ItemStruct, Result, Visibility,
+	Attribute, Error, Field, FieldsNamed, Ident, ItemStruct, Result, Visibility,
 };
 
 pub mod parachain;
@@ -27,12 +27,41 @@ mod keyword {
 	syn::custom_keyword!(relaychain);
 }
 
+/// Parse for `#[fudge::parachain]`
+pub struct FieldAttrParachain(proc_macro2::Span);
+
+impl Spanned for FieldAttrParachain {
+	fn span(&self) -> proc_macro2::Span {
+		self.0
+	}
+}
+
+impl Parse for FieldAttrParachain {
+	fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+		input.parse::<syn::Token![#]>()?;
+		let content;
+		syn::bracketed!(content in input);
+		content.parse::<syn::Ident>()?;
+		content.parse::<syn::Token![::]>()?;
+
+		Ok(FieldAttrParachain(
+			content.parse::<keyword::parachain>()?.span(),
+		))
+	}
+}
+
 pub struct CompanionDef {
 	pub vis: Visibility,
 	pub companion_name: Ident,
 	pub attr_span: Span,
-	pub relaychain: relaychain::RelayChainDef,
+	pub relaychain: relaychain::RelaychainDef,
 	pub parachains: Vec<parachain::ParachainDef>,
+}
+
+pub enum FieldType {
+	Parachain(ParachainDef),
+	Relaychain(RelaychainDef),
+	Other(Field),
 }
 
 impl Parse for CompanionDef {
@@ -41,7 +70,7 @@ impl Parse for CompanionDef {
 		let span = ds.span();
 
 		match ds.fields {
-			syn::Fields::Named(named) => Self::parse_fields(
+			syn::Fields::Named(named) => Self::parse_struct(
 				ds.vis.clone(),
 				ds.attrs.clone(),
 				ds.ident.clone(),
@@ -61,41 +90,89 @@ impl Parse for CompanionDef {
 }
 
 impl CompanionDef {
-	pub(crate) fn parse_fields(
+	pub(crate) fn parse_struct(
 		vis: Visibility,
 		_attrs: Vec<Attribute>,
 		companion_name: Ident,
 		fields: FieldsNamed,
 		attr_span: Span,
 	) -> Result<Self> {
-		// TODO: Remove and replace with actual parsing
-		let mut names: Vec<Ident> = fields
-			.named
-			.iter()
-			.map(|field| {
-				field
-					.ident
-					.as_ref()
-					.expect("Parse ensures named field. qed.")
-					.clone()
-			})
-			.collect();
-		let relaychain = RelayChainDef {
-			name: names.pop().unwrap(),
-		};
+		let mut parachains = Vec::new();
+		let mut relaychain = None;
 
-		let parachains: Vec<ParachainDef> = names
-			.into_iter()
-			.map(|para_name| ParachainDef { name: para_name })
-			.collect();
-		// TODO: Remove until here
+		for field in fields.named.iter() {
+			match Self::parse_field(field.clone()) {
+				FieldType::Other(named) => (), // TODO: Other fields are not supported currently
+				FieldType::Parachain(def) => parachains.push(def),
+				FieldType::Relaychain(def) => match relaychain {
+					None => relaychain = Some(def),
+					Some(_) => {
+						return Err(Error::new(attr_span, "Only one relaychain field allowed."))
+					}
+				},
+			}
+		}
+
+		if relaychain.is_none() {
+			return Err(Error::new(
+				attr_span,
+				"At least one relaychain field must be provided.",
+			));
+		}
 
 		Ok(Self {
 			vis,
 			companion_name,
 			attr_span,
 			parachains,
-			relaychain,
+			relaychain: relaychain.expect("Relaychain is some. qed."),
 		})
+	}
+
+	pub fn parse_field(field: Field) -> FieldType {
+		let companion_fields: Vec<&Attribute> = field
+			.attrs
+			.iter()
+			.filter(|attr| {
+				attr.path
+					.segments
+					.first()
+					.map_or(false, |segment| segment.ident == "fudge_companion")
+			})
+			.collect();
+
+		if companion_fields.is_empty() {
+			return FieldType::Other(field);
+		} else {
+			for attr in companion_fields {
+				// TODO: This is really imprecisve and WIP
+				let second = attr.path.segments.last().unwrap();
+				if second.ident == "parachain" {
+					let id = attr.tokens.clone();
+					return FieldType::Parachain(ParachainDef {
+						name: field
+							.ident
+							.clone()
+							.expect("Only named fields are passed here. qed."),
+						id: id,
+						builder: field.ty.clone(),
+						vis: field.vis.clone(),
+					});
+				} else if second.ident == "relaychain" {
+					return FieldType::Relaychain(RelaychainDef {
+						name: field
+							.ident
+							.clone()
+							.expect("Only named fields are passed here. qed."),
+						builder: field.ty.clone(),
+						vis: field.vis.clone(),
+					});
+				} else {
+					unreachable!("Should either be parachain or relaychain. Others are currently not supported.")
+				}
+			}
+		}
+
+		unreachable!("Should have a single identifier of relay-chain or parachain.")
 	}
 }

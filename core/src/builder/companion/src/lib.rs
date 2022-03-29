@@ -29,9 +29,6 @@ mod parse;
 /// 	pub centrifuge: ParachainBuilder<Block, RtApi>,
 ///
 ///     #[fudge::parachain(2001)]
-///     #[fudge::parachain::inherent(costum_inherent)]
-///     #[fudge::parachain::digest(costum_digest)]
-///     #[fudge::parachain::exec(costum_executor)]
 /// 	pub acala: ParachainBuilder<Block, RtApi>,
 ///
 ///  	#[fudge::relaychain]
