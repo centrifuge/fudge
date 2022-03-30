@@ -60,7 +60,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 		}
 
 		impl #name {
-			pub fn new(#relay_chain_name: (), #(#parachain_names: #parachain_types,)*) -> Result<Self, ()> {
+			pub fn new(#relay_chain_name: #relay_chain, #(#parachain_names: #parachain_types,)*) -> Result<Self, ()> {
 				let companion = Self {
 					#relay_chain_name,
 					#(#parachain_names,)*
@@ -79,9 +79,9 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				Ok(companion)
 			}
 
-			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R,) -> Result<(), ()> {
+			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec),
+					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec).map_err(|_| ()).map(|_| ()),
 					_hidden_Chain::Para(id) => match id {
 						#(
 							#parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()).map(|_| ()),
@@ -93,7 +93,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 			pub fn with_mut_state<R>(&self,  chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec),
+					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
 					_hidden_Chain::Para(id) => match id {
 						#(
 							#parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
@@ -123,6 +123,8 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					};
 					self.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
 				)*
+
+				Ok(())
 			}
 		}
 	};

@@ -10,14 +10,51 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use fudge::{EnvProvider, ParachainBuilder, RelayChainBuilder};
+use centrifuge_runtime::{
+	Block as PBlock, Runtime as PRuntime, RuntimeApi as PRtApi, WASM_BINARY as PCODE,
+};
+use fudge::{
+	digest::DigestCreator,
+	inherent::{
+		CreateInherentDataProviders, FudgeDummyInherentRelayParachain, FudgeInherentParaParachain,
+		FudgeInherentTimestamp,
+	},
+	EnvProvider, ParachainBuilder, RelaychainBuilder,
+};
+use polkadot_core_primitives::{Block as RBlock, Header as RHeader};
+use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi, WASM_BINARY as RCODE};
+
+type RCidp = Box<
+	dyn CreateInherentDataProviders<
+		RBlock,
+		(),
+		InherentDataProviders = (
+			FudgeInherentTimestamp,
+			sp_consensus_babe::inherents::InherentDataProvider,
+			sp_authorship::InherentDataProvider<RHeader>,
+			FudgeDummyInherentRelayParachain<RHeader>,
+		),
+	>,
+>;
+type PCidp = Box<
+	dyn CreateInherentDataProviders<
+		RBlock,
+		(),
+		InherentDataProviders = (
+			FudgeInherentTimestamp,
+			sp_consensus_babe::inherents::InherentDataProvider,
+			FudgeInherentParaParachain,
+		),
+	>,
+>;
+type Dp = Box<dyn DigestCreator + Send + Sync>;
 
 fn main() {}
 
 #[fudge::companion]
 struct TestEnv {
 	#[fudge::parachain(2001)]
-	centrifuge: (),
-	#[fudge::parachain(2002)]
-	acala: (),
+	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
+	#[fudge::relaychain]
+	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, Dp>,
 }

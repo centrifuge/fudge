@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 fudge = { path = "../fudge" }
+centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", default-features = true, rev = "d86a8316c1e5097c857eb350b439f682b00fd398"}
+polkadot-runtime = { git = "https://github.com/paritytech/polkadot", default-features = true, branch = "release-v0.9.17" }
+polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.17" }
+sp-authorship = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.17" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.17" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.17" }

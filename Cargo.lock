@@ -2185,6 +2185,9 @@ dependencies = [
  "fudge-companion",
  "fudge-core",
  "polkadot-parachain",
+ "sc-executor",
+ "sc-service",
+ "sp-io",
 ]
 
 [[package]]
@@ -2864,7 +2867,13 @@ dependencies = [
 name = "integration_test"
 version = "0.1.0"
 dependencies = [
+ "centrifuge-runtime",
  "fudge",
+ "polkadot-core-primitives",
+ "polkadot-runtime",
+ "sp-authorship",
+ "sp-consensus-babe",
+ "sp-inherents",
 ]
 
 [[package]]

@@ -301,7 +301,7 @@ where
 		}
 	}
 
-	pub fn onboard_para(&mut self, para: FudgeParaChain) -> &mut Self {
+	pub fn onboard_para(&mut self, para: FudgeParaChain) -> Result<(), ()> {
 		self.with_mut_state(|| {
 			let FudgeParaChain { id, head, code } = para;
 			let current_block = frame_system::Pallet::<Runtime>::block_number();
@@ -348,7 +348,7 @@ where
 		})
 		.unwrap();
 
-		self
+		Ok(())
 	}
 
 	pub fn build_block(&mut self) -> Result<Block, ()> {
@@ -383,7 +383,7 @@ where
 		Ok(block)
 	}
 
-	pub fn import_block(&mut self) -> &mut Self {
+	pub fn import_block(&mut self) -> Result<(), ()> {
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
@@ -393,7 +393,7 @@ where
 
 		self.builder.import_block(params).unwrap();
 		self.imports.push((block, proof));
-		self
+		Ok(())
 	}
 
 	pub fn imports(&self) -> Vec<(Block, StorageProof)> {

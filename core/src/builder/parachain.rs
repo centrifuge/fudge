@@ -188,7 +188,7 @@ where
 		}
 	}
 
-	pub fn import_block(&mut self) -> &mut Self {
+	pub fn import_block(&mut self) -> Result<(), ()> {
 		let (block, proof) = self.next.take().unwrap();
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
@@ -198,7 +198,7 @@ where
 
 		self.builder.import_block(params).unwrap();
 		self.imports.push((block, proof));
-		self
+		Ok(())
 	}
 
 	pub fn imports(&self) -> Vec<(Block, StorageProof)> {

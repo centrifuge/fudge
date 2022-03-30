@@ -16,13 +16,45 @@
 ///! Developers who want to use the more raw apis and types are
 ///! referred to the fudge-core repository.
 // Re-export everything nicely as a single crate
+use sc_executor::{WasmExecutionMethod, WasmExecutor};
+use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+
 pub use fudge_companion::companion;
-pub use fudge_core::{
-	digest::*,
-	inherent::*,
-	provider::EnvProvider,
-	{ParachainBuilder, RelayChainBuilder, StandAloneBuilder},
-};
+pub use fudge_core::{digest, inherent, provider::EnvProvider};
+
+pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder<
+	Block,
+	RtApi,
+	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	CIDP,
+	(),
+	DP,
+	TFullBackend<Block>,
+	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+>;
+
+pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP> = fudge_core::RelayChainBuilder<
+	Block,
+	RtApi,
+	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	CIDP,
+	(),
+	DP,
+	Runtime,
+	TFullBackend<Block>,
+	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+>;
+
+pub type StandaloneBuilder<Block, RtApi, CIDP, DP> = fudge_core::StandAloneBuilder<
+	Block,
+	RtApi,
+	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	CIDP,
+	(),
+	DP,
+	TFullBackend<Block>,
+	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+>;
 
 pub mod primitives {
 	pub use fudge_core::FudgeParaChain;
