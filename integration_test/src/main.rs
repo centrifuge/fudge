@@ -38,7 +38,7 @@ type RCidp = Box<
 >;
 type PCidp = Box<
 	dyn CreateInherentDataProviders<
-		RBlock,
+		PBlock,
 		(),
 		InherentDataProviders = (
 			FudgeInherentTimestamp,
