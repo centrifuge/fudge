@@ -10,3 +10,23 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+pub use para_parachain::Inherent as FudgeInherentParaParachain;
+pub use relay_parachain::{
+	DummyInherent as FudgeDummyInherentRelayParachain, Inherent as FudgeInherentRelayParachain,
+};
+pub use sp_inherents::CreateInherentDataProviders;
+pub use timestamp::CurrTimeProvider as FudgeInherentTimestamp;
+
+mod para_parachain;
+mod relay_parachain;
+mod timestamp;
+
+pub trait ArgsProvider<ExtraArgs> {
+	fn extra() -> ExtraArgs;
+}
+
+impl ArgsProvider<()> for () {
+	fn extra() -> () {
+		()
+	}
+}

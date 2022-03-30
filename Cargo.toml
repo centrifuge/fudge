@@ -1,4 +1,8 @@
 [workspace]
 members = [
-    "core"
+    "core",
+    "utils",
+    "core/src/builder/companion",
+    "fudge",
+    "integration_test"
 ]

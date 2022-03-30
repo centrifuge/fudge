@@ -1,0 +1,15 @@
+[package]
+name = "fudge"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fudge-core = { path = "../core"}
+fudge-companion = { path = "../core/src/builder/companion"}
+
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.17" }
+sc-service = { git = "https://github.com/paritytech/substrate", features = ["db", "test-helpers"], branch = "polkadot-v0.9.17" }
+sc-executor = { git = "https://github.com/paritytech/substrate", default-features = true, branch = "polkadot-v0.9.17" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = true, branch = "polkadot-v0.9.17" }

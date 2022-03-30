@@ -10,3 +10,23 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use sp_consensus_babe::digests::{PreDigest, SecondaryPlainPreDigest};
+use sp_std::time::Duration;
+use sp_timestamp::Timestamp;
+
+pub struct Digest;
+
+impl Digest {
+	pub fn pre_digest(timestamp: Timestamp, slot_duration: Duration) -> PreDigest {
+		let slot_wrap =
+			sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+				timestamp,
+				slot_duration,
+			);
+
+		PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+			authority_index: 0,
+			slot: slot_wrap.slot(),
+		})
+	}
+}
