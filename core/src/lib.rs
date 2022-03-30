@@ -22,10 +22,11 @@ pub use builder::{
 pub use provider::EnvProvider;
 pub use types::{Bytes, StoragePair};
 
-mod builder;
-mod digest;
-mod inherent;
-mod provider;
+pub mod builder;
+pub mod digest;
+pub mod inherent;
+pub mod provider;
+
 #[cfg(test)]
 mod tests;
 

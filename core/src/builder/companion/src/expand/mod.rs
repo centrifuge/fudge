@@ -11,44 +11,63 @@
 // GNU General Public License for more details.
 use crate::parse::parachain;
 use crate::parse::CompanionDef;
-use proc_macro2::TokenStream;
+use proc_macro2::{Ident, Span, TokenStream};
+use proc_macro_crate::{crate_name, FoundCrate};
 use quote::{quote, ToTokens};
-use syn::Result;
+use syn::Result as SynResult;
 
-pub fn expand(def: CompanionDef) -> Result<TokenStream> {
+fn get_fudge_crate() -> SynResult<TokenStream> {
+	let found_crate = crate_name("fudge").map_err(|e| {
+		syn::Error::new(
+			Span::call_site(),
+			"Crate fudge must be present for companion macro.",
+		)
+	})?;
+
+	let ts = match found_crate {
+		FoundCrate::Itself => quote!(crate),
+		FoundCrate::Name(name) => {
+			let ident = Ident::new(&name, Span::call_site());
+			quote!( #ident )
+		}
+	};
+
+	Ok(ts)
+}
+
+pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
+	let fudge_crate = get_fudge_crate()?;
 	let vis = def.vis.to_token_stream();
 	let name = def.companion_name.to_token_stream();
 	let parachains = parachain::helper::parachains(&def);
 	let parachain_types = parachain::helper::parachain_types(&def);
 	let parachain_names = parachain::helper::parachain_names(&def);
 	let parachain_ids = parachain::helper::parachain_ids(&def);
-	let relay_chain_name = def.relaychain.name;
+	let relay_chain_name = def.relaychain.name.to_token_stream();
+	let relay_chain = def.relaychain.builder.to_token_stream();
+	let relay_vis = def.relaychain.vis.to_token_stream();
 
 	let ts = quote! {
-		pub type FudgeResult<T> = std::result::Result<T, ()>;
-		pub enum Chain {
-			Relay,
-			Para(u32)
-		}
+		use #fudge_crate::primitives::{Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain};
 
 		#vis struct #name {
 			#(
 				#parachains,
 			)*
 
-			#relay_chain_name: (),
+			#relay_vis #relay_chain_name: #relay_chain,
 		}
 
 		impl #name {
-			pub fn new(#relay_chain_name: (), #(#parachain_names: #parachain_types,)*) -> FudgeResult<Self> {
+			pub fn new(#relay_chain_name: (), #(#parachain_names: #parachain_types,)*) -> Result<Self, ()> {
 				let companion = Self {
 					#relay_chain_name,
 					#(#parachain_names,)*
 				};
 
 				#(
-					let para = FudgeParaChain {
-						id: #parachain_ids,
+					let para = _hidden_FudgeParaChain {
+						id: _hidden_ParaId::from(#parachain_ids),
 						head: companion.#parachain_names.head(),
 						code: companion.#parachain_names.code(),
 					};
@@ -59,10 +78,10 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 				Ok(companion)
 			}
 
-			pub fn with_state<R>(&self, chain: Chain, exec: impl FnOnce() -> R,) -> FudgeResult<()> {
+			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R,) -> Result<(), ()> {
 				match chain {
-					Chain::Relay => self.#relay_chain_name.with_state(exec),
-					Chain::Para(id) => match id {
+					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec),
+					_hidden_Chain::Para(id) => match id {
 						#(
 							#parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()).map(|_| ()),
 						)*
@@ -71,10 +90,10 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 				}
 			}
 
-			pub fn with_mut_state<R>(&self,  chain: Chain, exec: impl FnOnce() -> R) -> FudgeResult<()> {
+			pub fn with_mut_state<R>(&self,  chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
 				match chain {
-					Chain::Relay => self.#relay_chain_name.with_mut_state(exec),
-					Chain::Para(id) => match id {
+					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec),
+					_hidden_Chain::Para(id) => match id {
 						#(
 							#parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
 						)*
@@ -83,24 +102,26 @@ pub fn expand(def: CompanionDef) -> Result<TokenStream> {
 				}
 			}
 
-			pub fn evolve(&mut self) -> FudgeResult<()> {
+			pub fn evolve(&mut self) -> Result<(), ()> {
 				self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;
 				self.#relay_chain_name.import_block().map_err(|_| ()).map(|_| ())?;
 
 				#(
 					self.#parachain_names.build_block().map_err(|_| ()).map(|_| ())?;
 					self.#parachain_names.import_block().map_err(|_| ()).map(|_| ())?;
+				)*
 
-					let para = FudgeParaChain {
-						id: #parachain_ids,
+				self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;
+				self.#relay_chain_name.import_block().map_err(|_| ()).map(|_| ())?;
+
+				#(
+					let para = _hidden_FudgeParaChain {
+						id: _hidden_ParaId::from(#parachain_ids),
 						head: self.#parachain_names.head(),
 						code: self.#parachain_names.code(),
 					};
 					self.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
 				)*
-
-				self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;
-				self.#relay_chain_name.import_block().map_err(|_| ()).map(|_| ())?;
 			}
 		}
 	};

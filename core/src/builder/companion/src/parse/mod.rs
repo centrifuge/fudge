@@ -137,7 +137,7 @@ impl CompanionDef {
 				attr.path
 					.segments
 					.first()
-					.map_or(false, |segment| segment.ident == "fudge_companion")
+					.map_or(false, |segment| segment.ident == "fudge")
 			})
 			.collect();
 

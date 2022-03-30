@@ -51,7 +51,7 @@ pub mod helper {
 				let name = para.name.to_token_stream();
 				let builder = para.builder.to_token_stream();
 				quote! {
-					#vis #name: (u32, #builder)
+					#vis #name: #builder
 				}
 			})
 			.collect()

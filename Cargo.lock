@@ -2181,6 +2181,11 @@ checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 [[package]]
 name = "fudge"
 version = "0.1.0"
+dependencies = [
+ "fudge-companion",
+ "fudge-core",
+ "polkadot-parachain",
+]
 
 [[package]]
 name = "fudge-companion"
@@ -2853,6 +2858,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "integration_test"
+version = "0.1.0"
+dependencies = [
+ "fudge",
 ]
 
 [[package]]

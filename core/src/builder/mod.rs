@@ -13,5 +13,3 @@ mod core;
 pub mod parachain;
 pub mod relay_chain;
 pub mod stand_alone;
-
-pub mod test;
