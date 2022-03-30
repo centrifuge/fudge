@@ -11,13 +11,36 @@
 // GNU General Public License for more details.
 
 use proc_macro2::{Ident, TokenStream};
-use syn::{parse::Parse, spanned::Spanned, Type, Visibility};
+use quote::{quote, ToTokens, TokenStreamExt};
+use syn::{
+	parse::{Parse, ParseStream},
+	spanned::Spanned,
+	LitInt, Type, Visibility,
+};
 
 pub struct ParachainDef {
 	pub name: Ident,
 	pub id: TokenStream,
 	pub builder: Type,
 	pub vis: Visibility,
+}
+
+pub struct ParaId(TokenStream);
+
+impl Parse for ParaId {
+	fn parse(input: ParseStream) -> syn::Result<Self> {
+		let content;
+		syn::parenthesized!(content in input);
+		let parsed_id = content.parse::<LitInt>()?.base10_parse::<u32>()?;
+		Ok(ParaId(parsed_id.to_token_stream()))
+	}
+}
+
+impl ToTokens for ParaId {
+	fn to_tokens(&self, tokens: &mut TokenStream) {
+		let id = self.0.clone();
+		tokens.extend(quote! {#id})
+	}
 }
 
 pub mod helper {

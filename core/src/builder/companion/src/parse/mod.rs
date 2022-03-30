@@ -12,8 +12,10 @@
 use crate::parse::parachain::ParachainDef;
 use crate::parse::relaychain::RelaychainDef;
 use proc_macro2::Span;
+use quote::ToTokens;
 use syn::{
 	parse::{Parse, ParseStream},
+	parse2,
 	spanned::Spanned,
 	Attribute, Error, Field, FieldsNamed, Ident, ItemStruct, Result, Visibility,
 };
@@ -101,7 +103,7 @@ impl CompanionDef {
 		let mut relaychain = None;
 
 		for field in fields.named.iter() {
-			match Self::parse_field(field.clone()) {
+			match Self::parse_field(field.clone())? {
 				FieldType::Other(named) => (), // TODO: Other fields are not supported currently
 				FieldType::Parachain(def) => parachains.push(def),
 				FieldType::Relaychain(def) => match relaychain {
@@ -129,7 +131,7 @@ impl CompanionDef {
 		})
 	}
 
-	pub fn parse_field(field: Field) -> FieldType {
+	pub fn parse_field(field: Field) -> Result<FieldType> {
 		let companion_fields: Vec<&Attribute> = field
 			.attrs
 			.iter()
@@ -142,37 +144,44 @@ impl CompanionDef {
 			.collect();
 
 		if companion_fields.is_empty() {
-			return FieldType::Other(field);
+			return Ok(FieldType::Other(field));
 		} else {
 			for attr in companion_fields {
 				// TODO: This is really imprecisve and WIP
 				let second = attr.path.segments.last().unwrap();
 				if second.ident == "parachain" {
-					let id = attr.tokens.clone();
-					return FieldType::Parachain(ParachainDef {
+					let id: parachain::ParaId = parse2(attr.tokens.clone())?;
+
+					return Ok(FieldType::Parachain(ParachainDef {
 						name: field
 							.ident
 							.clone()
 							.expect("Only named fields are passed here. qed."),
-						id: id,
+						id: id.to_token_stream(),
 						builder: field.ty.clone(),
 						vis: field.vis.clone(),
-					});
+					}));
 				} else if second.ident == "relaychain" {
-					return FieldType::Relaychain(RelaychainDef {
+					return Ok(FieldType::Relaychain(RelaychainDef {
 						name: field
 							.ident
 							.clone()
 							.expect("Only named fields are passed here. qed."),
 						builder: field.ty.clone(),
 						vis: field.vis.clone(),
-					});
+					}));
 				} else {
-					unreachable!("Should either be parachain or relaychain. Others are currently not supported.")
+					return Err(syn::Error::new(
+						field.span(),
+						"Only parachain or relaychain attributes supported currently.",
+					));
 				}
 			}
 		}
 
-		unreachable!("Should have a single identifier of relay-chain or parachain.")
+		Err(syn::Error::new(
+			field.span(),
+			"Only parachain or relaychain attributes supported currently.",
+		))
 	}
 }

@@ -20,7 +20,7 @@ impl TestEnv {
             acala,
         };
         let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from((2001)),
+            id: _hidden_ParaId::from(2001u32),
             head: companion.centrifuge.head(),
             code: companion.centrifuge.code(),
         };
@@ -30,7 +30,7 @@ impl TestEnv {
             .map_err(|_| ())
             .map(|_| ())?;
         let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from((2002)),
+            id: _hidden_ParaId::from(2002u32),
             head: companion.acala.head(),
             code: companion.acala.code(),
         };
@@ -45,8 +45,8 @@ impl TestEnv {
         match chain {
             _hidden_Chain::Relay => self.polkadot.with_state(exec),
             _hidden_Chain::Para(id) => match id {
-                (2001) => self.centrifuge.with_state(exec).map_err(|_| ()).map(|_| ()),
-                (2002) => self.acala.with_state(exec).map_err(|_| ()).map(|_| ()),
+                2001u32 => self.centrifuge.with_state(exec).map_err(|_| ()).map(|_| ()),
+                2002u32 => self.acala.with_state(exec).map_err(|_| ()).map(|_| ()),
                 _ => Err(()),
             },
         }
@@ -59,12 +59,12 @@ impl TestEnv {
         match chain {
             _hidden_Chain::Relay => self.polkadot.with_mut_state(exec),
             _hidden_Chain::Para(id) => match id {
-                (2001) => self
+                2001u32 => self
                     .centrifuge
                     .with_mut_state(exec)
                     .map_err(|_| ())
                     .map(|_| ()),
-                (2002) => self.acala.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
+                2002u32 => self.acala.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
                 _ => Err(()),
             },
         }
@@ -79,7 +79,7 @@ impl TestEnv {
         self.polkadot.build_block().map_err(|_| ()).map(|_| ())?;
         self.polkadot.import_block().map_err(|_| ()).map(|_| ())?;
         let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from((2001)),
+            id: _hidden_ParaId::from(2001u32),
             head: self.centrifuge.head(),
             code: self.centrifuge.code(),
         };
@@ -88,7 +88,7 @@ impl TestEnv {
             .map_err(|_| ())
             .map(|_| ())?;
         let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from((2002)),
+            id: _hidden_ParaId::from(2002u32),
             head: self.acala.head(),
             code: self.acala.code(),
         };
