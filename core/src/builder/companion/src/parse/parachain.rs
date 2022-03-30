@@ -11,10 +11,9 @@
 // GNU General Public License for more details.
 
 use proc_macro2::{Ident, TokenStream};
-use quote::{quote, ToTokens, TokenStreamExt};
+use quote::{quote, ToTokens};
 use syn::{
 	parse::{Parse, ParseStream},
-	spanned::Spanned,
 	LitInt, Type, Visibility,
 };
 
@@ -45,8 +44,8 @@ impl ToTokens for ParaId {
 
 pub mod helper {
 	use crate::parse::CompanionDef;
-	use proc_macro2::{Ident, Literal, TokenStream, TokenTree};
-	use quote::{quote, ToTokens, TokenStreamExt};
+	use proc_macro2::TokenStream;
+	use quote::{quote, ToTokens};
 
 	pub fn parachain_ids(def: &CompanionDef) -> Vec<TokenStream> {
 		def.parachains.iter().map(|para| para.id.clone()).collect()

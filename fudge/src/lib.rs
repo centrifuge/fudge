@@ -1,3 +1,15 @@
+// Copyright 2021 Centrifuge Foundation (centrifuge.io).
+//
+// This file is part of the FUDGE project.
+// FUDGE is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version (see http://www.gnu.org/licenses).
+// Centrifuge is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
 ///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
 ///!
 ///! Generally only this dependency is needed in order to use FUDGE.
@@ -5,6 +17,12 @@
 ///! referred to the fudge-core repository.
 // Re-export everything nicely as a single crate
 pub use fudge_companion::companion;
+pub use fudge_core::{
+	digest::*,
+	inherent::*,
+	provider::EnvProvider,
+	{ParachainBuilder, RelayChainBuilder, StandAloneBuilder},
+};
 
 pub mod primitives {
 	pub use fudge_core::FudgeParaChain;

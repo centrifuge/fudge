@@ -9,6 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
 use crate::parse::parachain::ParachainDef;
 use crate::parse::relaychain::RelaychainDef;
 use proc_macro2::Span;
@@ -104,7 +105,7 @@ impl CompanionDef {
 
 		for field in fields.named.iter() {
 			match Self::parse_field(field.clone())? {
-				FieldType::Other(named) => (), // TODO: Other fields are not supported currently
+				FieldType::Other(_named) => (), // TODO: Other fields are not supported currently
 				FieldType::Parachain(def) => parachains.push(def),
 				FieldType::Relaychain(def) => match relaychain {
 					None => relaychain = Some(def),

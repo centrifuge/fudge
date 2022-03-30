@@ -9,6 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
 use crate::parse::parachain;
 use crate::parse::CompanionDef;
 use proc_macro2::{Ident, Span, TokenStream};
@@ -17,7 +18,7 @@ use quote::{quote, ToTokens};
 use syn::Result as SynResult;
 
 fn get_fudge_crate() -> SynResult<TokenStream> {
-	let found_crate = crate_name("fudge").map_err(|e| {
+	let found_crate = crate_name("fudge").map_err(|_| {
 		syn::Error::new(
 			Span::call_site(),
 			"Crate fudge must be present for companion macro.",
