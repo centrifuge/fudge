@@ -2,9 +2,11 @@
 
 FUDGE - FUlly Decoupled Generic Environment
 
-!! NOTE: 
-!! Expect Breaking Changes
-!! Expect reaching not yet implemented errors during runtime, and various bugs during altering a chains state as interacting with the underlying db is complex. Expect errors due to unwrapping where error handling should instead propagate errors. 
+:warning: NOTE:
+
+:warning: Expect Breaking Changes
+
+:warning: Expect reaching not yet implemented errors during runtime, and various bugs during altering a chains state as interacting with the underlying db is complex. Expect errors due to unwrapping where error handling should instead propagate errors. 
 
 FUDGE provides a core lib for interacting with a substrate based blockchain database.
 This allows users to 
