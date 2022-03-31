@@ -36,8 +36,48 @@ fn get_fudge_crate() -> SynResult<TokenStream> {
 	Ok(ts)
 }
 
+fn get_codec_crate() -> SynResult<TokenStream> {
+	let found_crate = crate_name("codec").map_err(|_| {
+		syn::Error::new(
+			Span::call_site(),
+			"Crate codec must be present for companion macro.",
+		)
+	})?;
+
+	let ts = match found_crate {
+		FoundCrate::Itself => quote!(crate),
+		FoundCrate::Name(name) => {
+			let ident = Ident::new(&name, Span::call_site());
+			quote!( #ident )
+		}
+	};
+
+	Ok(ts)
+}
+
+fn get_tracing_crate() -> SynResult<TokenStream> {
+	let found_crate = crate_name("sp-tracing").map_err(|_| {
+		syn::Error::new(
+			Span::call_site(),
+			"Crate sp-tracing must be present for companion macro.",
+		)
+	})?;
+
+	let ts = match found_crate {
+		FoundCrate::Itself => quote!(crate),
+		FoundCrate::Name(name) => {
+			let ident = Ident::new(&name, Span::call_site());
+			quote!( #ident )
+		}
+	};
+
+	Ok(ts)
+}
+
 pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 	let fudge_crate = get_fudge_crate()?;
+	let tracing_crate = get_tracing_crate()?;
+	let codec_crate = get_codec_crate()?;
 	let vis = def.vis.to_token_stream();
 	let name = def.companion_name.to_token_stream();
 	let parachains = parachain::helper::parachains(&def);
@@ -50,6 +90,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 	let ts = quote! {
 		use #fudge_crate::primitives::{Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain};
+		use #codec_crate::Decode as __hidden_Decode;
 
 		#vis struct #name {
 			#(
@@ -79,24 +120,42 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				Ok(companion)
 			}
 
-			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
+			pub fn append_extrinsic(&mut self, chain: _hidden_Chain, ext: Vec<u8>) -> Result<(), ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec).map_err(|_| ()).map(|_| ()),
+					_hidden_Chain::Relay => {
+						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut ext.as_slice()).map_err(|_|())?);
+						Ok(())
+					},
 					_hidden_Chain::Para(id) => match id {
 						#(
-							#parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()).map(|_| ()),
+							#parachain_ids => {
+								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut ext.as_slice()).map_err(|_|())?);
+								Ok(())
+							},
+						)*
+						_ => return Err(()),
+					}
+				}
+			}
+
+			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<R, ()> {
+				match chain {
+					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec).map_err(|_| ()),
+					_hidden_Chain::Para(id) => match id {
+						#(
+							#parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()),
 						)*
 						_ => Err(())
 					}
 				}
 			}
 
-			pub fn with_mut_state<R>(&mut self,  chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
+			pub fn with_mut_state<R>(&mut self,  chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<R, ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
+					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()),
 					_hidden_Chain::Para(id) => match id {
 						#(
-							#parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()).map(|_| ()),
+							#parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
 						)*
 						_ => Err(())
 					}

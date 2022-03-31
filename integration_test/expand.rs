@@ -43,6 +43,7 @@ const PARA_ID: u32 = 2002u32;
 use fudge::primitives::{
     Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain,
 };
+use codec::Decode as __hidden_Decode;
 struct TestEnv {
     centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
     sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
@@ -81,12 +82,37 @@ impl TestEnv {
             .map(|_| ())?;
         Ok(companion)
     }
-    pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<(), ()> {
+    pub fn append_extrinsic(&mut self, chain: _hidden_Chain, ext: Vec<u8>) -> Result<(), ()> {
         match chain {
-            _hidden_Chain::Relay => self.polkadot.with_state(exec).map_err(|_| ()).map(|_| ()),
+            _hidden_Chain::Relay => {
+                self.polkadot.append_extrinsic(
+                    __hidden_Decode::decode(&mut ext.as_slice()).map_err(|_| ())?,
+                );
+                Ok(())
+            }
             _hidden_Chain::Para(id) => match id {
-                PARA_ID => self.centrifuge.with_state(exec).map_err(|_| ()).map(|_| ()),
-                2000u32 => self.sibling.with_state(exec).map_err(|_| ()).map(|_| ()),
+                PARA_ID => {
+                    self.centrifuge.append_extrinsic(
+                        __hidden_Decode::decode(&mut ext.as_slice()).map_err(|_| ())?,
+                    );
+                    Ok(())
+                }
+                2000u32 => {
+                    self.sibling.append_extrinsic(
+                        __hidden_Decode::decode(&mut ext.as_slice()).map_err(|_| ())?,
+                    );
+                    Ok(())
+                }
+                _ => return Err(()),
+            },
+        }
+    }
+    pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<R, ()> {
+        match chain {
+            _hidden_Chain::Relay => self.polkadot.with_state(exec).map_err(|_| ()),
+            _hidden_Chain::Para(id) => match id {
+                PARA_ID => self.centrifuge.with_state(exec).map_err(|_| ()),
+                2000u32 => self.sibling.with_state(exec).map_err(|_| ()),
                 _ => Err(()),
             },
         }
@@ -95,24 +121,12 @@ impl TestEnv {
         &mut self,
         chain: _hidden_Chain,
         exec: impl FnOnce() -> R,
-    ) -> Result<(), ()> {
+    ) -> Result<R, ()> {
         match chain {
-            _hidden_Chain::Relay => self
-                .polkadot
-                .with_mut_state(exec)
-                .map_err(|_| ())
-                .map(|_| ()),
+            _hidden_Chain::Relay => self.polkadot.with_mut_state(exec).map_err(|_| ()),
             _hidden_Chain::Para(id) => match id {
-                PARA_ID => self
-                    .centrifuge
-                    .with_mut_state(exec)
-                    .map_err(|_| ())
-                    .map(|_| ()),
-                2000u32 => self
-                    .sibling
-                    .with_mut_state(exec)
-                    .map_err(|_| ())
-                    .map(|_| ()),
+                PARA_ID => self.centrifuge.with_mut_state(exec).map_err(|_| ()),
+                2000u32 => self.sibling.with_mut_state(exec).map_err(|_| ()),
                 _ => Err(()),
             },
         }
