@@ -10,19 +10,17 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use centrifuge_runtime::{
-	Block as PBlock, Runtime as PRuntime, RuntimeApi as PRtApi, WASM_BINARY as PCODE,
-};
+use centrifuge_runtime::{Block as PBlock, RuntimeApi as PRtApi};
 use fudge::{
 	digest::DigestCreator,
 	inherent::{
 		CreateInherentDataProviders, FudgeDummyInherentRelayParachain, FudgeInherentParaParachain,
 		FudgeInherentTimestamp,
 	},
-	EnvProvider, ParachainBuilder, RelaychainBuilder,
+	ParachainBuilder, RelaychainBuilder,
 };
 use polkadot_core_primitives::{Block as RBlock, Header as RHeader};
-use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi, WASM_BINARY as RCODE};
+use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi};
 
 type RCidp = Box<
 	dyn CreateInherentDataProviders<
@@ -51,10 +49,13 @@ type Dp = Box<dyn DigestCreator + Send + Sync>;
 
 fn main() {}
 
+const PARA_ID: u32 = 2002u32;
 #[fudge::companion]
 struct TestEnv {
-	#[fudge::parachain(2001)]
+	#[fudge::parachain(PARA_ID)]
 	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
+	#[fudge::parachain(2000u32)]
+	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
 	#[fudge::relaychain]
 	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, Dp>,
 }
