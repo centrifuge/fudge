@@ -204,7 +204,7 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 				> + Send,
 		>,
 	> {
-		let i = Box::new(std::iter::empty::<Arc<Self::InPoolTransaction>>())
+		let i = Box::new(self.clone())
 			as Box<
 				(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>>
 				     + std::marker::Send
