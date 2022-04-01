@@ -91,6 +91,14 @@ where
 		}
 	}
 
+	pub fn client(&self) -> Arc<C> {
+		self.builder.client()
+	}
+
+	pub fn backend(&self) -> Arc<B> {
+		self.builder.backend()
+	}
+
 	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> &mut Self {
 		self.builder.append_extrinsic(xt);
 		self
