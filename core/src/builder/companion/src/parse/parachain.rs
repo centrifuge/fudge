@@ -10,11 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::{Group, Ident, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
 	parse::{Parse, ParseStream},
-	LitInt, Type, Visibility,
+	Type, Visibility,
 };
 
 pub struct ParachainDef {
@@ -28,10 +28,8 @@ pub struct ParaId(TokenStream);
 
 impl Parse for ParaId {
 	fn parse(input: ParseStream) -> syn::Result<Self> {
-		let content;
-		syn::parenthesized!(content in input);
-		let parsed_id = content.parse::<LitInt>()?.base10_parse::<u32>()?;
-		Ok(ParaId(parsed_id.to_token_stream()))
+		let parsed_id = input.parse::<Group>()?;
+		Ok(ParaId(parsed_id.stream()))
 	}
 }
 

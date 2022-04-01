@@ -2869,11 +2869,13 @@ version = "0.1.0"
 dependencies = [
  "centrifuge-runtime",
  "fudge",
+ "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-runtime",
  "sp-authorship",
  "sp-consensus-babe",
  "sp-inherents",
+ "sp-tracing",
 ]
 
 [[package]]
