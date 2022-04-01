@@ -47,7 +47,7 @@ use self::sc_consensus::ImportResult;
 use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
 use self::sp_api::HashFor;
 use self::sp_consensus::{InherentData, Proposal, Proposer};
-use self::sp_runtime::traits::{Block as BlockT, Hash as HashT, Header as HeaderT, Zero};
+use self::sp_runtime::traits::{Block as BlockT, Hash as HashT, Hash, Header as HeaderT, Zero};
 use self::sp_runtime::Digest;
 use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
@@ -75,11 +75,12 @@ impl<Block: BlockT> SimplePool<Block> {
 
 pub struct ExtWrapper<Block: BlockT> {
 	xt: Block::Extrinsic,
+	hash: Block::Hash,
 }
 
 impl<Block: BlockT> ExtWrapper<Block> {
-	pub fn new(xt: Block::Extrinsic) -> Self {
-		Self { xt }
+	pub fn new(xt: Block::Extrinsic, hash: Block::Hash) -> Self {
+		Self { xt, hash }
 	}
 }
 
@@ -92,7 +93,7 @@ impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
 	}
 
 	fn hash(&self) -> &Self::Hash {
-		todo!()
+		&self.hash
 	}
 
 	fn priority(&self) -> &TransactionPriority {
@@ -139,9 +140,10 @@ impl<Block: BlockT> Iterator for SimplePool<Block> {
 	type Item = Arc<ExtWrapper<Block>>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		self.pool
-			.pop()
-			.and_then(|xt| Some(Arc::new(ExtWrapper::new(xt))))
+		self.pool.pop().and_then(|xt| {
+			let hash = xt.using_encoded(|x| <HashFor<Block> as Hash>::hash(x));
+			Some(Arc::new(ExtWrapper::new(xt, hash)))
+		})
 	}
 }
 
@@ -204,7 +206,7 @@ impl<Block: BlockT> TransactionPool for SimplePool<Block> {
 				> + Send,
 		>,
 	> {
-		let i = Box::new(std::iter::empty::<Arc<Self::InPoolTransaction>>())
+		let i = Box::new(self.clone())
 			as Box<
 				(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>>
 				     + std::marker::Send
