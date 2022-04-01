@@ -44,6 +44,7 @@ use fudge::primitives::{
     Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain,
 };
 use codec::Decode as __hidden_Decode;
+use sp_tracing as __hidden_tracing;
 struct TestEnv {
     centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
     sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
@@ -132,32 +133,274 @@ impl TestEnv {
         }
     }
     pub fn evolve(&mut self) -> Result<(), ()> {
-        self.polkadot.build_block().map_err(|_| ()).map(|_| ())?;
-        self.polkadot.import_block().map_err(|_| ()).map(|_| ())?;
-        self.centrifuge.build_block().map_err(|_| ()).map(|_| ())?;
-        self.centrifuge.import_block().map_err(|_| ()).map(|_| ())?;
-        self.sibling.build_block().map_err(|_| ()).map(|_| ())?;
-        self.sibling.import_block().map_err(|_| ()).map(|_| ())?;
-        self.polkadot.build_block().map_err(|_| ()).map(|_| ())?;
-        self.polkadot.import_block().map_err(|_| ()).map(|_| ())?;
-        let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from(PARA_ID),
-            head: self.centrifuge.head(),
-            code: self.centrifuge.code(),
-        };
-        self.polkadot
-            .onboard_para(para)
-            .map_err(|_| ())
-            .map(|_| ())?;
-        let para = _hidden_FudgeParaChain {
-            id: _hidden_ParaId::from(2000u32),
-            head: self.sibling.head(),
-            code: self.sibling.code(),
-        };
-        self.polkadot
-            .onboard_para(para)
-            .map_err(|_| ())
-            .map(|_| ())?;
+        {
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "polkadot - BlockBuilding :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            self.polkadot.build_block().map_err(|_| ()).map(|_| ())?;
+            self.polkadot.import_block().map_err(|_| ()).map(|_| ())?;
+        }
+        {
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "centrifuge - BlockBuilding :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            self.centrifuge.build_block().map_err(|_| ()).map(|_| ())?;
+            self.centrifuge.import_block().map_err(|_| ()).map(|_| ())?;
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "sibling - BlockBuilding :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            self.sibling.build_block().map_err(|_| ()).map(|_| ())?;
+            self.sibling.import_block().map_err(|_| ()).map(|_| ())?;
+        }
+        {
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "polkadot - BlockBuilding :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            self.polkadot.build_block().map_err(|_| ()).map(|_| ())?;
+            self.polkadot.import_block().map_err(|_| ()).map(|_| ())?;
+        }
+        {
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "polkadot - Onboarding(centrifuge) :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            let para = _hidden_FudgeParaChain {
+                id: _hidden_ParaId::from(PARA_ID),
+                head: self.centrifuge.head(),
+                code: self.centrifuge.code(),
+            };
+            self.polkadot
+                .onboard_para(para)
+                .map_err(|_| ())
+                .map(|_| ())?;
+            let __within_span__ = {
+                use ::tracing::__macro_support::Callsite as _;
+                static CALLSITE: ::tracing::__macro_support::MacroCallsite = {
+                    use ::tracing::__macro_support::MacroCallsite;
+                    static META: ::tracing::Metadata<'static> = {
+                        ::tracing_core::metadata::Metadata::new(
+                            "polkadot - Onboarding(sibling) :",
+                            "integration_test",
+                            sp_tracing::Level::TRACE,
+                            Some("integration_test/src/main.rs"),
+                            Some(53u32),
+                            Some("integration_test"),
+                            ::tracing_core::field::FieldSet::new(
+                                &[],
+                                ::tracing_core::callsite::Identifier(&CALLSITE),
+                            ),
+                            ::tracing::metadata::Kind::SPAN,
+                        )
+                    };
+                    MacroCallsite::new(&META)
+                };
+                let mut interest = ::tracing::subscriber::Interest::never();
+                if sp_tracing::Level::TRACE <= ::tracing::level_filters::STATIC_MAX_LEVEL
+                    && sp_tracing::Level::TRACE <= ::tracing::level_filters::LevelFilter::current()
+                    && {
+                        interest = CALLSITE.interest();
+                        !interest.is_never()
+                    }
+                    && CALLSITE.is_enabled(interest)
+                {
+                    let meta = CALLSITE.metadata();
+                    ::tracing::Span::new(meta, &{ meta.fields().value_set(&[]) })
+                } else {
+                    let span = CALLSITE.disabled_span();
+                    {};
+                    span
+                }
+            };
+            let __tracing_guard__ = __within_span__.enter();
+            let para = _hidden_FudgeParaChain {
+                id: _hidden_ParaId::from(2000u32),
+                head: self.sibling.head(),
+                code: self.sibling.code(),
+            };
+            self.polkadot
+                .onboard_para(para)
+                .map_err(|_| ())
+                .map(|_| ())?;
+        }
         Ok(())
     }
 }
