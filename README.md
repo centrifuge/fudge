@@ -28,7 +28,7 @@ This allows users to
 
   (**NOTE:** Does build a block with the normal block building procedure that standard substrate node use)
   - [ ] Mimic block production in para-relay-chain-setup
-- [ ] Inject extrinsics into dummy-pool, that provides them to the block building mechanism (Currently only directly via builders)
+- [x] Inject extrinsic into normal substrate `FullPool`, that provides them to the block building mechanism
 - [ ] XCM-Support
 - [ ] Mutating past state and propagating changes to the latest block
 
@@ -57,11 +57,15 @@ The `TestEnv` will expose the following methods:
 ```rust
 
 impl TestEnv {
+  // Takes a scale-encoded extrinsic and injects it into the pool if the respective chain.
+  // Will throw an error if decoding into chains extrinsic fails.
+  pub fn append_extrinsic(chain: Chain, xt: Vec<u8>) -> Result<(), ()>;
+
   // Provides the latest state of the chain. (Externalities provided environment)
-  pub fn with_state(chain: Chain, exec: FnOnce() -> Result<R, E>) -> Result<(), ()>;
+  pub fn with_state(chain: Chain, exec: FnOnce() -> Result<R, E>) -> Result<R, ()>;
 
   // Provides the latest state of the chain mutably. (Externalities provided environment)
-  pub fn with_mut_state(chain: Chain, exec: FnOnce() -> Result<R, E>) -> Result<(), ()>;
+  pub fn with_mut_state(chain: Chain, exec: FnOnce() -> Result<R, E>) -> Result<R, ()>;
 
   // Builds one parachain block and two relay-chain blocks
   pub fn evolve() -> Result<(), ()>;
