@@ -21,7 +21,7 @@ use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
 use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_core::H256;
@@ -32,7 +32,7 @@ use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
 fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
-	handle: SpawnTaskHandle,
+	manager: &TaskManager,
 	storage: Storage,
 	cidp: Box<
 		dyn FnOnce(
@@ -64,7 +64,7 @@ where
 
 	let (client, backend) = provider.init_default(
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(handle.clone()),
+		Box::new(manager.spawn_handle()),
 	);
 	let client = Arc::new(client);
 	let clone_client = client.clone();
@@ -77,7 +77,7 @@ where
 		_,
 		_,
 		Runtime,
-	>::new(handle.clone(), backend, client, cidp(clone_client), dp)
+	>::new(manager, backend, client, cidp(clone_client), dp)
 }
 
 #[tokio::test]
@@ -130,12 +130,8 @@ async fn onboarding_parachain_works() {
 
 		Ok(digest)
 	});
-	let mut builder = generate_default_setup_relay_chain::<_, _, Runtime>(
-		manager.spawn_handle(),
-		Storage::default(),
-		cidp,
-		dp,
-	);
+	let mut builder =
+		generate_default_setup_relay_chain::<_, _, Runtime>(&manager, Storage::default(), cidp, dp);
 
 	let id = Id::from(2002u32);
 	let code = ValidationCode(PARA_CODE.unwrap().to_vec());
@@ -147,9 +143,9 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para);
+	builder.onboard_para(dummy_para).unwrap();
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let res = builder
 		.with_state_at(BlockId::Number(1), || {
@@ -175,9 +171,9 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para_new);
+	builder.onboard_para(dummy_para_new).unwrap();
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let res = builder
 		.with_state_at(BlockId::Number(2), || {

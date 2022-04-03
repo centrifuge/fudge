@@ -17,18 +17,14 @@ extern crate sp_runtime;
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 use crate::provider::ExternalitiesProvider;
-use codec::Encode;
-use frame_support::dispatch::TransactionPriority;
-use frame_support::pallet_prelude::{TransactionLongevity, TransactionSource, TransactionTag};
+use frame_support::pallet_prelude::TransactionSource;
 use frame_support::sp_runtime::traits::NumberFor;
 use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams};
 use sc_executor::RuntimeVersionOf;
 use sc_service::TFullClient;
-use sc_transaction_pool_api::{PoolStatus, ReadyTransactions};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::Environment;
@@ -36,21 +32,22 @@ use sp_core::traits::CodeExecutor;
 use sp_runtime::{generic::BlockId, traits::One};
 use sp_state_machine::StorageProof;
 use sp_std::time::Duration;
-use std::fmt::{Debug, Display, Formatter};
-use std::future::Future;
-use std::pin::Pin;
-use std::{collections::HashMap, marker::PhantomData, sync::Arc};
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use std::{marker::PhantomData, sync::Arc};
 
 use self::sc_client_api::blockchain::Backend as BlockchainBackend;
-use self::sc_client_api::{BlockImportOperation, NewBlockState};
+use self::sc_client_api::{BlockBackend, BlockImportOperation, NewBlockState};
 use self::sc_consensus::ImportResult;
-use self::sc_service::{InPoolTransaction, SpawnTaskHandle, TransactionPool};
+use self::sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use self::sp_api::HashFor;
 use self::sp_consensus::{InherentData, Proposal, Proposer};
-use self::sp_runtime::traits::{Block as BlockT, Hash as HashT, Hash, Header as HeaderT, Zero};
+use self::sp_runtime::traits::{
+	Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Zero,
+};
 use self::sp_runtime::Digest;
 use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
+use sc_transaction_pool::{FullChainApi, RevalidationType};
 use sp_storage::StateVersion;
 
 pub enum Operation {
@@ -58,220 +55,7 @@ pub enum Operation {
 	DryRun,
 }
 
-#[derive(Clone)]
-pub struct SimplePool<Block: BlockT> {
-	pool: Vec<Block::Extrinsic>,
-}
-
-impl<Block: BlockT> SimplePool<Block> {
-	fn new() -> Self {
-		SimplePool { pool: Vec::new() }
-	}
-
-	fn push(&mut self, xt: Block::Extrinsic) {
-		self.pool.push(xt)
-	}
-}
-
-pub struct ExtWrapper<Block: BlockT> {
-	xt: Block::Extrinsic,
-	hash: Block::Hash,
-}
-
-impl<Block: BlockT> ExtWrapper<Block> {
-	pub fn new(xt: Block::Extrinsic, hash: Block::Hash) -> Self {
-		Self { xt, hash }
-	}
-}
-
-impl<Block: BlockT> InPoolTransaction for ExtWrapper<Block> {
-	type Transaction = Block::Extrinsic;
-	type Hash = Block::Hash;
-
-	fn data(&self) -> &Self::Transaction {
-		&self.xt
-	}
-
-	fn hash(&self) -> &Self::Hash {
-		&self.hash
-	}
-
-	fn priority(&self) -> &TransactionPriority {
-		todo!()
-	}
-
-	fn longevity(&self) -> &TransactionLongevity {
-		todo!()
-	}
-
-	fn requires(&self) -> &[TransactionTag] {
-		todo!()
-	}
-
-	fn provides(&self) -> &[TransactionTag] {
-		todo!()
-	}
-
-	fn is_propagable(&self) -> bool {
-		todo!()
-	}
-}
-
-#[derive(Debug)]
-pub enum Error {}
-
-impl From<sc_transaction_pool_api::error::Error> for Error {
-	fn from(_: sc_transaction_pool_api::error::Error) -> Self {
-		todo!()
-	}
-}
-
-impl Display for Error {
-	fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
-		todo!()
-	}
-}
-
-impl std::error::Error for Error {}
-
-impl sc_transaction_pool_api::error::IntoPoolError for Error {}
-
-impl<Block: BlockT> Iterator for SimplePool<Block> {
-	type Item = Arc<ExtWrapper<Block>>;
-
-	fn next(&mut self) -> Option<Self::Item> {
-		self.pool.pop().and_then(|xt| {
-			let hash = xt.using_encoded(|x| <HashFor<Block> as Hash>::hash(x));
-			Some(Arc::new(ExtWrapper::new(xt, hash)))
-		})
-	}
-}
-
-impl<Block: BlockT> ReadyTransactions for SimplePool<Block> {
-	fn report_invalid(&mut self, _tx: &Self::Item) {
-		todo!()
-	}
-}
-
-impl<Block: BlockT> TransactionPool for SimplePool<Block> {
-	type Block = Block;
-	type Hash = Block::Hash;
-	type InPoolTransaction = ExtWrapper<Block>;
-	type Error = Error;
-
-	fn submit_at(
-		&self,
-		_at: &BlockId<Self::Block>,
-		_source: TransactionSource,
-		_xts: Vec<sc_transaction_pool_api::TransactionFor<Self>>,
-	) -> sc_transaction_pool_api::PoolFuture<
-		Vec<Result<sc_transaction_pool_api::TxHash<Self>, Self::Error>>,
-		Self::Error,
-	> {
-		todo!()
-	}
-
-	fn submit_one(
-		&self,
-		_at: &BlockId<Self::Block>,
-		_source: TransactionSource,
-		_xt: sc_transaction_pool_api::TransactionFor<Self>,
-	) -> sc_transaction_pool_api::PoolFuture<sc_transaction_pool_api::TxHash<Self>, Self::Error> {
-		todo!()
-	}
-
-	fn submit_and_watch(
-		&self,
-		_at: &BlockId<Self::Block>,
-		_source: TransactionSource,
-		_xt: sc_transaction_pool_api::TransactionFor<Self>,
-	) -> sc_transaction_pool_api::PoolFuture<
-		Pin<Box<sc_transaction_pool_api::TransactionStatusStreamFor<Self>>>,
-		Self::Error,
-	> {
-		todo!()
-	}
-
-	fn ready_at(
-		&self,
-		_at: NumberFor<Self::Block>,
-	) -> Pin<
-		Box<
-			dyn Future<
-					Output = Box<
-						dyn sc_transaction_pool_api::ReadyTransactions<
-								Item = Arc<Self::InPoolTransaction>,
-							> + Send,
-					>,
-				> + Send,
-		>,
-	> {
-		let i = Box::new(self.clone())
-			as Box<
-				(dyn ReadyTransactions<Item = Arc<ExtWrapper<Block>>>
-				     + std::marker::Send
-				     + 'static),
-			>;
-		Box::pin(async { i })
-	}
-
-	fn ready(
-		&self,
-	) -> Box<
-		dyn sc_transaction_pool_api::ReadyTransactions<Item = Arc<Self::InPoolTransaction>> + Send,
-	> {
-		Box::new(self.clone())
-	}
-
-	fn remove_invalid(
-		&self,
-		_hashes: &[sc_transaction_pool_api::TxHash<Self>],
-	) -> Vec<Arc<Self::InPoolTransaction>> {
-		Vec::new()
-	}
-
-	fn status(&self) -> sc_transaction_pool_api::PoolStatus {
-		PoolStatus {
-			ready: self.pool.len(),
-			ready_bytes: self
-				.pool
-				.iter()
-				.fold(0, |weight, xt| weight + xt.size_hint()),
-			future: 0,
-			future_bytes: 0,
-		}
-	}
-
-	fn import_notification_stream(
-		&self,
-	) -> sc_transaction_pool_api::ImportNotificationStream<sc_transaction_pool_api::TxHash<Self>> {
-		todo!()
-	}
-
-	fn on_broadcasted(
-		&self,
-		_propagations: HashMap<sc_transaction_pool_api::TxHash<Self>, Vec<String>>,
-	) {
-		todo!()
-	}
-
-	fn hash_of(
-		&self,
-		_xt: &sc_transaction_pool_api::TransactionFor<Self>,
-	) -> sc_transaction_pool_api::TxHash<Self> {
-		todo!()
-	}
-
-	fn ready_transaction(
-		&self,
-		_hash: &sc_transaction_pool_api::TxHash<Self>,
-	) -> Option<Arc<Self::InPoolTransaction>> {
-		todo!()
-	}
-}
-
-pub struct TransitionCache<Block: BlockT> {
-	extrinsics: Arc<SimplePool<Block>>,
+pub struct TransitionCache {
 	auxilliary: Vec<StoragePair>,
 }
 
@@ -281,10 +65,21 @@ pub struct Builder<
 	Exec,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
-> {
+> where
+	Block: BlockT,
+	C: ProvideRuntimeApi<Block>
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ HeaderBackend<Block>
+		+ Send
+		+ Sync
+		+ 'static,
+	C::Api: TaggedTransactionQueue<Block>,
+{
 	backend: Arc<B>,
 	client: Arc<C>,
-	cache: TransitionCache<Block>,
+	pool: Arc<sc_transaction_pool::FullPool<Block, C>>,
+	cache: TransitionCache,
 	_phantom: PhantomData<(Block, RtApi, Exec)>,
 }
 
@@ -294,10 +89,14 @@ where
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
+	C::Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = B::State>
+		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
 		+ Send
 		+ Sync
 		+ AuxStore
@@ -308,12 +107,28 @@ where
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new(backend: Arc<B>, client: Arc<C>) -> Self {
+	pub fn new(backend: Arc<B>, client: Arc<C>, manager: &TaskManager) -> Self {
+		let pool = Arc::new(
+			sc_transaction_pool::FullPool::<Block, C>::with_revalidation_type(
+				Default::default(),
+				true.into(),
+				Arc::new(FullChainApi::new(
+					client.clone(),
+					None,
+					&manager.spawn_essential_handle(),
+				)),
+				None,
+				RevalidationType::Full,
+				manager.spawn_essential_handle(),
+				client.usage_info().chain.best_number,
+			),
+		);
+
 		Builder {
 			backend: backend,
 			client: client,
+			pool: pool,
 			cache: TransitionCache {
-				extrinsics: Arc::new(SimplePool::new()),
 				auxilliary: Vec::new(),
 			},
 			_phantom: PhantomData::default(),
@@ -501,11 +316,14 @@ where
 
 	/// Caches a given extrinsic in the builder. The extrinsic will be
 	pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> &mut Self {
-		// TODO: Handle this with mutex instead of this hack
-		let pt =
-			self.cache.extrinsics.as_ref() as *const SimplePool<Block> as *mut SimplePool<Block>;
-		let pool = unsafe { &mut *(pt) };
-		pool.push(ext);
+		let fut = self.pool.submit_one(
+			&BlockId::Hash(self.client.info().best_hash),
+			TransactionSource::External,
+			ext,
+		);
+		let res = futures::executor::block_on(fut);
+		// TODO: Handle error
+		let _hash = res.unwrap();
 		self
 	}
 
@@ -521,7 +339,7 @@ where
 		let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 			handle,
 			self.client.clone(),
-			self.cache.extrinsics.clone(),
+			self.pool.clone(),
 			None,
 			None,
 		);
