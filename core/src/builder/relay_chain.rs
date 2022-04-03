@@ -26,12 +26,13 @@ use polkadot_primitives::v1::OccupiedCoreAssumption;
 use polkadot_primitives::v2::ParachainHost;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockOf, BlockchainEvents, HeaderBackend, UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
+	UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient};
+use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
@@ -39,8 +40,10 @@ use sp_consensus_babe::BabeApi;
 use sp_core::traits::CodeExecutor;
 use sp_core::H256;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+use sp_runtime::traits::BlockIdTo;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use types::*;
 
 /// Recreating private storage types for easier handling storage access
@@ -156,11 +159,14 @@ where
 	C::Api: BlockBuilder<PBlock>
 		+ ParachainHost<PBlock>
 		+ BabeApi<PBlock>
-		+ ApiExt<PBlock, StateBackend = <TFullBackend<PBlock> as BackendT<PBlock>>::State>,
+		+ ApiExt<PBlock, StateBackend = <TFullBackend<PBlock> as BackendT<PBlock>>::State>
+		+ TaggedTransactionQueue<PBlock>,
 	C: 'static
 		+ ProvideRuntimeApi<PBlock>
 		+ BlockOf
 		+ Send
+		+ BlockBackend<PBlock>
+		+ BlockIdTo<PBlock>
 		+ Sync
 		+ AuxStore
 		+ UsageProvider<PBlock>
@@ -207,7 +213,17 @@ pub struct RelayChainBuilder<
 	Runtime,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
-> {
+> where
+	Block: BlockT,
+	C: ProvideRuntimeApi<Block>
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ HeaderBackend<Block>
+		+ Send
+		+ Sync
+		+ 'static,
+	C::Api: TaggedTransactionQueue<Block>,
+{
 	builder: Builder<Block, RtApi, Exec, B, C>,
 	cidp: CIDP,
 	dp: DP,
@@ -229,10 +245,15 @@ where
 	DP: DigestCreator,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	Runtime: paras::Config + frame_system::Config,
-	C::Api: BlockBuilder<Block> + ParachainHost<Block> + ApiExt<Block, StateBackend = B::State>,
+	C::Api: BlockBuilder<Block>
+		+ ParachainHost<Block>
+		+ ApiExt<Block, StateBackend = B::State>
+		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
 		+ Send
 		+ Sync
 		+ AuxStore
@@ -243,20 +264,14 @@ where
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
-	pub fn new(
-		handle: SpawnTaskHandle,
-		backend: Arc<B>,
-		client: Arc<C>,
-		cidp: CIDP,
-		dp: DP,
-	) -> Self {
+	pub fn new(manager: &TaskManager, backend: Arc<B>, client: Arc<C>, cidp: CIDP, dp: DP) -> Self {
 		Self {
-			builder: Builder::new(backend, client),
+			builder: Builder::new(backend, client, &manager),
 			cidp,
 			dp,
 			next: None,
 			imports: Vec::new(),
-			handle,
+			handle: manager.spawn_handle(),
 			_phantom: Default::default(),
 		}
 	}

@@ -18,18 +18,22 @@ use crate::{
 };
 use codec::Encode;
 use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
-use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
+use sc_client_api::{
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
+};
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullClient};
+use sc_service::{SpawnTaskHandle, TFullClient, TaskManager};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+use sp_runtime::traits::BlockIdTo;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
 pub struct FudgeParaBuild {
 	pub parent_head: HeadData,
@@ -52,7 +56,17 @@ pub struct ParachainBuilder<
 	DP,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
-> {
+> where
+	Block: BlockT,
+	C: ProvideRuntimeApi<Block>
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ HeaderBackend<Block>
+		+ Send
+		+ Sync
+		+ 'static,
+	C::Api: TaggedTransactionQueue<Block>,
+{
 	builder: Builder<Block, RtApi, Exec, B, C>,
 	cidp: CIDP,
 	dp: DP,
@@ -73,10 +87,14 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	C::Api: BlockBuilder<Block> + ApiExt<Block, StateBackend = B::State>,
+	C::Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = B::State>
+		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
 		+ Send
 		+ Sync
 		+ AuxStore
@@ -86,20 +104,14 @@ where
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
-	pub fn new(
-		handle: SpawnTaskHandle,
-		backend: Arc<B>,
-		client: Arc<C>,
-		cidp: CIDP,
-		dp: DP,
-	) -> Self {
+	pub fn new(manager: &TaskManager, backend: Arc<B>, client: Arc<C>, cidp: CIDP, dp: DP) -> Self {
 		Self {
-			builder: Builder::new(backend, client),
+			builder: Builder::new(backend, client, manager),
 			cidp,
 			dp,
 			next: None,
 			imports: Vec::new(),
-			handle,
+			handle: manager.spawn_handle(),
 			_phantom: Default::default(),
 		}
 	}

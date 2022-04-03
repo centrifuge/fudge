@@ -28,7 +28,7 @@ use polkadot_parachain::primitives::Id;
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
 use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_core::H256;
@@ -61,7 +61,7 @@ type RelayBuilder<R> = RelayChainBuilder<
 >;
 
 fn generate_default_setup_parachain<CIDP, DP>(
-	handle: SpawnTaskHandle,
+	manager: &TaskManager,
 	storage: Storage,
 	cidp: Box<
 		dyn FnOnce(
@@ -91,13 +91,13 @@ where
 
 	let (client, backend) = provider.init_default(
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(handle.clone()),
+		Box::new(manager.spawn_handle()),
 	);
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
 	ParachainBuilder::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
-		handle.clone(),
+		manager,
 		backend,
 		client,
 		cidp(clone_client),
@@ -106,7 +106,7 @@ where
 }
 
 fn generate_default_setup_relay_chain<Runtime>(
-	handle: SpawnTaskHandle,
+	manager: &TaskManager,
 	mut storage: Storage,
 ) -> RelayChainBuilder<
 	RTestBlock,
@@ -148,7 +148,7 @@ where
 
 	let (client, backend) = provider.init_default(
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(handle.clone()),
+		Box::new(manager.spawn_handle()),
 	);
 	let client = Arc::new(client);
 	let clone_client = client.clone();
@@ -207,13 +207,7 @@ where
 		_,
 		_,
 		Runtime,
-	>::new(
-		handle.clone(),
-		backend,
-		client,
-		Box::new(cidp(clone_client)),
-		dp,
-	)
+	>::new(manager, backend, client, Box::new(cidp(clone_client)), dp)
 }
 
 #[tokio::test]
@@ -222,7 +216,7 @@ async fn parachain_creates_correct_inherents() {
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
 	let mut relay_builder =
-		generate_default_setup_relay_chain::<RRuntime>(manager.spawn_handle(), Storage::default());
+		generate_default_setup_relay_chain::<RRuntime>(&manager, Storage::default());
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 
@@ -245,24 +239,23 @@ async fn parachain_creates_correct_inherents() {
 		}
 	});
 	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
-	let mut builder =
-		generate_default_setup_parachain(manager.spawn_handle(), Storage::default(), cidp, dp);
+	let mut builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
 
 	let para = FudgeParaChain {
 		id: para_id,
 		head: builder.head(),
 		code: builder.code(),
 	};
-	relay_builder.onboard_para(para);
+	relay_builder.onboard_para(para).unwrap();
 	relay_builder.build_block().unwrap();
-	relay_builder.import_block();
+	relay_builder.import_block().unwrap();
 
 	let num_start = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after_one = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
@@ -271,10 +264,10 @@ async fn parachain_creates_correct_inherents() {
 	assert_eq!(num_start + 1, num_after_one);
 
 	relay_builder.build_block().unwrap();
-	relay_builder.import_block();
+	relay_builder.import_block().unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after_two = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
@@ -287,9 +280,9 @@ async fn parachain_creates_correct_inherents() {
 		head: builder.head(),
 		code: builder.code(),
 	};
-	relay_builder.onboard_para(para);
+	relay_builder.onboard_para(para).unwrap();
 	relay_builder.build_block().unwrap();
-	relay_builder.import_block();
+	relay_builder.import_block().unwrap();
 
 	let para_head = relay_builder
 		.with_state(|| Heads::try_get(para_id).unwrap())

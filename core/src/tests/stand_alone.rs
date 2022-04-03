@@ -18,7 +18,7 @@ use frame_benchmarking::account;
 use fudge_utils::Signer;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
 use sp_consensus_babe::digests::CompatibleDigestItem;
 use sp_core::H256;
@@ -32,7 +32,7 @@ const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
 
 fn generate_default_setup_stand_alone<CIDP, DP>(
-	handle: SpawnTaskHandle,
+	manager: &TaskManager,
 	storage: Storage,
 	cidp: Box<
 		dyn FnOnce(
@@ -62,13 +62,13 @@ where
 
 	let (client, backend) = provider.init_default(
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(handle.clone()),
+		Box::new(manager.spawn_handle()),
 	);
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
 	StandAloneBuilder::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
-		handle.clone(),
+		manager,
 		backend,
 		client,
 		cidp(clone_client),
@@ -124,7 +124,7 @@ async fn mutating_genesis_works() {
 
 	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
 
-	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
+	let mut builder = generate_default_setup_stand_alone(&manager, storage, cidp, dp);
 
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
@@ -242,15 +242,14 @@ async fn build_relay_block_works() {
 
 		Ok(digest)
 	});
-	let mut builder =
-		generate_default_setup_stand_alone(manager.spawn_handle(), Storage::default(), cidp, dp);
+	let mut builder = generate_default_setup_stand_alone(&manager, Storage::default(), cidp, dp);
 
 	let num_before = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
@@ -263,7 +262,7 @@ async fn build_relay_block_works() {
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
@@ -322,7 +321,7 @@ async fn building_relay_block_with_extrinsics_works() {
 		},
 	);
 	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
-	let _builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
+	let _builder = generate_default_setup_stand_alone(&manager, storage, cidp, dp);
 
 	let _signer = Signer::new(key_store.into(), CRYPTO_TYPE, KEY_TYPE);
 	/*
@@ -608,14 +607,14 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	.build_storage()
 	.unwrap();
 
-	let mut builder = generate_default_setup_stand_alone(manager.spawn_handle(), storage, cidp, dp);
+	let mut builder = generate_default_setup_stand_alone(&manager, storage, cidp, dp);
 
 	let num_before = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
@@ -644,7 +643,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block();
+	builder.import_block().unwrap();
 
 	let num_after = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
