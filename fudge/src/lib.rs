@@ -32,7 +32,7 @@ pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder
 	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
 >;
 
-pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP> = fudge_core::RelayChainBuilder<
+pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP> = fudge_core::RelaychainBuilder<
 	Block,
 	RtApi,
 	WasmExecutor<sp_io::SubstrateHostFunctions>,

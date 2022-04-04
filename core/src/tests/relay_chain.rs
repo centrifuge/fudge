@@ -14,8 +14,8 @@ use crate::digest::{DigestCreator, FudgeBabeDigest};
 use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::FudgeParaChain;
-use crate::RelayChainBuilder;
 use crate::RelayChainTypes;
+use crate::RelaychainBuilder;
 use centrifuge_runtime::WASM_BINARY as PARA_CODE;
 use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
@@ -40,7 +40,7 @@ fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 		) -> CIDP,
 	>,
 	dp: DP,
-) -> RelayChainBuilder<
+) -> RelaychainBuilder<
 	TestBlock,
 	TestRtApi,
 	TestExec<sp_io::SubstrateHostFunctions>,
@@ -69,7 +69,7 @@ where
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
-	RelayChainBuilder::<
+	RelaychainBuilder::<
 		TestBlock,
 		TestRtApi,
 		TestExec<sp_io::SubstrateHostFunctions>,

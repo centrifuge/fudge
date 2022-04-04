@@ -17,7 +17,7 @@ use crate::inherent::{
 	FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
 };
 use crate::provider::EnvProvider;
-use crate::RelayChainBuilder;
+use crate::RelaychainBuilder;
 use crate::{FudgeParaChain, ParachainBuilder};
 use centrifuge_runtime::{
 	Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi, WASM_BINARY as PCODE,
@@ -37,7 +37,7 @@ use sp_runtime::{DigestItem, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
-type RelayBuilder<R> = RelayChainBuilder<
+type RelayBuilder<R> = RelaychainBuilder<
 	RTestBlock,
 	RTestRtApi,
 	TestExec<sp_io::SubstrateHostFunctions>,
@@ -108,7 +108,7 @@ where
 fn generate_default_setup_relay_chain<Runtime>(
 	manager: &TaskManager,
 	mut storage: Storage,
-) -> RelayChainBuilder<
+) -> RelaychainBuilder<
 	RTestBlock,
 	RTestRtApi,
 	TestExec<sp_io::SubstrateHostFunctions>,
@@ -199,7 +199,7 @@ where
 		Ok(digest)
 	});
 
-	RelayChainBuilder::<
+	RelaychainBuilder::<
 		RTestBlock,
 		RTestRtApi,
 		TestExec<sp_io::SubstrateHostFunctions>,

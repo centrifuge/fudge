@@ -2212,7 +2212,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "fudge-companion",
- "fudge-utils",
  "futures 0.3.21",
  "node-primitives",
  "pallet-babe",
@@ -2259,40 +2258,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "fudge-utils"
-version = "0.1.0"
-dependencies = [
- "frame-benchmarking",
- "frame-system",
- "futures 0.3.21",
- "node-primitives",
- "pallet-balances",
- "parity-scale-codec",
- "polkadot-runtime",
- "sc-client-api",
- "sc-client-db",
- "sc-consensus",
- "sc-executor",
- "sc-offchain",
- "sc-service",
- "sp-api",
- "sp-block-builder",
- "sp-consensus",
- "sp-core",
- "sp-database",
- "sp-externalities",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-storage",
- "sp-timestamp",
- "tokio",
 ]
 
 [[package]]

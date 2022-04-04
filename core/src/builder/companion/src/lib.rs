@@ -32,7 +32,7 @@ mod parse;
 /// 	pub acala: ParachainBuilder<Block, RtApi>,
 ///
 ///  	#[fudge::relaychain]
-///		pub polkadot: RelayChainBuilder<RtApi>,
+///		pub polkadot: RelaychainBuilder<RtApi>,
 /// }
 /// ```
 #[proc_macro_attribute]
