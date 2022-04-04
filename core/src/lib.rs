@@ -16,7 +16,7 @@
 // Library exports
 pub use builder::{
 	parachain::{FudgeParaBuild, FudgeParaChain, ParachainBuilder},
-	relay_chain::{types as RelayChainTypes, RelayChainBuilder},
+	relay_chain::{types as RelayChainTypes, RelaychainBuilder},
 	stand_alone::StandAloneBuilder,
 };
 pub use provider::EnvProvider;

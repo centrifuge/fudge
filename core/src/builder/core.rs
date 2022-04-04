@@ -1,11 +1,3 @@
-extern crate sc_client_api;
-extern crate sc_client_db;
-extern crate sc_consensus;
-extern crate sc_service;
-extern crate sp_api;
-extern crate sp_consensus;
-extern crate sp_runtime;
-
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
 // This file is part of the FUDGE project.
@@ -35,19 +27,17 @@ use sp_std::time::Duration;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::{marker::PhantomData, sync::Arc};
 
-use self::sc_client_api::blockchain::Backend as BlockchainBackend;
-use self::sc_client_api::{BlockBackend, BlockImportOperation, NewBlockState};
-use self::sc_consensus::ImportResult;
-use self::sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
-use self::sp_api::HashFor;
-use self::sp_consensus::{InherentData, Proposal, Proposer};
-use self::sp_runtime::traits::{
-	Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Zero,
-};
-use self::sp_runtime::Digest;
 use crate::StoragePair;
 use sc_client_api::backend::TransactionFor;
+use sc_client_api::blockchain::Backend as BlockchainBackend;
+use sc_client_api::{BlockBackend, BlockImportOperation, NewBlockState};
+use sc_consensus::ImportResult;
+use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool::{FullChainApi, RevalidationType};
+use sp_api::HashFor;
+use sp_consensus::{InherentData, Proposal, Proposer};
+use sp_runtime::traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Zero};
+use sp_runtime::Digest;
 use sp_storage::StateVersion;
 
 pub enum Operation {

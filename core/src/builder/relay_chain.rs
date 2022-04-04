@@ -203,7 +203,7 @@ where
 	}
 }
 
-pub struct RelayChainBuilder<
+pub struct RelaychainBuilder<
 	Block: BlockT,
 	RtApi,
 	Exec,
@@ -234,7 +234,7 @@ pub struct RelayChainBuilder<
 }
 
 impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
-	RelayChainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
+	RelaychainBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, Runtime, B, C>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
