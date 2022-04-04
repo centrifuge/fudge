@@ -21,38 +21,38 @@ use sc_service::{TFullBackend, TFullClient};
 pub use fudge_companion::companion;
 pub use fudge_core::{digest, inherent, provider::EnvProvider};
 
-pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder<
+pub type ParachainBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::ParachainBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	WasmExecutor<H>,
 	CIDP,
 	(),
 	DP,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+	TFullClient<Block, RtApi, WasmExecutor<H>>,
 >;
 
-pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP> = fudge_core::RelaychainBuilder<
+pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP, H> = fudge_core::RelaychainBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	WasmExecutor<H>,
 	CIDP,
 	(),
 	DP,
 	Runtime,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+	TFullClient<Block, RtApi, WasmExecutor<H>>,
 >;
 
-pub type StandaloneBuilder<Block, RtApi, CIDP, DP> = fudge_core::StandAloneBuilder<
+pub type StandaloneBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::StandAloneBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<sp_io::SubstrateHostFunctions>,
+	WasmExecutor<H>,
 	CIDP,
 	(),
 	DP,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<sp_io::SubstrateHostFunctions>>,
+	TFullClient<Block, RtApi, WasmExecutor<H>>,
 >;
 
 pub mod primitives {
