@@ -87,7 +87,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 	let relay_chain_name = def.relaychain.name.to_token_stream();
 	let relay_chain = def.relaychain.builder.to_token_stream();
 	let relay_vis = def.relaychain.vis.to_token_stream();
-	let others_names = def
+	let others_names: Vec<TokenStream> = def
 		.others
 		.iter()
 		.map(|field| {
@@ -96,10 +96,19 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				.as_ref()
 				.expect("Fudge parser ensures named fields.")
 				.clone()
+				.to_token_stream()
 		})
 		.collect();
-	let others_types = def.others.iter().map(|field| field.ty.clone()).collect();
-	let others_vis = def.others.iter().map(|field| field.vis.clone()).collect();
+	let others_types: Vec<TokenStream> = def
+		.others
+		.iter()
+		.map(|field| field.ty.clone().to_token_stream())
+		.collect();
+	let others_vis: Vec<TokenStream> = def
+		.others
+		.iter()
+		.map(|field| field.vis.clone().to_token_stream())
+		.collect();
 
 	let ts = quote! {
 		use #fudge_crate::primitives::{Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain};
