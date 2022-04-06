@@ -122,7 +122,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 			)*
 
 			#(
-				#others_vis #others_names: #others_types
+				#others_vis #others_names: #others_types,
 			)*
 		}
 
