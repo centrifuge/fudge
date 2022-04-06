@@ -87,24 +87,42 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 	let relay_chain_name = def.relaychain.name.to_token_stream();
 	let relay_chain = def.relaychain.builder.to_token_stream();
 	let relay_vis = def.relaychain.vis.to_token_stream();
+	let others_names = def
+		.others
+		.iter()
+		.map(|field| {
+			field
+				.ident
+				.as_ref()
+				.expect("Fudge parser ensures named fields.")
+				.clone()
+		})
+		.collect();
+	let others_types = def.others.iter().map(|field| field.ty.clone()).collect();
+	let others_vis = def.others.iter().map(|field| field.vis.clone()).collect();
 
 	let ts = quote! {
 		use #fudge_crate::primitives::{Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain};
 		use #codec_crate::Decode as __hidden_Decode;
 		use #tracing_crate as __hidden_tracing;
 		#vis struct #name {
+			#relay_vis #relay_chain_name: #relay_chain,
+
 			#(
 				#parachains,
 			)*
 
-			#relay_vis #relay_chain_name: #relay_chain,
+			#(
+				#others_vis #others_names: #others_types
+			)*
 		}
 
 		impl #name {
-			pub fn new(#relay_chain_name: #relay_chain, #(#parachain_names: #parachain_types,)*) -> Result<Self, ()> {
+			pub fn new(#relay_chain_name: #relay_chain, #(#parachain_names: #parachain_types,)*, #(#others_names: #others_types,)*) -> Result<Self, ()> {
 				let mut companion = Self {
 					#relay_chain_name,
 					#(#parachain_names,)*
+					#(#others_names,)*
 				};
 
 				#(
@@ -120,16 +138,24 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				Ok(companion)
 			}
 
-			pub fn append_extrinsic(&mut self, chain: _hidden_Chain, ext: Vec<u8>) -> Result<(), ()> {
+			pub fn append_extrinsics(&mut self, chain: _hidden_Chain, xts: Vec<Vec<u8>>) -> Result<(), ()> {
+				for xt in xts {
+					self.append_extrinsic(chain, xt)?;
+				}
+
+				Ok(())
+			}
+
+			pub fn append_extrinsic(&mut self, chain: _hidden_Chain, xt: Vec<u8>) -> Result<(), ()> {
 				match chain {
 					_hidden_Chain::Relay => {
-						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut ext.as_slice()).map_err(|_|())?);
+						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?);
 						Ok(())
 					},
 					_hidden_Chain::Para(id) => match id {
 						#(
 							#parachain_ids => {
-								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut ext.as_slice()).map_err(|_|())?);
+								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?);
 								Ok(())
 							},
 						)*
