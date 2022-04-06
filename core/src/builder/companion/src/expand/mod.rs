@@ -163,7 +163,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					},
 					_hidden_Chain::Para(id) => match id {
 						#(
-							#parachain_ids => {
+							_ if id == #parachain_ids => {
 								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?);
 								Ok(())
 							},
@@ -178,7 +178,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec).map_err(|_| ()),
 					_hidden_Chain::Para(id) => match id {
 						#(
-							#parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()),
+							_ if id == #parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()),
 						)*
 						_ => Err(())
 					}
@@ -190,7 +190,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()),
 					_hidden_Chain::Para(id) => match id {
 						#(
-							#parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
+							_ if id == #parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
 						)*
 						_ => Err(())
 					}
