@@ -59,6 +59,7 @@ pub mod primitives {
 	pub use fudge_core::FudgeParaChain;
 	pub use polkadot_parachain::primitives::Id as ParaId;
 
+	#[derive(Copy, Clone)]
 	pub enum Chain {
 		Relay,
 		Para(u32),
