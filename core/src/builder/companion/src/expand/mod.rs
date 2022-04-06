@@ -127,7 +127,7 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 		}
 
 		impl #name {
-			pub fn new(#relay_chain_name: #relay_chain, #(#parachain_names: #parachain_types,)*, #(#others_names: #others_types,)*) -> Result<Self, ()> {
+			pub fn new(#relay_chain_name: #relay_chain, #(#parachain_names: #parachain_types,)* #(#others_names: #others_types,)*) -> Result<Self, ()> {
 				let mut companion = Self {
 					#relay_chain_name,
 					#(#parachain_names,)*
