@@ -57,6 +57,7 @@ pub type StandaloneBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::StandAloneBu
 
 pub mod primitives {
 	pub use fudge_core::FudgeParaChain;
+	pub use fudge_core::PoolState;
 	pub use polkadot_parachain::primitives::Id as ParaId;
 
 	#[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]

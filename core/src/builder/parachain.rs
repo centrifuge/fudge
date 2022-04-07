@@ -14,7 +14,8 @@ use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
 use crate::{
 	builder::core::{Builder, Operation},
-	types::{Bytes, StoragePair},
+	types::StoragePair,
+	PoolState,
 };
 use codec::Encode;
 use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
@@ -124,37 +125,47 @@ where
 		self.builder.backend()
 	}
 
-	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> &mut Self {
-		self.builder.append_extrinsic(xt);
-		self
+	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, ()> {
+		self.builder.append_extrinsic(xt)
 	}
 
-	pub fn append_extrinsics(&mut self, xts: Vec<Block::Extrinsic>) -> &mut Self {
-		xts.into_iter().for_each(|xt| {
-			self.builder.append_extrinsic(xt);
-		});
-		self
+	pub fn append_extrinsics(
+		&mut self,
+		xts: Vec<Block::Extrinsic>,
+	) -> Result<Vec<Block::Hash>, ()> {
+		xts.into_iter().fold(Ok(Vec::new()), |hashes, xt| {
+			if let Ok(mut hashes) = hashes {
+				hashes.push(self.builder.append_extrinsic(xt)?);
+				Ok(hashes)
+			} else {
+				Err(())
+			}
+		})
 	}
 
-	pub fn append_transition(&mut self, aux: StoragePair) -> &mut Self {
+	pub fn append_transition(&mut self, aux: StoragePair) {
 		self.builder.append_transition(aux);
-		self
 	}
 
-	pub fn append_transitions(&mut self, auxs: Vec<StoragePair>) -> &mut Self {
+	pub fn append_transitions(&mut self, auxs: Vec<StoragePair>) {
 		auxs.into_iter().for_each(|aux| {
 			self.builder.append_transition(aux);
 		});
-		self
 	}
 
-	pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
+	pub fn pool_state(&self) -> PoolState {
+		self.builder.pool_state()
+	}
+
+	/* TODO: Implement this
+	 pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
 		todo!()
 	}
 
 	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
 		todo!()
 	}
+	 */
 
 	pub fn build_block(&mut self) -> Result<(), ()> {
 		assert!(self.next.is_none());
