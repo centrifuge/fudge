@@ -241,7 +241,7 @@ where
 	}
 
 	pub fn with_state_at<R>(
-		&mut self,
+		&self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
