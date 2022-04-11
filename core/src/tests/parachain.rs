@@ -191,7 +191,9 @@ where
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
 		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
 			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
+				FudgeInherentTimestamp::get_instance(0)
+					.expect("Instance is initialised. qed")
+					.current_time(),
 				sp_std::time::Duration::from_millis(slot_duration),
 			),
 		));

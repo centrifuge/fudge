@@ -59,6 +59,7 @@ pub struct CompanionDef {
 	pub attr_span: Span,
 	pub relaychain: relaychain::RelaychainDef,
 	pub parachains: Vec<parachain::ParachainDef>,
+	pub others: Vec<Field>,
 }
 
 pub enum FieldType {
@@ -101,11 +102,12 @@ impl CompanionDef {
 		attr_span: Span,
 	) -> Result<Self> {
 		let mut parachains = Vec::new();
+		let mut others = Vec::new();
 		let mut relaychain = None;
 
 		for field in fields.named.iter() {
 			match Self::parse_field(field.clone())? {
-				FieldType::Other(_named) => (), // TODO: Other fields are not supported currently
+				FieldType::Other(named) => others.push(named), // TODO: Other fields are not supported currently
 				FieldType::Parachain(def) => parachains.push(def),
 				FieldType::Relaychain(def) => match relaychain {
 					None => relaychain = Some(def),
@@ -129,6 +131,7 @@ impl CompanionDef {
 			attr_span,
 			parachains,
 			relaychain: relaychain.expect("Relaychain is some. qed."),
+			others,
 		})
 	}
 

@@ -153,11 +153,13 @@ async fn mutating_genesis_works() {
 	assert_eq!(recv_data_pre, recv_data_post);
 }
 
+// TODO: THis should be tested....
+/*
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
 	super::utils::init_logs();
 
-	/*
+
 		let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
 		let manager = TaskManager::new(Handle::current(), None).unwrap();
 
@@ -184,8 +186,8 @@ async fn opening_state_from_db_path_works() {
 		builder.with_state_at(BlockId::Number(20), || {
 
 		}).unwrap();
-	*/
 }
+*/
 
 #[tokio::test]
 async fn build_relay_block_works() {
@@ -233,7 +235,9 @@ async fn build_relay_block_works() {
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
 		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
 			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
+				FudgeInherentTimestamp::get_instance(0)
+					.expect("Instance is initialised. qed")
+					.current_time(),
 				sp_std::time::Duration::from_millis(slot_duration),
 			),
 		));
@@ -314,7 +318,9 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
 		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
 			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0).current_time(),
+				FudgeInherentTimestamp::get_instance(0)
+					.expect("Instance is initialised. qed")
+					.current_time(),
 				sp_std::time::Duration::from_millis(slot_duration),
 			),
 		));

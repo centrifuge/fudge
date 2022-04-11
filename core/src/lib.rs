@@ -18,6 +18,7 @@ pub use builder::{
 	parachain::{FudgeParaBuild, FudgeParaChain, ParachainBuilder},
 	relay_chain::{types as RelayChainTypes, RelaychainBuilder},
 	stand_alone::StandAloneBuilder,
+	PoolState,
 };
 pub use provider::EnvProvider;
 pub use types::{Bytes, StoragePair};

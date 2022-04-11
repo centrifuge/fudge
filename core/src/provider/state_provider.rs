@@ -55,6 +55,7 @@ impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
+	/// Note: When using this option, it will only be
 	pub fn from_db(path: PathBuf) -> Self {
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
