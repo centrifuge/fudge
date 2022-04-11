@@ -12,13 +12,16 @@
 
 //! Inherent data providers that should only be used within FUDGE
 
+use sp_core::sp_std::sync::Arc;
 use sp_inherents::{InherentData, InherentIdentifier};
 use sp_std::collections::btree_map::BTreeMap;
+use sp_std::sync::Mutex;
 use sp_std::time::Duration;
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
 
-static mut INSTANCES: *mut BTreeMap<Instance, CurrTimeProvider> =
-	0usize as *mut BTreeMap<Instance, CurrTimeProvider>;
+lazy_static::lazy_static!(
+	pub static ref INSTANCES: Arc<Mutex<BTreeMap<Instance, CurrTimeProvider>>> = Arc::new(Mutex::new(BTreeMap::new()));
+);
 
 pub type Instance = u64;
 pub type Ticks = u128;
@@ -32,32 +35,9 @@ pub struct CurrTimeProvider {
 }
 
 impl CurrTimeProvider {
-	pub fn get_instance(instance: Instance) -> Self {
-		let instances = unsafe {
-			if INSTANCES.is_null() {
-				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, CurrTimeProvider>::new()));
-				INSTANCES = pt;
-
-				&mut *INSTANCES
-			} else {
-				&mut *INSTANCES
-			}
-		};
-
-		instances.get(&instance).unwrap().clone()
-	}
-
 	pub fn new(instance: Instance, delta: Duration, start: Option<Duration>) -> Self {
-		let instances = unsafe {
-			if INSTANCES.is_null() {
-				let pt = Box::into_raw(Box::new(BTreeMap::<Instance, CurrTimeProvider>::new()));
-				INSTANCES = pt;
-
-				&mut *INSTANCES
-			} else {
-				&mut *INSTANCES
-			}
-		};
+		let storage = INSTANCES.clone();
+		let mut locked_instances = storage.lock().expect("Time MUST NOT fail.");
 
 		let start = if let Some(start) = start {
 			start
@@ -70,7 +50,7 @@ impl CurrTimeProvider {
 			dur
 		};
 
-		instances
+		locked_instances
 			.entry(instance)
 			.or_insert(CurrTimeProvider {
 				instance,
@@ -81,17 +61,22 @@ impl CurrTimeProvider {
 			.clone()
 	}
 
-	pub fn update_time(&self) {
-		let instances = unsafe { &mut *INSTANCES };
-		instances.insert(
-			self.instance,
-			CurrTimeProvider {
-				start: self.start,
-				instance: self.instance,
-				delta: self.delta,
-				ticks: self.ticks + 1,
-			},
-		);
+	pub fn get_instance(instance: Instance) -> Option<Self> {
+		let storage = INSTANCES.clone();
+		let locked_instances = storage.lock().expect("Time MUST NOT fail.");
+
+		locked_instances
+			.get(&instance)
+			.map(|instance| instance.clone())
+	}
+
+	fn update_time(&self) {
+		let storage = INSTANCES.clone();
+		let mut instances = storage.lock().expect("Time MUST NOT fail.");
+		let instance = instances
+			.get_mut(&self.instance)
+			.expect("ONLY calls this method after new(). qed");
+		instance.ticks = instance.ticks + 1;
 	}
 
 	pub fn current_time(&self) -> sp_timestamp::Timestamp {
