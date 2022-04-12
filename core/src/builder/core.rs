@@ -385,14 +385,14 @@ where
 		// "routes" provided here.
 		if ret.is_ok() {
 			let best_hash = self.latest_block();
-			self.pool.maintain(ChainEvent::NewBestBlock {
+			futures::executor::block_on(self.pool.maintain(ChainEvent::NewBestBlock {
 				hash: best_hash,
 				tree_route: None,
-			});
-			self.pool.maintain(ChainEvent::Finalized {
+			}));
+			futures::executor::block_on(self.pool.maintain(ChainEvent::Finalized {
 				hash: best_hash,
 				tree_route: Arc::new(vec![prev_hash]),
-			})
+			}));
 		};
 
 		ret
