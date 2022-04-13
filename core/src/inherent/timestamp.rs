@@ -173,11 +173,11 @@ mod test {
 
 		let delta_a = Duration::from_secs(DELTA_A);
 		CurrTimeProvider::new(3, delta_a, Some(Duration::from_secs(START_DATE)));
-		let time_a = CurrTimeProvider::get_instance(4).expect("Instance is initialized. qed");
+		let time_a = CurrTimeProvider::get_instance(3).expect("Instance is initialized. qed");
 
 		let delta_b = Duration::from_secs(DELTA_A);
 		CurrTimeProvider::new(4, delta_b, Some(Duration::from_secs(START_DATE)));
-		let time_b = CurrTimeProvider::get_instance(3).expect("Instance is initialized. qed");
+		let time_b = CurrTimeProvider::get_instance(4).expect("Instance is initialized. qed");
 
 		assert_eq!(
 			time_a.current_time().as_duration().as_secs() as u64,
