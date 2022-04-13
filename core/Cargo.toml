@@ -12,6 +12,7 @@ futures = "0.3.19"
 async-trait = "0.1.52"
 parking_lot = "0.12.0"
 lazy_static = "1.4.0"
+tracing = "0.1"
 
 # Local dependencies
 fudge-companion = { path = "./src/builder/companion"}
@@ -74,6 +75,5 @@ pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-tracing = "0.1"
 tracing-subscriber = "0.2"
 centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", rev = "d86a8316c1e5097c857eb350b439f682b00fd398"}

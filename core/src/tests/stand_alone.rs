@@ -87,6 +87,8 @@ async fn mutating_genesis_works() {
 	}
 	.build_storage()
 	.unwrap();
+	// Init timestamp instance
+	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -104,8 +106,8 @@ async fn mutating_genesis_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp =
-						FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+					let timestamp = FudgeInherentTimestamp::get_instance(0)
+						.expect("Instance is initialized. qed");
 
 					let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
@@ -195,6 +197,9 @@ async fn build_relay_block_works() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	// Init timestamp instance
+	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+
 	let cidp = Box::new(
 		|clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -212,11 +217,8 @@ async fn build_relay_block_works() {
 					)?;
 
 					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-					let timestamp = FudgeInherentTimestamp::new(
-						0,
-						sp_std::time::Duration::from_millis(slot_duration),
-						None,
-					);
+					let timestamp = FudgeInherentTimestamp::get_instance(0)
+						.expect("Instance is initialized. qed");
 					let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
                             timestamp.current_time(),
@@ -278,6 +280,9 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	// Init timestamp instance
+	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+
 	let cidp = Box::new(
 		|clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -295,11 +300,8 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 					)?;
 
 					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-					let timestamp = FudgeInherentTimestamp::new(
-						0,
-						sp_std::time::Duration::from_millis(slot_duration),
-						None,
-					);
+					let timestamp = FudgeInherentTimestamp::get_instance(0)
+						.expect("Instance is initialized. qed");
 					let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
                             timestamp.current_time(),
