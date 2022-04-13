@@ -34,6 +34,7 @@ use sc_client_api::{BlockBackend, BlockImportOperation, NewBlockState};
 use sc_consensus::ImportResult;
 use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool::{FullChainApi, RevalidationType};
+use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
 use sp_api::HashFor;
 use sp_consensus::{InherentData, Proposal, Proposer};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Zero};
@@ -362,17 +363,38 @@ where
 		&mut self,
 		params: BlockImportParams<Block, C::Transaction>,
 	) -> Result<(), ()> {
+		let prev_hash = self.latest_block();
+
 		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
 		//       Check if I can put the client into a Mutex
 		let client = self.client.as_ref() as *const C as *mut C;
 		let client = unsafe { &mut *(client) };
-		match futures::executor::block_on(client.import_block(params, Default::default())).unwrap()
+		let ret = match futures::executor::block_on(client.import_block(params, Default::default()))
+			.unwrap()
 		{
 			ImportResult::Imported(_) => Ok(()),
 			ImportResult::AlreadyInChain => Err(()),
 			ImportResult::KnownBad => Err(()),
 			ImportResult::UnknownParent => Err(()),
 			ImportResult::MissingState => Err(()),
-		}
+		};
+
+		// Trigger pool maintenance
+		//
+		// We do not re-org and we do always finalize directly. So no actual
+		// "routes" provided here.
+		if ret.is_ok() {
+			let best_hash = self.latest_block();
+			futures::executor::block_on(self.pool.maintain(ChainEvent::NewBestBlock {
+				hash: best_hash,
+				tree_route: None,
+			}));
+			futures::executor::block_on(self.pool.maintain(ChainEvent::Finalized {
+				hash: best_hash,
+				tree_route: Arc::new(vec![prev_hash]),
+			}));
+		};
+
+		ret
 	}
 }
