@@ -366,11 +366,19 @@ where
 		let prev_hash = self.latest_block();
 
 		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
-		//       Check if I can put the client into a Mutex
+		//       as the final implementation actually uses &mut &Client, making the actual trait definition absurd.
+		//       This does not work here as I am working on an abstract C, or does it?
+		//       When using the Arc<T> impl of block import the compiler complains that the given C here does not
+		//       satisfy the trait bound for<'r> BlockImport. Given that C is 'static understandable and not able to
+		//       be satisfied by a generic C.
 		let client = self.client.as_ref() as *const C as *mut C;
 		let client = unsafe { &mut *(client) };
-		let ret = match futures::executor::block_on(client.import_block(params, Default::default()))
-			.unwrap()
+		let ret = match futures::executor::block_on(BlockImport::import_block(
+			client,
+			params,
+			Default::default(),
+		))
+		.unwrap()
 		{
 			ImportResult::Imported(_) => Ok(()),
 			ImportResult::AlreadyInChain => Err(()),
@@ -378,6 +386,11 @@ where
 			ImportResult::UnknownParent => Err(()),
 			ImportResult::MissingState => Err(()),
 		};
+
+		// TODO: The transitions are currently not used when importing
+		//       Best would be to:
+		//           - import block
+		//           - with_mut_state(inject transitions)
 
 		// Trigger pool maintenance
 		//
