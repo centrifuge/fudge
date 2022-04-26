@@ -10,9 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use cumulus_primitives_core::PersistedValidationData;
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use polkadot_core_primitives::Block as PBlock;
+use polkadot_node_primitives::Collation;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
 use polkadot_primitives::{runtime_api::ParachainHost, v2::OccupiedCoreAssumption};
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
@@ -51,6 +53,7 @@ use crate::{
 	inherent::ArgsProvider,
 	provider::Initiator,
 	types::StoragePair,
+	PoolState,
 };
 
 /// Recreating private storage types for easier handling storage access
@@ -141,6 +144,17 @@ pub mod types {
 		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
 }
 
+pub enum CollationJudgement {
+	Approved,
+	Rejected,
+}
+
+pub trait CollationBuilder {
+	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation>;
+
+	fn judge(&self, judgement: CollationJudgement);
+}
+
 pub struct InherentBuilder<C, B> {
 	id: Id,
 	client: Arc<C>,
@@ -194,7 +208,7 @@ where
 			dummy_handler,
 		);
 		let api = self.client.runtime_api();
-		let persisted_validation_data = api
+		let pvd = api
 			.persisted_validation_data(
 				&BlockId::Hash(parent),
 				self.id,
@@ -202,16 +216,9 @@ where
 			)
 			.unwrap()
 			.unwrap();
-		ParachainInherentData::create_at(
-			parent,
-			&relay_interface,
-			&persisted_validation_data,
-			self.id,
-		)
-		.await
+		ParachainInherentData::create_at(parent, &relay_interface, &pvd, self.id).await
 	}
 }
-
 pub struct RelaychainBuilder<
 	Block: BlockT,
 	RtApi,
@@ -240,6 +247,8 @@ pub struct RelaychainBuilder<
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
+	parachains: Vec<(Id, Box<dyn CollationBuilder>)>,
+	handle: SpawnTaskHandle,
 	_phantom: PhantomData<(ExtraArgs, Runtime)>,
 }
 
@@ -290,6 +299,8 @@ where
 			dp,
 			next: None,
 			imports: Vec::new(),
+			parachains: Vec::new(),
+			handle: manager.spawn_handle(),
 			_phantom: Default::default(),
 		}
 	}
@@ -334,16 +345,6 @@ where
 		self.builder.pool_state()
 	}
 
-	/* TODO: Implement this
-	 pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
-		todo!()
-	}
-
-	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
-		todo!()
-	}
-	 */
-
 	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<C, B> {
 		InherentBuilder {
 			id: para_id,
@@ -352,9 +353,13 @@ where
 		}
 	}
 
-	pub fn onboard_para(&mut self, para: FudgeParaChain) -> Result<(), ()> {
+	pub fn onboard_para(
+		&mut self,
+		para: FudgeParaChain,
+		collator: Box<dyn CollationBuilder>,
+	) -> Result<(), ()> {
+		let FudgeParaChain { id, head, code } = para;
 		self.with_mut_state(|| {
-			let FudgeParaChain { id, head, code } = para;
 			let current_block = frame_system::Pallet::<Runtime>::block_number();
 			let code_hash = code.hash();
 
@@ -398,6 +403,8 @@ where
 			Heads::insert(&id, head);
 		})
 		.unwrap();
+
+		self.parachains.push((id, collator));
 
 		Ok(())
 	}
@@ -446,6 +453,45 @@ where
 
 		self.builder.import_block(params).unwrap();
 		self.imports.push((block, proof));
+
+		self.force_enact_collations()?;
+		Ok(())
+	}
+
+	fn force_enact_collations(&mut self) -> Result<(), ()> {
+		let rt_api = self.client();
+		let parent = self.client().info().best_hash;
+		for (id, para) in self.parachains.iter() {
+			let pvd = self
+				.with_state(|| {
+					persisted_validation_data(
+						rt_api.clone(),
+						parent,
+						*id,
+						OccupiedCoreAssumption::TimedOut,
+					)
+				})
+				.unwrap();
+
+			if let Some(collation) = para.collation(pvd) {
+				self.builder
+					.with_state(Operation::Commit, None, || {
+						// TODO: Inject CCR and Commitments into storage
+
+						// NOTE: Generating the validation like this, force enacts a block
+						let _ = persisted_validation_data(
+							rt_api.clone(),
+							parent,
+							*id,
+							OccupiedCoreAssumption::Included,
+						);
+					})
+					.map_err(|_| ())?;
+			} else {
+				// TODO: Log warning here
+			}
+		}
+
 		Ok(())
 	}
 
@@ -481,4 +527,21 @@ where
 
 		self.builder.with_state(Operation::Commit, Some(at), exec)
 	}
+}
+
+fn persisted_validation_data<RtApi, Block>(
+	rt_api: Arc<RtApi>,
+	parent: Block::Hash,
+	id: Id,
+	assumption: OccupiedCoreAssumption,
+) -> PersistedValidationData
+where
+	Block: BlockT,
+	RtApi: ProvideRuntimeApi<Block>,
+	RtApi::Api: ParachainHost<Block>,
+{
+	let api = rt_api.runtime_api();
+	api.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
+		.unwrap()
+		.unwrap()
 }

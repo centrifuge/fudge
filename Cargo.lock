@@ -2596,6 +2596,11 @@ name = "fudge-core"
 version = "0.0.10"
 dependencies = [
  "async-trait",
+<<<<<<< HEAD
+=======
+ "centrifuge-runtime",
+ "cumulus-primitives-core",
+>>>>>>> b4ff013 (First sceleton for logic.)
  "cumulus-primitives-parachain-inherent",
  "cumulus-relay-chain-inprocess-interface",
  "frame-benchmarking",
@@ -2615,6 +2620,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-node-primitives",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime",
