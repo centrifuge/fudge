@@ -2205,6 +2205,7 @@ name = "fudge-core"
 version = "0.0.7"
 dependencies = [
  "async-trait",
+ "bitvec",
  "centrifuge-runtime",
  "cumulus-primitives-core",
  "cumulus-primitives-parachain-inherent",
