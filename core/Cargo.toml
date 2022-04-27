@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
+bitvec = { version = "0.20.1", features = ["alloc"] }
+codec = { package = "parity-scale-codec", version = "2.0.0", features = ["derive"] }
 futures = "0.3.19"
 async-trait = "0.1.52"
 parking_lot = "0.12.1"

@@ -10,13 +10,26 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use crate::builder::parachain::FudgeParaChain;
+use crate::digest::DigestCreator;
+use crate::inherent::ArgsProvider;
+use crate::{
+	builder::core::{Builder, Operation},
+	types::StoragePair,
+	PoolState,
+};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use cumulus_primitives_core::PersistedValidationData;
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_node_primitives::Collation;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
-use polkadot_primitives::{runtime_api::ParachainHost, v2::OccupiedCoreAssumption};
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex, OccupiedCoreAssumption,
+};
+use polkadot_primitives::v2::ParachainHost;
+use polkadot_runtime_parachains::inclusion::CandidatePendingAvailability;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use polkadot_service::Handle;
 use sc_client_api::{
@@ -66,7 +79,12 @@ pub mod types {
 	use polkadot_parachain::primitives::{
 		HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	};
+	use polkadot_primitives::v1::{
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CoreIndex, GroupIndex,
+	};
+	use polkadot_runtime_parachains::inclusion::CandidatePendingAvailability;
 	use polkadot_runtime_parachains::ParaLifecycle;
+	use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
@@ -142,6 +160,54 @@ pub mod types {
 	#[allow(type_alias_bounds)]
 	pub type PastCodeHash<T: frame_system::Config> =
 		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+
+	pub struct PendingAvailabilityPrefix;
+	impl StorageInstance for PendingAvailabilityPrefix {
+		fn pallet_prefix() -> &'static str {
+			"ParaInclusion"
+		}
+
+		const STORAGE_PREFIX: &'static str = "PendingAvailability";
+	}
+	#[allow(type_alias_bounds)]
+	pub type PendingAvailability<T: frame_system::Config> =
+		StorageMap<_, Twox64Concat, ParaId, CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
+
+	pub struct PendingAvailabilityCommitmentsPrefix;
+	impl StorageInstance for PendingAvailabilityCommitmentsPrefix {
+		fn pallet_prefix() -> &'static str {
+			"ParaInclusion"
+		}
+
+		const STORAGE_PREFIX: &'static str = "PendingAvailabilityCommitments";
+	}
+	pub type PendingAvailabilityCommitments =
+		StorageMap<_, Twox64Concat, ParaId, CandidateCommitments>;
+
+	// TODO: Need a test that automatically detects wheter this changes
+	//       on the polkadot side. Via encode from this type and decode into
+	//       imported polkadot type.
+	/// A backed candidate pending availability.
+	#[derive(Encode, Decode, PartialEq, TypeInfo)]
+	#[cfg_attr(test, derive(Debug))]
+	pub struct FudgeCandidatePendingAvailability<H, N> {
+		/// The availability core this is assigned to.
+		pub core: CoreIndex,
+		/// The candidate hash.
+		pub hash: CandidateHash,
+		/// The candidate descriptor.
+		pub descriptor: CandidateDescriptor<H>,
+		/// The received availability votes. One bit per validator.
+		pub availability_votes: BitVec<BitOrderLsb0, u8>,
+		/// The backers of the candidate pending availability.
+		pub backers: BitVec<BitOrderLsb0, u8>,
+		/// The block number of the relay-parent of the receipt.
+		pub relay_parent_number: N,
+		/// The block number of the relay-chain block this was backed in.
+		pub backed_in_number: N,
+		/// The group index backing this block.
+		pub backing_group: GroupIndex,
+	}
 }
 
 pub enum CollationJudgement {
@@ -461,6 +527,7 @@ where
 	fn force_enact_collations(&mut self) -> Result<(), ()> {
 		let rt_api = self.client();
 		let parent = self.client().info().best_hash;
+
 		for (id, para) in self.parachains.iter() {
 			let pvd = self
 				.with_state(|| {
@@ -477,6 +544,60 @@ where
 				self.builder
 					.with_state(Operation::Commit, None, || {
 						// TODO: Inject CCR and Commitments into storage
+						let commitments = CandidateCommitments {
+							upward_messages: collation.upward_messages,
+							horizontal_messages: collation.horizontal_messages,
+							new_validation_code: collation.new_validation_code,
+							head_data: collation.head_data,
+							processed_downward_messages: collation.processed_downward_messages,
+							hrmp_watermark: collation.hrmp_watermark,
+						};
+
+						// Inject into storage for force enact
+						PendingAvailabilityCommitments::insert(*id, commitments.clone());
+
+						let ccr = CandidateReceipt {
+							commitments_hash: commitments.hash(),
+							descriptor: CandidateDescriptor {
+								signature: Default::default(),
+								para_id: *id,
+								relay_parent: parent,
+								collator: Default::default(),
+								persisted_validation_data_hash: pvd.hash(),
+								pov_hash: collation.proof_of_validity.into_compressed().hash(),
+								erasure_root: Default::default(),
+								para_head: commitments.head_data.hash(),
+								validation_code_hash: validation_code_hash(
+									rt_api.clone(),
+									parent,
+									*id,
+									OccupiedCoreAssumption::TimedOut,
+								),
+							},
+						};
+
+						let core = CoreIndex(
+							Parachains::<Runtime>::get()
+								.iter()
+								.position(*id)
+								.expect("Parachain is onbaorded. qed.")
+								.try_into()
+								.expect("Never more than u32::MAX parachains. qed"),
+						);
+
+						let cpa = FudgeCandidatePendingAvailability {
+							core,
+							hash: Default::default(),
+							descriptor: ccr,
+							availability_votes: Bitved::new(),
+							backers: Bitvec::new(),
+							relay_parent_number: ,
+							backed_in_number: (),
+							backing_group: Default::default(),
+						};
+
+						let cpa = CandidatePendingAvailability::new(Default::default());
+						PendingAvailability::<Runtime>::insert(*id, cpa);
 
 						// NOTE: Generating the validation like this, force enacts a block
 						let _ = persisted_validation_data(
@@ -542,6 +663,23 @@ where
 {
 	let api = rt_api.runtime_api();
 	api.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
+		.unwrap()
+		.unwrap()
+}
+
+fn validation_code_hash<RtApi, Block>(
+	rt_api: Arc<RtApi>,
+	parent: Block::Hash,
+	id: Id,
+	assumption: OccupiedCoreAssumption,
+) -> ValidationCodeHash
+where
+	Block: BlockT,
+	RtApi: ProvideRuntimeApi<Block>,
+	RtApi::Api: ParachainHost<Block>,
+{
+	let api = rt_api.runtime_api();
+	api.validation_code_hash(&BlockId::Hash(parent), id, assumption)
 		.unwrap()
 		.unwrap()
 }
