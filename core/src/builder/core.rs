@@ -9,7 +9,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-
 use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
@@ -18,11 +17,12 @@ use sc_client_api::{
 	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
 	StateBackend, UsageProvider,
 };
+use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
+use sc_service::{SpawnTaskHandle, TFullClient, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{Environment, InherentData, Proposal, Proposer};
 use sp_core::traits::CodeExecutor;
@@ -36,7 +36,10 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::externalities::ExternalitiesProvider, types::StoragePair};
+use crate::{
+	provider::{externalities::ExternalitiesProvider, ExternalitiesProvider},
+	types::StoragePair,
+};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -139,27 +142,23 @@ where
 		.unwrap()
 	}
 
-	pub fn handle(&self) -> SpawnTaskHandle {
-		self.task_manager.spawn_handle()
-	}
+	pub fn commit_storage_changes(
+		&mut self,
+		changes: StorageChanges<B::State, Block>,
+	) -> Result<(), ()> {
+		let at = BlockId::Hash(self.client.info().best_hash);
+		let mut op = self.backend.begin_operation().unwrap();
+		self.backend.begin_state_operation(&mut op, at).unwrap();
+		let info = self.client.info();
+		if info.best_hash == info.finalized_hash {
+			self.backend
+				.revert(NumberFor::<Block>::one(), true)
+				.unwrap();
+		}
+		self.mutate_normal(&mut op, changes, at).unwrap();
+		self.backend.commit_operation(op).unwrap();
 
-	fn state_version(&self) -> StateVersion {
-		let wasm = self.latest_code();
-		let code_fetcher = sp_core::traits::WrappedRuntimeCode(wasm.as_slice().into());
-		let runtime_code = sp_core::traits::RuntimeCode {
-			code_fetcher: &code_fetcher,
-			heap_pages: None,
-			hash: {
-				use std::hash::{Hash, Hasher};
-				let mut state = DefaultHasher::new();
-				wasm.hash(&mut state);
-				state.finish().to_le_bytes().to_vec()
-			},
-		};
-		let mut ext = sp_state_machine::BasicExternalities::new_empty(); // just to read runtime version.
-		let runtime_version =
-			RuntimeVersionOf::runtime_version(&self.executor, &mut ext, &runtime_code).unwrap();
-		runtime_version.state_version()
+		Ok(())
 	}
 
 	pub fn with_state<R>(
@@ -208,8 +207,12 @@ where
 							.revert(NumberFor::<Block>::one(), true)
 							.unwrap();
 					}
-					self.mutate_normal::<R>(&mut op, ext.drain(self.state_version()), at)
-				}?;
+					let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
+					let (r, changes) = ext.execute_with_mut(exec);
+					self.mutate_normal(&mut op, changes, at).unwrap();
+
+					Ok(r)
+				};
 
 				self.backend
 					.commit_operation(op)
@@ -264,10 +267,10 @@ where
 		Ok(())
 	}
 
-	fn mutate_normal<R>(
+	fn mutate_normal(
 		&self,
 		op: &mut B::BlockImportOperation,
-		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
+		changes: StorageChanges<B::State, Block>,
 		at: BlockId<Block>,
 	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();

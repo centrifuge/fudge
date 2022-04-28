@@ -10,6 +10,19 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+<<<<<<< HEAD
+=======
+// TODO: Make this more adaptable for giving a parachain a name
+const LOG_TARGET: &str = "fudge-relaychain";
+use crate::builder::parachain::FudgeParaChain;
+use crate::digest::DigestCreator;
+use crate::inherent::ArgsProvider;
+use crate::{
+	builder::core::{Builder, Operation},
+	types::StoragePair,
+	PoolState,
+};
+>>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 use bitvec::vec::BitVec;
 use codec::{Decode, Encode};
 use cumulus_primitives_core::PersistedValidationData;
@@ -34,18 +47,29 @@ use sc_client_api::{
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
+<<<<<<< HEAD
 use sc_service::{TFullBackend, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
+=======
+use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
+use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
+>>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
 use sp_consensus_babe::BabeApi;
 use sp_core::{traits::CodeExecutor, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
+<<<<<<< HEAD
 use sp_runtime::{
 	generic::BlockId,
 	traits::{Block as BlockT, BlockIdTo, Header as HeaderT},
+=======
+use sp_runtime::traits::BlockIdTo;
+use sp_runtime::{
+	generic::BlockId, traits::Block as BlockT, traits::Header as HeaderT, TransactionOutcome,
+>>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 };
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -345,7 +369,8 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block> + 'static,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -542,13 +567,14 @@ where
 	}
 
 	fn collect_collations(&mut self, parent_head: Block::Header) {
-		let rt_api = self.client();
+		let client = self.client();
+		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
 		for (id, para) in self.parachains.iter() {
 			let pvd = self
 				.with_state(|| {
 					persisted_validation_data(
-						rt_api.clone(),
+						&mut rt_api,
 						parent,
 						*id,
 						OccupiedCoreAssumption::TimedOut,
@@ -566,7 +592,8 @@ where
 	}
 
 	fn force_enact_collations(&mut self) -> Result<(), ()> {
-		let rt_api = self.client();
+		let client = self.client();
+		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
 		let parent_number = self.client().info().best_number;
 		let collations = self.collations.clone();
@@ -577,7 +604,7 @@ where
 			let pvd = self
 				.with_state(|| {
 					persisted_validation_data(
-						rt_api.clone(),
+						&mut rt_api,
 						parent,
 						id,
 						OccupiedCoreAssumption::TimedOut,
@@ -612,7 +639,7 @@ where
 						erasure_root: Default::default(),
 						para_head: commitments.head_data.hash(),
 						validation_code_hash: validation_code_hash(
-							rt_api.clone(),
+							&mut rt_api,
 							parent,
 							id,
 							OccupiedCoreAssumption::TimedOut,
@@ -648,13 +675,11 @@ where
 					}),
 				);
 
-				// NOTE: Generating the validation like this, force enacts a block
-				let _ = persisted_validation_data(
-					rt_api.clone(),
-					parent,
-					id,
-					OccupiedCoreAssumption::Included,
-				);
+				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
+				polkadot_runtime_parachains::runtime_api_impl::v1::persisted_validation_data::<
+					Runtime,
+				>(id, OccupiedCoreAssumption::Included)
+				.unwrap();
 			})
 			.map_err(|_| ())?;
 
@@ -706,36 +731,37 @@ where
 }
 
 // TODO: Make this error instead
-fn persisted_validation_data<RtApi, Block>(
-	rt_api: Arc<RtApi>,
+fn persisted_validation_data<'a, RtApi, Block>(
+	rt_api: &mut ApiRef<'a, RtApi>,
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
 ) -> PersistedValidationData
 where
 	Block: BlockT,
-	RtApi: ProvideRuntimeApi<Block>,
-	RtApi::Api: ParachainHost<Block>,
+	RtApi: ParachainHost<Block> + ApiExt<Block>,
 {
-	let api = rt_api.runtime_api();
-	api.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
-		.unwrap()
-		.unwrap()
+	rt_api.execute_in_transaction(|api| {
+		let pvd = api
+			.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
+			.unwrap()
+			.unwrap();
+		TransactionOutcome::Commit(pvd)
+	})
 }
 
-fn validation_code_hash<RtApi, Block>(
-	rt_api: Arc<RtApi>,
+fn validation_code_hash<'a, RtApi, Block>(
+	rt_api: &mut ApiRef<'a, RtApi>,
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
 ) -> ValidationCodeHash
 where
 	Block: BlockT,
-	RtApi: ProvideRuntimeApi<Block>,
-	RtApi::Api: ParachainHost<Block>,
+	RtApi: ParachainHost<Block>,
 {
-	let api = rt_api.runtime_api();
-	api.validation_code_hash(&BlockId::Hash(parent), id, assumption)
+	rt_api
+		.validation_code_hash(&BlockId::Hash(parent), id, assumption)
 		.unwrap()
 		.unwrap()
 }

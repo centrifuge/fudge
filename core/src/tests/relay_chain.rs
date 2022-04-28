@@ -86,9 +86,26 @@ fn default_relay_builder(
 	(),
 	impl DigestCreator<TestBlock>,
 	Runtime,
+<<<<<<< HEAD
 > {
 	let mut state = StateProvider::new(CODE.expect("Wasm is build. Qed."));
 	state.insert_storage(genesis);
+=======
+	TFullBackend<TestBlock>,
+	TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+>
+where
+	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
+	DP: DigestCreator + 'static,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
+{
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
+			CODE.unwrap(),
+		);
+	provider.insert_storage(storage);
+>>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 
 	let mut init = crate::provider::initiator::default(handle);
 	init.with_genesis(Box::new(state));

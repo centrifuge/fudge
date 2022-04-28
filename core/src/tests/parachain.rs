@@ -160,6 +160,7 @@ fn default_relay_builder(
 	TWasmExecutor,
 	impl CreateInherentDataProviders<RTestBlock, ()>,
 	(),
+<<<<<<< HEAD
 	impl DigestCreator<RTestBlock>,
 	RRuntime,
 > {
@@ -168,6 +169,33 @@ fn default_relay_builder(
 		polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
 			.build_storage()
 			.unwrap(),
+=======
+	Box<dyn DigestCreator + Send + Sync>,
+	Runtime,
+	TFullBackend<RTestBlock>,
+	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+>
+where
+	Runtime: pallet_babe::Config
+		+ polkadot_runtime_parachains::configuration::Config
+		+ paras::Config
+		+ frame_system::Config
+		+ pallet_timestamp::Config<Moment = u64>
+		+ polkadot_runtime_parachains::initializer::Config,
+{
+	let mut provider =
+		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
+			RCODE.unwrap(),
+		);
+	polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
+		.assimilate_storage(&mut storage)
+		.unwrap();
+	provider.insert_storage(storage);
+
+	let (client, backend) = provider.init_default(
+		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		Box::new(manager.spawn_handle()),
+>>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 	);
 	state.insert_storage(genesis);
 
