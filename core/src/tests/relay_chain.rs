@@ -54,7 +54,8 @@ fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
 	DP: DigestCreator + 'static,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
 {
 	let mut provider =
 		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(

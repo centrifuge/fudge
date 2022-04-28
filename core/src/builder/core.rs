@@ -17,7 +17,7 @@ use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams};
 use sc_executor::RuntimeVersionOf;
 use sc_service::TFullClient;
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::Environment;
 use sp_core::traits::CodeExecutor;
@@ -162,6 +162,25 @@ where
 		.unwrap()
 	}
 
+	pub fn commit_storage_changes(
+		&mut self,
+		changes: StorageChanges<B::State, Block>,
+	) -> Result<(), ()> {
+		let at = BlockId::Hash(self.client.info().best_hash);
+		let mut op = self.backend.begin_operation().unwrap();
+		self.backend.begin_state_operation(&mut op, at).unwrap();
+		let info = self.client.info();
+		if info.best_hash == info.finalized_hash {
+			self.backend
+				.revert(NumberFor::<Block>::one(), true)
+				.unwrap();
+		}
+		self.mutate_normal(&mut op, changes, at).unwrap();
+		self.backend.commit_operation(op).unwrap();
+
+		Ok(())
+	}
+
 	pub fn with_state<R>(
 		&self,
 		op: Operation,
@@ -202,7 +221,11 @@ where
 							.revert(NumberFor::<Block>::one(), true)
 							.unwrap();
 					}
-					self.mutate_normal(&mut op, &state, exec, at)
+					let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
+					let (r, changes) = ext.execute_with_mut(exec);
+					self.mutate_normal(&mut op, changes, at).unwrap();
+
+					Ok(r)
 				};
 
 				self.backend
@@ -258,22 +281,18 @@ where
 		Ok(r)
 	}
 
-	fn mutate_normal<R>(
+	fn mutate_normal(
 		&self,
 		op: &mut B::BlockImportOperation,
-		state: &B::State,
-		exec: impl FnOnce() -> R,
+		changes: StorageChanges<B::State, Block>,
 		at: BlockId<Block>,
-	) -> Result<R, String> {
+	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend
 			.header(at)
 			.ok()
 			.flatten()
 			.expect("State is available. qed");
-
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(exec);
 
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
@@ -303,7 +322,7 @@ where
 			NewBlockState::Final,
 		)
 		.unwrap();
-		Ok(r)
+		Ok(())
 	}
 
 	/// Append a given set of key-value-pairs into the builder cache

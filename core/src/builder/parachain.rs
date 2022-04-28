@@ -127,8 +127,9 @@ where
 	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
 		let at = BlockId::Hash(self.client.info().best_hash);
 		let state = self.backend.state_at(at.clone()).ok()?;
-		ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
-			.execute_with(|| self.create_collation(validation_data))
+		//ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
+		//	.execute_with(|| self.create_collation(validation_data))
+		self.create_collation(validation_data)
 	}
 
 	fn create_collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {

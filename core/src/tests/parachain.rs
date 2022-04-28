@@ -135,7 +135,8 @@ where
 		+ polkadot_runtime_parachains::configuration::Config
 		+ paras::Config
 		+ frame_system::Config
-		+ pallet_timestamp::Config<Moment = u64>,
+		+ pallet_timestamp::Config<Moment = u64>
+		+ polkadot_runtime_parachains::initializer::Config,
 {
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
