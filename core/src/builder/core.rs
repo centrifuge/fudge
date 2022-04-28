@@ -380,7 +380,7 @@ where
 		.unwrap()
 		{
 			ImportResult::Imported(_) => Ok(()),
-			ImportResult::AlreadyInChain => Err(()),
+			ImportResult::AlreadyInChain => Ok(()),
 			ImportResult::KnownBad => Err(()),
 			ImportResult::UnknownParent => Err(()),
 			ImportResult::MissingState => Err(()),
@@ -397,6 +397,7 @@ where
 		// "routes" provided here.
 		if ret.is_ok() {
 			let best_hash = self.latest_block();
+			let _number = self.client.info().best_number;
 			futures::executor::block_on(self.pool.maintain(ChainEvent::NewBestBlock {
 				hash: best_hash,
 				tree_route: None,

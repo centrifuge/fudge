@@ -215,6 +215,17 @@ pub trait CollationBuilder {
 	fn judge(&self, judgement: CollationJudgement);
 }
 
+#[cfg(test)]
+impl CollationBuilder for () {
+	fn collation(&self, _validation_data: PersistedValidationData) -> Option<Collation> {
+		None
+	}
+
+	fn judge(&self, _judgement: CollationJudgement) {
+		// Nothing
+	}
+}
+
 pub struct InherentBuilder<C, B> {
 	id: Id,
 	client: Arc<C>,
@@ -500,8 +511,8 @@ where
 
 		self.builder.import_block(params).unwrap();
 		self.imports.push((block.clone(), proof));
-		self.collect_collations(block.header().clone());
 		self.force_enact_collations()?;
+		self.collect_collations(block.header().clone());
 		Ok(())
 	}
 
@@ -521,9 +532,8 @@ where
 				.unwrap();
 
 			if let Some(collation) = para.collation(pvd) {
-				if self.collations.iter().any(|(in_id, _, _)| in_id == id) {
-					para.judge(CollationJudgement::Rejected)
-				} else {
+				// Only collect collations when they are not already collected
+				if !self.collations.iter().any(|(in_id, _, _)| in_id == id) {
 					self.collations.push((*id, collation, parent_head.clone()))
 				}
 			}
@@ -535,9 +545,10 @@ where
 		let parent = self.client().info().best_hash;
 		let parent_number = self.client().info().best_number;
 		let collations = self.collations.clone();
-		self.collations = Vec::new();
 
-		for (id, collation, generation_parent) in collations {
+		for (collation_index, (id, collation, generation_parent)) in
+			collations.into_iter().enumerate()
+		{
 			let pvd = self
 				.with_state(|| {
 					persisted_validation_data(
@@ -628,7 +639,8 @@ where
 				.position(|(in_id, _)| *in_id == id)
 				.expect("Parachain is onbaorded. qed");
 			let (_, collator) = self.parachains.get(index).expect("Index is existing. qed");
-			collator.judge(CollationJudgement::Approved)
+			collator.judge(CollationJudgement::Approved);
+			self.collations.remove(collation_index);
 		}
 
 		Ok(())

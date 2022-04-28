@@ -147,7 +147,7 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para).unwrap();
+	builder.onboard_para(dummy_para, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 
@@ -175,7 +175,7 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para_new).unwrap();
+	builder.onboard_para(dummy_para_new, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 

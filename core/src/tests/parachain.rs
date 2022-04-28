@@ -252,47 +252,38 @@ async fn parachain_creates_correct_inherents() {
 		head: builder.head(),
 		code: builder.code(),
 	};
-	relay_builder.onboard_para(para).unwrap();
+	relay_builder
+		.onboard_para(para, Box::new(builder.collator()))
+		.unwrap();
+
+	let para_head = relay_builder
+		.with_state(|| Heads::try_get(para_id).unwrap())
+		.unwrap();
+	assert_eq!(builder.head(), para_head);
+
 	relay_builder.build_block().unwrap();
-	relay_builder.import_block().unwrap();
 
 	let num_start = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
 	builder.build_block().unwrap();
-	builder.import_block().unwrap();
+	// Importing the relay-blocks results in the collations being collected.
+	// Hence: Parachain must build its block before
+	relay_builder.import_block().unwrap();
 
+	relay_builder.build_block().unwrap();
+	// Imports collation
+	relay_builder.import_block().unwrap();
+
+	builder.import_block().unwrap();
 	let num_after_one = builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
 	assert_eq!(num_start + 1, num_after_one);
-
-	relay_builder.build_block().unwrap();
-	relay_builder.import_block().unwrap();
-
-	builder.build_block().unwrap();
-	builder.import_block().unwrap();
-
-	let num_after_two = builder
-		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
-		.unwrap();
-
-	assert_eq!(num_start + 2, num_after_two);
-
-	let para = FudgeParaChain {
-		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
-	};
-	relay_builder.onboard_para(para).unwrap();
-	relay_builder.build_block().unwrap();
-	relay_builder.import_block().unwrap();
-
 	let para_head = relay_builder
 		.with_state(|| Heads::try_get(para_id).unwrap())
 		.unwrap();
-
 	assert_eq!(builder.head(), para_head);
 }

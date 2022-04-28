@@ -192,15 +192,15 @@ where
 	}
 
 	pub fn approve(&self) {
-		let mut locked = self.next_block.lock().expect("Locking must work");
-		let build = locked.take().expect("Only approve when build is some");
-		let mut locked = self.next_import.lock().expect("Locking must work");
-		*locked = Some(build);
+		let mut locked_next = self.next_block.lock().expect("Locking must work");
+		let build = locked_next.take().expect("Only approve when build is some");
+		let mut locked_import = self.next_import.lock().expect("Locking must work");
+		*locked_import = Some(build);
 	}
 
 	pub fn reject(&self) {
 		let mut locked = self.next_block.lock().expect("Locking must work");
-		let _build = locked.take().expect("Only approve when build is some");
+		let _build = locked.take().expect("Only reject when build is some");
 	}
 }
 
@@ -350,6 +350,14 @@ where
 			Duration::from_secs(60), // TODO: This should be configurable, best via an public config on the builder
 			6_000_000, // TODO: This should be configurable, best via an public config on the builder
 		);
+
+		// As collation info needs latest state in db we import without finalizing here already.
+		let (header, body) = block.clone().deconstruct();
+		let mut params = BlockImportParams::new(BlockOrigin::Own, header);
+		params.body = Some(body);
+		params.fork_choice = Some(ForkChoiceStrategy::Custom(false));
+		self.builder.import_block(params).unwrap();
+
 		let locked = self.next_block.clone();
 		let mut locked = locked.lock().expect(
 			"ESSENTIAL: If this is poisoned or still locked, the builder is currently bricked.",
@@ -368,7 +376,7 @@ where
 	}
 
 	pub fn import_block(&mut self) -> Result<(), ()> {
-		let locked = self.next_block.clone();
+		let locked = self.next_import.clone();
 		let mut locked = locked.lock().expect(
 			"ESSENTIAL: If this is poisoned or still locked, the builder is currently bricked.",
 		);
@@ -378,6 +386,7 @@ where
 			let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 			params.body = Some(body);
 			params.finalized = true;
+			params.import_existing = true;
 			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 			self.builder.import_block(params).unwrap();
@@ -386,7 +395,7 @@ where
 			*locked = None;
 			Ok(())
 		} else {
-			// TODO: log warning here
+			tracing::warn!(target: LOG_TARGET, "No import for parachain available.");
 			Ok(())
 		}
 	}
