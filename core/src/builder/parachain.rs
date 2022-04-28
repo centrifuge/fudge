@@ -17,6 +17,7 @@ const LOG_TARGET: &str = "fudge-parachain";
 use crate::builder::relay_chain::{CollationBuilder, CollationJudgement};
 use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
+use crate::provider::ExternalitiesProvider;
 use crate::{
 	builder::core::{Builder, Operation},
 	types::StoragePair,
@@ -58,17 +59,19 @@ pub struct FudgeParaChain {
 	pub code: ValidationCode,
 }
 
-pub struct FudgeCollator<Block, RtApi> {
-	runtime_api: RtApi,
+pub struct FudgeCollator<Block, C, B> {
+	client: Arc<C>,
+	backend: Arc<B>,
 	next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
 	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
 }
 
-impl<Block, RtApi> CollationBuilder for FudgeCollator<Block, RtApi>
+impl<Block, C, B> CollationBuilder for FudgeCollator<Block, C, B>
 where
 	Block: BlockT,
-	RtApi: ProvideRuntimeApi<Block>,
-	RtApi::Api: CollectCollationInfo<Block>,
+	B: BackendT<Block>,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	C::Api: CollectCollationInfo<Block>,
 {
 	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
 		self.collation(validation_data)
@@ -82,21 +85,21 @@ where
 	}
 }
 
-impl<Block, RtApi> FudgeCollator<Block, RtApi>
+impl<Block, C, B> FudgeCollator<Block, C, B>
 where
 	Block: BlockT,
-	RtApi: ProvideRuntimeApi<Block>,
-	RtApi::Api: CollectCollationInfo<Block>,
+	B: BackendT<Block>,
+	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	C::Api: CollectCollationInfo<Block>,
 {
 	fn fetch_collation_info(
 		&self,
 		block_hash: Block::Hash,
 		header: &Block::Header,
 	) -> Result<Option<CollationInfo>, sp_api::ApiError> {
-		let runtime_api = self.runtime_api.runtime_api();
+		let runtime_api = self.client.runtime_api();
 		let block_id = BlockId::Hash(block_hash);
 
-		// TODO: I need state here...
 		let api_version =
 			match runtime_api.api_version::<dyn CollectCollationInfo<Block>>(&block_id)? {
 				Some(version) => version,
@@ -122,6 +125,13 @@ where
 	}
 
 	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
+		let at = BlockId::Hash(self.client.info().best_hash);
+		let state = self.backend.state_at(at.clone()).ok()?;
+		ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
+			.execute_with(|| self.create_collation(validation_data))
+	}
+
+	fn create_collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
 		let locked = self.next_block.lock().ok()?;
 		if let Some((block, proof)) = &*locked {
 			let last_head = match Block::Header::decode(&mut &validation_data.parent_head.0[..]) {
@@ -181,9 +191,17 @@ where
 		}
 	}
 
-	pub fn approve(&self) {}
+	pub fn approve(&self) {
+		let mut locked = self.next_block.lock().expect("Locking must work");
+		let build = locked.take().expect("Only approve when build is some");
+		let mut locked = self.next_import.lock().expect("Locking must work");
+		*locked = Some(build);
+	}
 
-	pub fn reject(&self) {}
+	pub fn reject(&self) {
+		let mut locked = self.next_block.lock().expect("Locking must work");
+		let _build = locked.take().expect("Only approve when build is some");
+	}
 }
 
 pub struct ParachainBuilder<
@@ -258,9 +276,10 @@ where
 		}
 	}
 
-	pub fn collator(&self) -> FudgeCollator<Block, Arc<C>> {
+	pub fn collator(&self) -> FudgeCollator<Block, C, B> {
 		FudgeCollator {
-			runtime_api: self.client(),
+			client: self.client(),
+			backend: self.backend(),
 			next_block: self.next_block.clone(),
 			next_import: self.next_import.clone(),
 		}

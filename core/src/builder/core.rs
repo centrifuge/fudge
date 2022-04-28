@@ -211,7 +211,6 @@ where
 
 				res
 			}
-			// TODO: Does this actually NOT change the state?
 			Operation::DryRun => Ok(
 				ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state).execute_with(exec),
 			),
