@@ -2637,6 +2637,7 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "scale-info",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
