@@ -34,7 +34,7 @@ This allows users to
 
 
 ## How to use?
-Add the following dependecy to your project (*Currently only polkadot-v0.9.17 compatability*). Please always use 
+Add the following dependency to your project (*Currently only polkadot-v0.9.17 compatability*). Please always use 
 the latest version available until we reach a more stable *0.1.x* state.
 ```toml
 fudge = { git = "https://github.com/centrifuge/fudge", tag = "v0.0.5-polkadot-v0.9.17"}
