@@ -23,8 +23,8 @@ use cumulus_relay_chain_local::RelayChainLocal;
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
-use polkadot_primitives::v1::OccupiedCoreAssumption;
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::runtime_api::ParachainHost;
+use polkadot_primitives::v2::OccupiedCoreAssumption;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
@@ -179,12 +179,26 @@ where
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
 		let parent = self.client.info().best_hash;
+
+		//nuno: OLD code
 		let relay_interface = RelayChainLocal::new(
 			self.client.clone(),
 			self.backend.clone(),
 			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
 			None,
 		);
+		//nuno: try new
+		let (relay_chain_interface, _) = build_inprocess_relay_chain(
+			polkadot_config,
+			&parachain_config,
+			telemetry_worker_handle,
+			&mut task_manager,
+		)
+		.map_err(|e| match e {
+			RelayChainError::ServiceError(polkadot_service::Error::Sub(x)) => x,
+			s => s.to_string().into(),
+		})?;
+
 		let api = self.client.runtime_api();
 		let persisted_validation_data = api
 			.persisted_validation_data(

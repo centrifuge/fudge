@@ -196,7 +196,7 @@ where
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
+				slot_duration,
 			),
 		));
 

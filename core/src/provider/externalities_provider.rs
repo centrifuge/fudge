@@ -172,7 +172,7 @@ where
 			self.overlay
 				.drain_storage_changes::<B, H>(
 					self.backend,
-					parent_hash,
+					// parent_hash,
 					&mut self.storage_transaction_cache,
 					StateVersion::V0,
 				)

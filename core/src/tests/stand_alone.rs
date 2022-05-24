@@ -222,7 +222,7 @@ async fn build_relay_block_works() {
 					let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
                             timestamp.current_time(),
-                            sp_std::time::Duration::from_millis(slot_duration),
+                            slot_duration,
                         );
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -240,7 +240,7 @@ async fn build_relay_block_works() {
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
+				slot_duration,
 			),
 		));
 
@@ -305,7 +305,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 					let slot =
                         sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
                             timestamp.current_time(),
-                            sp_std::time::Duration::from_millis(slot_duration),
+                            slot_duration,
                         );
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -323,7 +323,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
+				slot_duration,
 			),
 		));
 

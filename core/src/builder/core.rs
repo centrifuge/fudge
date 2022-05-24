@@ -391,7 +391,7 @@ where
 			}));
 			futures::executor::block_on(self.pool.maintain(ChainEvent::Finalized {
 				hash: best_hash,
-				tree_route: Arc::new(vec![prev_hash]),
+				tree_route: Arc::new([prev_hash]),
 			}));
 		};
 
