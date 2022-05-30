@@ -179,39 +179,41 @@ where
 		+ sc_block_builder::BlockBuilderProvider<TFullBackend<PBlock>, PBlock, C>,
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
-		let parent = self.client.info().best_hash;
+		None
 
-		//nuno: OLD code
-		// let relay_interface = RelayChainLocal::new(
-		// 	self.client.clone(),
-		// 	self.backend.clone(),
-		// 	Arc::new(Mutex::new(Box::new(NoNetwork {}))),
-		// 	None,
-		// );
-		//nuno: try new
+		// let parent = self.client.info().best_hash;
+		//
+		// //nuno: OLD code
+		// // let relay_interface = RelayChainLocal::new(
+		// // 	self.client.clone(),
+		// // 	self.backend.clone(),
+		// // 	Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+		// // 	None,
+		// // );
+		// //nuno: try new
 		// let (relay_chain_interface, _) = build_inprocess_relay_chain(
 		// 	polkadot_config,
 		// 	&parachain_config,
 		// 	telemetry_worker_handle,
 		// 	&mut task_manager,
 		// ).ok()?;
-
-		let api = self.client.runtime_api();
-		let persisted_validation_data = api
-			.persisted_validation_data(
-				&BlockId::Hash(parent),
-				self.id,
-				OccupiedCoreAssumption::TimedOut,
-			)
-			.unwrap()
-			.unwrap();
-		ParachainInherentData::create_at(
-			parent,
-			<dyn RelayChainInterface>::default(),
-			&persisted_validation_data,
-			self.id,
-		)
-		.await
+		//
+		// let api = self.client.runtime_api();
+		// let persisted_validation_data = api
+		// 	.persisted_validation_data(
+		// 		&BlockId::Hash(parent),
+		// 		self.id,
+		// 		OccupiedCoreAssumption::TimedOut,
+		// 	)
+		// 	.unwrap()
+		// 	.unwrap();
+		// ParachainInherentData::create_at(
+		// 	parent,
+		// 	<dyn RelayChainInterface>::default(),
+		// 	&persisted_validation_data,
+		// 	self.id,
+		// )
+		// .await
 	}
 }
 
