@@ -10,6 +10,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+// TODO: Make this more adaptable for giving a parachain a name
+const LOG_TARGET: &str = "fudge-relaychain";
 use crate::builder::parachain::FudgeParaChain;
 use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
@@ -18,13 +20,20 @@ use crate::{
 	types::StoragePair,
 	PoolState,
 };
+use bitvec::vec::BitVec;
+use codec::{Decode, Encode};
+use cumulus_primitives_core::PersistedValidationData;
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_local::RelayChainLocal;
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
+use polkadot_node_primitives::Collation;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
-use polkadot_primitives::v1::OccupiedCoreAssumption;
+use polkadot_primitives::v1::{
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex, OccupiedCoreAssumption,
+};
 use polkadot_primitives::v2::ParachainHost;
+use polkadot_runtime_parachains::inclusion::CandidatePendingAvailability;
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
@@ -34,7 +43,7 @@ use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient, TaskManager};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
+use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
 use sp_consensus_babe::BabeApi;
@@ -42,22 +51,30 @@ use sp_core::traits::CodeExecutor;
 use sp_core::H256;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::traits::BlockIdTo;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::{
+	generic::BlockId, traits::Block as BlockT, traits::Header as HeaderT, TransactionOutcome,
+};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use types::*;
 
 /// Recreating private storage types for easier handling storage access
 pub mod types {
-	use frame_support::traits::StorageInstance;
+	use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
+	use codec::{Decode, Encode};
 	use frame_support::{
 		storage::types::{StorageMap, StorageValue, ValueQuery},
+		traits::StorageInstance,
 		Identity, Twox64Concat,
 	};
 	use polkadot_parachain::primitives::{
 		HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	};
-	use polkadot_runtime_parachains::ParaLifecycle;
+	use polkadot_primitives::v1::{
+		CandidateCommitments, CandidateDescriptor, CandidateHash, CoreIndex, GroupIndex,
+	};
+	use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, ParaLifecycle};
+	use scale_info::TypeInfo;
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
@@ -133,6 +150,84 @@ pub mod types {
 	#[allow(type_alias_bounds)]
 	pub type PastCodeHash<T: frame_system::Config> =
 		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+
+	pub struct PendingAvailabilityPrefix;
+	impl StorageInstance for PendingAvailabilityPrefix {
+		fn pallet_prefix() -> &'static str {
+			"ParaInclusion"
+		}
+
+		const STORAGE_PREFIX: &'static str = "PendingAvailability";
+	}
+	#[allow(type_alias_bounds)]
+	pub type PendingAvailability<T: frame_system::Config> = StorageMap<
+		PendingAvailabilityPrefix,
+		Twox64Concat,
+		ParaId,
+		CandidatePendingAvailability<T::Hash, T::BlockNumber>,
+	>;
+
+	pub struct PendingAvailabilityCommitmentsPrefix;
+	impl StorageInstance for PendingAvailabilityCommitmentsPrefix {
+		fn pallet_prefix() -> &'static str {
+			"ParaInclusion"
+		}
+
+		const STORAGE_PREFIX: &'static str = "PendingAvailabilityCommitments";
+	}
+	pub type PendingAvailabilityCommitments = StorageMap<
+		PendingAvailabilityCommitmentsPrefix,
+		Twox64Concat,
+		ParaId,
+		CandidateCommitments,
+	>;
+
+	// TODO: Need a test that automatically detects wheter this changes
+	//       on the polkadot side. Via encode from this type and decode into
+	//       imported polkadot type.
+	/// A backed candidate pending availability.
+	#[derive(Encode, Decode, PartialEq, TypeInfo)]
+	#[cfg_attr(test, derive(Debug))]
+	pub struct FudgeCandidatePendingAvailability<H, N> {
+		/// The availability core this is assigned to.
+		pub core: CoreIndex,
+		/// The candidate hash.
+		pub hash: CandidateHash,
+		/// The candidate descriptor.
+		pub descriptor: CandidateDescriptor<H>,
+		/// The received availability votes. One bit per validator.
+		pub availability_votes: BitVec<BitOrderLsb0, u8>,
+		/// The backers of the candidate pending availability.
+		pub backers: BitVec<BitOrderLsb0, u8>,
+		/// The block number of the relay-parent of the receipt.
+		pub relay_parent_number: N,
+		/// The block number of the relay-chain block this was backed in.
+		pub backed_in_number: N,
+		/// The group index backing this block.
+		pub backing_group: GroupIndex,
+	}
+}
+
+pub enum CollationJudgement {
+	Approved,
+	Rejected,
+}
+
+pub trait CollationBuilder {
+	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation>;
+
+	fn judge(&self, judgement: CollationJudgement);
+}
+
+#[cfg(test)]
+impl CollationBuilder for () {
+	fn collation(&self, _validation_data: PersistedValidationData) -> Option<Collation> {
+		None
+	}
+
+	fn judge(&self, _judgement: CollationJudgement) {
+		// Nothing
+	}
 }
 
 pub struct InherentBuilder<C, B> {
@@ -186,7 +281,7 @@ where
 			None,
 		);
 		let api = self.client.runtime_api();
-		let persisted_validation_data = api
+		let pvd = api
 			.persisted_validation_data(
 				&BlockId::Hash(parent),
 				self.id,
@@ -194,16 +289,9 @@ where
 			)
 			.unwrap()
 			.unwrap();
-		ParachainInherentData::create_at(
-			parent,
-			&relay_interface,
-			&persisted_validation_data,
-			self.id,
-		)
-		.await
+		ParachainInherentData::create_at(parent, &relay_interface, &pvd, self.id).await
 	}
 }
-
 pub struct RelaychainBuilder<
 	Block: BlockT,
 	RtApi,
@@ -230,6 +318,8 @@ pub struct RelaychainBuilder<
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
+	parachains: Vec<(Id, Box<dyn CollationBuilder>)>,
+	collations: Vec<(Id, Collation, Block::Header)>,
 	handle: SpawnTaskHandle,
 	_phantom: PhantomData<(ExtraArgs, Runtime)>,
 }
@@ -245,7 +335,8 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -272,6 +363,8 @@ where
 			dp,
 			next: None,
 			imports: Vec::new(),
+			parachains: Vec::new(),
+			collations: Vec::new(),
 			handle: manager.spawn_handle(),
 			_phantom: Default::default(),
 		}
@@ -317,16 +410,6 @@ where
 		self.builder.pool_state()
 	}
 
-	/* TODO: Implement this
-	 pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
-		todo!()
-	}
-
-	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
-		todo!()
-	}
-	 */
-
 	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<C, B> {
 		InherentBuilder {
 			id: para_id,
@@ -335,9 +418,13 @@ where
 		}
 	}
 
-	pub fn onboard_para(&mut self, para: FudgeParaChain) -> Result<(), ()> {
+	pub fn onboard_para(
+		&mut self,
+		para: FudgeParaChain,
+		collator: Box<dyn CollationBuilder>,
+	) -> Result<(), ()> {
+		let FudgeParaChain { id, head, code } = para;
 		self.with_mut_state(|| {
-			let FudgeParaChain { id, head, code } = para;
 			let current_block = frame_system::Pallet::<Runtime>::block_number();
 			let code_hash = code.hash();
 
@@ -381,6 +468,8 @@ where
 			Heads::insert(&id, head);
 		})
 		.unwrap();
+
+		self.parachains.push((id, collator));
 
 		Ok(())
 	}
@@ -426,7 +515,139 @@ where
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
 		self.builder.import_block(params).unwrap();
-		self.imports.push((block, proof));
+		self.imports.push((block.clone(), proof));
+		self.force_enact_collations()?;
+		self.collect_collations(block.header().clone());
+		Ok(())
+	}
+
+	fn collect_collations(&mut self, parent_head: Block::Header) {
+		let client = self.client();
+		let mut rt_api = client.runtime_api();
+		let parent = self.client().info().best_hash;
+		for (id, para) in self.parachains.iter() {
+			let pvd = self
+				.with_state(|| {
+					persisted_validation_data(
+						&mut rt_api,
+						parent,
+						*id,
+						OccupiedCoreAssumption::TimedOut,
+					)
+				})
+				.unwrap();
+
+			if let Some(collation) = para.collation(pvd) {
+				// Only collect collations when they are not already collected
+				if !self.collations.iter().any(|(in_id, _, _)| in_id == id) {
+					self.collations.push((*id, collation, parent_head.clone()))
+				}
+			}
+		}
+	}
+
+	fn force_enact_collations(&mut self) -> Result<(), ()> {
+		let client = self.client();
+		let mut rt_api = client.runtime_api();
+		let parent = self.client().info().best_hash;
+		let parent_number = self.client().info().best_number;
+		let collations = self.collations.clone();
+
+		for (collation_index, (id, collation, generation_parent)) in
+			collations.into_iter().enumerate()
+		{
+			let pvd = self
+				.with_state(|| {
+					persisted_validation_data(
+						&mut rt_api,
+						parent,
+						id,
+						OccupiedCoreAssumption::TimedOut,
+					)
+				})
+				.unwrap();
+
+			self.with_mut_state(|| {
+				let commitments = CandidateCommitments {
+					upward_messages: collation.upward_messages,
+					horizontal_messages: collation.horizontal_messages,
+					new_validation_code: collation.new_validation_code,
+					head_data: collation.head_data,
+					processed_downward_messages: collation.processed_downward_messages,
+					hrmp_watermark: collation.hrmp_watermark,
+				};
+
+				// Inject into storage for force enact
+				PendingAvailabilityCommitments::insert(id, commitments.clone());
+
+				let signature = sp_core::sr25519::Signature([0u8; 64]);
+				let public = sp_core::sr25519::Public([0u8; 32]);
+				let ccr = CandidateReceipt {
+					commitments_hash: commitments.hash(),
+					descriptor: CandidateDescriptor {
+						signature: signature.into(),
+						para_id: id,
+						relay_parent: parent,
+						collator: public.into(),
+						persisted_validation_data_hash: pvd.hash(),
+						pov_hash: collation.proof_of_validity.into_compressed().hash(),
+						erasure_root: Default::default(),
+						para_head: commitments.head_data.hash(),
+						validation_code_hash: validation_code_hash(
+							&mut rt_api,
+							parent,
+							id,
+							OccupiedCoreAssumption::TimedOut,
+						),
+					},
+				};
+
+				let core = CoreIndex(
+					Parachains::get()
+						.iter()
+						.position(|in_id| *in_id == id)
+						.expect("Parachain is onboarded. qed.")
+						.try_into()
+						.expect("Never more than u32::MAX parachains. qed"),
+				);
+
+				let cpa = FudgeCandidatePendingAvailability {
+					core,
+					hash: Default::default(),
+					descriptor: ccr.descriptor,
+					availability_votes: BitVec::new(),
+					backers: BitVec::new(),
+					relay_parent_number: parent_number,
+					backed_in_number: generation_parent.number().clone(),
+					backing_group: Default::default(),
+				};
+
+				PendingAvailability::<Runtime>::insert(
+					id,
+					cpa.using_encoded(|scale| {
+						CandidatePendingAvailability::decode(&mut scale.as_ref())
+							.expect("Same layout. qed.")
+					}),
+				);
+
+				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
+				polkadot_runtime_parachains::runtime_api_impl::v1::persisted_validation_data::<
+					Runtime,
+				>(id, OccupiedCoreAssumption::Included)
+				.unwrap();
+			})
+			.map_err(|_| ())?;
+
+			let index = self
+				.parachains
+				.iter()
+				.position(|(in_id, _)| *in_id == id)
+				.expect("Parachain is onbaorded. qed");
+			let (_, collator) = self.parachains.get(index).expect("Index is existing. qed");
+			collator.judge(CollationJudgement::Approved);
+			self.collations.remove(collation_index);
+		}
+
 		Ok(())
 	}
 
@@ -462,4 +683,40 @@ where
 
 		self.builder.with_state(Operation::Commit, Some(at), exec)
 	}
+}
+
+// TODO: Make this error instead
+fn persisted_validation_data<'a, RtApi, Block>(
+	rt_api: &mut ApiRef<'a, RtApi>,
+	parent: Block::Hash,
+	id: Id,
+	assumption: OccupiedCoreAssumption,
+) -> PersistedValidationData
+where
+	Block: BlockT,
+	RtApi: ParachainHost<Block> + ApiExt<Block>,
+{
+	rt_api.execute_in_transaction(|api| {
+		let pvd = api
+			.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
+			.unwrap()
+			.unwrap();
+		TransactionOutcome::Commit(pvd)
+	})
+}
+
+fn validation_code_hash<'a, RtApi, Block>(
+	rt_api: &mut ApiRef<'a, RtApi>,
+	parent: Block::Hash,
+	id: Id,
+	assumption: OccupiedCoreAssumption,
+) -> ValidationCodeHash
+where
+	Block: BlockT,
+	RtApi: ParachainHost<Block>,
+{
+	rt_api
+		.validation_code_hash(&BlockId::Hash(parent), id, assumption)
+		.unwrap()
+		.unwrap()
 }

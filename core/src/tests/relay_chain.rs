@@ -54,7 +54,8 @@ fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
 	DP: DigestCreator + 'static,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
 {
 	let mut provider =
 		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
@@ -147,7 +148,7 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para).unwrap();
+	builder.onboard_para(dummy_para, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 
@@ -175,7 +176,7 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para_new).unwrap();
+	builder.onboard_para(dummy_para_new, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 
