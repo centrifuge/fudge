@@ -19,7 +19,7 @@ use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WAS
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::digests::CompatibleDigestItem;
+use sp_consensus_babe::{SlotDuration, digests::CompatibleDigestItem};
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{AccountId32, CryptoTypeId, DigestItem, KeyTypeId, MultiAddress, Storage};
@@ -110,9 +110,9 @@ async fn mutating_genesis_works() {
 						.expect("Instance is initialized. qed");
 
 					let slot =
-                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                             timestamp.current_time(),
-                            std::time::Duration::from_secs(6),
+                            SlotDuration::from_millis(6 * 1000),
                         );
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -216,11 +216,14 @@ async fn build_relay_block_works() {
 						&*client, parent,
 					)?;
 
-					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					let babe_slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					//todo(nuno): sp_std::time::Duration::from_millis(
+					let slot_duration = SlotDuration::from_millis(babe_slot_duration.into());
+
 					let timestamp = FudgeInherentTimestamp::get_instance(0)
 						.expect("Instance is initialized. qed");
 					let slot =
-                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                             timestamp.current_time(),
                             slot_duration,
                         );
@@ -240,7 +243,7 @@ async fn build_relay_block_works() {
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				slot_duration,
+				SlotDuration::from_millis(slot_duration.into()),
 			),
 		));
 
@@ -299,11 +302,12 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 						&*client, parent,
 					)?;
 
-					let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					let babe_slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
+					let slot_duration = SlotDuration::from_millis(babe_slot_duration.into());
 					let timestamp = FudgeInherentTimestamp::get_instance(0)
 						.expect("Instance is initialized. qed");
 					let slot =
-                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+                        sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
                             timestamp.current_time(),
                             slot_duration,
                         );
@@ -323,7 +327,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				slot_duration,
+				SlotDuration::from_millis(slot_duration.into()),
 			),
 		));
 

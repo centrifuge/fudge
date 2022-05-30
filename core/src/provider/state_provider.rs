@@ -119,6 +119,7 @@ where
 
 		let backend =
 			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
+		//TODO(nuno): ^ this here is failing and the error is being silenced
 
 		Ok(Self {
 			backend,

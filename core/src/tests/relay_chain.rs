@@ -23,7 +23,7 @@ use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::digests::CompatibleDigestItem;
+use sp_consensus_babe::{SlotDuration, digests::CompatibleDigestItem};
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::traits::Hash as _;
@@ -108,9 +108,9 @@ async fn onboarding_parachain_works() {
 						.expect("Instance is initialized. qed");
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							timestamp.current_time(),
-							std::time::Duration::from_secs(6),
+							SlotDuration::from_millis(6 * 1000),
 						);
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -128,7 +128,7 @@ async fn onboarding_parachain_works() {
 				FudgeInherentTimestamp::get_instance(0)
 					.expect("Instance is initialised. qed")
 					.current_time(),
-				slot_duration,
+				SlotDuration::from_millis(slot_duration.into()),
 			),
 		));
 
