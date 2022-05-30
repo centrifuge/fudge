@@ -22,6 +22,7 @@ use fudge::{
 use polkadot_core_primitives::{Block as RBlock, Header as RHeader};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi};
 
+#[allow(dead_code)]
 type RCidp = Box<
 	dyn CreateInherentDataProviders<
 		RBlock,
@@ -34,6 +35,8 @@ type RCidp = Box<
 		),
 	>,
 >;
+
+#[allow(dead_code)]
 type PCidp = Box<
 	dyn CreateInherentDataProviders<
 		PBlock,
@@ -45,17 +48,21 @@ type PCidp = Box<
 		),
 	>,
 >;
+
+#[allow(dead_code)]
 type Dp = Box<dyn DigestCreator + Send + Sync>;
 
 fn main() {}
 
+#[allow(dead_code)]
 const PARA_ID: u32 = 2002u32;
+
 #[fudge::companion]
 struct TestEnv {
 	#[fudge::parachain(PARA_ID)]
-	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
+	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp, ()>,
 	#[fudge::parachain(2000u32)]
-	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp>,
+	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp, ()>,
 	#[fudge::relaychain]
-	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, Dp>,
+	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, Dp, ()>,
 }
