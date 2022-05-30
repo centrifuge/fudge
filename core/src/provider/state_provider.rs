@@ -112,7 +112,7 @@ where
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
-			source: DatabaseSource::Custom(Arc::new(MemDb::new())),
+			source: DatabaseSource::Custom { db: Arc::new(MemDb::new()), require_create_flag: false},
 			keep_blocks: KeepBlocks::All,
 			// transaction_storage: TransactionStorageMode::BlockBody,
 		};
