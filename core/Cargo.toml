@@ -62,10 +62,12 @@ polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", bra
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.20" }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.20" }
 polkadot-runtime-parachains =  { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.20" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.20" }
 
 # Cumulus dependencies
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.20" }
 cumulus-relay-chain-inprocess-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.20" }
+cumulus-relay-chain-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.20" }
 
 [dev-dependencies]
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.20" }

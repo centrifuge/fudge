@@ -19,7 +19,8 @@ use crate::{
 	PoolState,
 };
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
-use cumulus_relay_chain_local::RelayChainLocal;
+use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
+use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface};
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
@@ -181,23 +182,19 @@ where
 		let parent = self.client.info().best_hash;
 
 		//nuno: OLD code
-		let relay_interface = RelayChainLocal::new(
-			self.client.clone(),
-			self.backend.clone(),
-			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
-			None,
-		);
+		// let relay_interface = RelayChainLocal::new(
+		// 	self.client.clone(),
+		// 	self.backend.clone(),
+		// 	Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+		// 	None,
+		// );
 		//nuno: try new
-		let (relay_chain_interface, _) = build_inprocess_relay_chain(
-			polkadot_config,
-			&parachain_config,
-			telemetry_worker_handle,
-			&mut task_manager,
-		)
-		.map_err(|e| match e {
-			RelayChainError::ServiceError(polkadot_service::Error::Sub(x)) => x,
-			s => s.to_string().into(),
-		})?;
+		// let (relay_chain_interface, _) = build_inprocess_relay_chain(
+		// 	polkadot_config,
+		// 	&parachain_config,
+		// 	telemetry_worker_handle,
+		// 	&mut task_manager,
+		// ).ok()?;
 
 		let api = self.client.runtime_api();
 		let persisted_validation_data = api
@@ -210,7 +207,7 @@ where
 			.unwrap();
 		ParachainInherentData::create_at(
 			parent,
-			&relay_interface,
+			<dyn RelayChainInterface>::default(),
 			&persisted_validation_data,
 			self.id,
 		)
