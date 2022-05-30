@@ -61,7 +61,7 @@ where
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
-			state_pruning: PruningMode::ArchiveAll,
+			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::RocksDb {
 				path: path.clone(),
 				cache_size: 0,
@@ -111,7 +111,7 @@ where
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
-			state_pruning: PruningMode::ArchiveAll,
+			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::Custom(Arc::new(MemDb::new())),
 			keep_blocks: KeepBlocks::All,
 			// transaction_storage: TransactionStorageMode::BlockBody,
