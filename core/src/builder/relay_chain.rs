@@ -10,8 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::collections::BTreeMap;
-use std::pin::Pin;
 use crate::builder::parachain::FudgeParaChain;
 use crate::digest::DigestCreator;
 use crate::inherent::ArgsProvider;
@@ -21,15 +19,20 @@ use crate::{
 	PoolState,
 };
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
-use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
+use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
 use frame_support::metadata::StorageEntryModifier::Default;
 use futures::Stream;
 use parking_lot::Mutex;
-use polkadot_core_primitives::{Block as PBlock, Hash, Header, InboundDownwardMessage, InboundHrmpMessage};
+use polkadot_core_primitives::{
+	Block as PBlock, Hash, Header, InboundDownwardMessage, InboundHrmpMessage,
+};
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
 use polkadot_primitives::runtime_api::ParachainHost;
-use polkadot_primitives::v2::{CommittedCandidateReceipt, OccupiedCoreAssumption, PersistedValidationData, SessionIndex, ValidatorId};
+use polkadot_primitives::v2::{
+	CommittedCandidateReceipt, OccupiedCoreAssumption, PersistedValidationData, SessionIndex,
+	ValidatorId,
+};
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use polkadot_service::Handle;
 use sc_client_api::{
@@ -185,29 +188,14 @@ where
 		+ sc_block_builder::BlockBuilderProvider<TFullBackend<PBlock>, PBlock, C>,
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
-		// None
-
-		let parent = self.client.info().best_hash;
-		//
-		// //nuno: OLD code
-		// // let relay_interface = RelayChainLocal::new(
-		// // 	self.client.clone(),
-		// // 	self.backend.clone(),
-		// // 	Arc::new(Mutex::new(Box::new(NoNetwork {}))),
-		// // 	None,
-		// // );
-		// //nuno: try new
-		// let (relay_chain_interface, _) = build_inprocess_relay_chain(
-		// 	polkadot_config,
-		// 	&parachain_config,
-		// 	telemetry_worker_handle,
-		// 	&mut task_manager,
-		// 	None,
-		// ).ok()?;
-
-		let relay_chain_interface = MockRelayChainInterface{};
-
+		let relay_chain_interface = RelayChainInProcessInterface::new(
+			self.client.clone(),
+			self.backend.clone(),
+			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+			None,
+		);
 		let api = self.client.runtime_api();
+		let parent = self.client.info().best_hash;
 		let persisted_validation_data = api
 			.persisted_validation_data(
 				&BlockId::Hash(parent),
@@ -224,74 +212,6 @@ where
 			self.id,
 		)
 		.await
-	}
-}
-
-
-use polkadot_overseer::Handle as OverseerHandle;
-
-pub struct MockRelayChainInterface;
-
-#[async_trait::async_trait]
-impl RelayChainInterface for MockRelayChainInterface {
-	async fn get_storage_by_key(&self, relay_parent: Hash, key: &[u8]) -> RelayChainResult<Option<StorageValue>> {
-		Ok(None)
-	}
-
-	async fn validators(&self, block_id: Hash) -> RelayChainResult<Vec<ValidatorId>> {
-		todo!()
-	}
-
-	async fn best_block_hash(&self) -> RelayChainResult<Hash> {
-		todo!()
-	}
-
-	async fn retrieve_dmq_contents(&self, para_id: Id, relay_parent: Hash) -> RelayChainResult<Vec<InboundDownwardMessage>> {
-		Ok(vec![])
-	}
-
-	async fn retrieve_all_inbound_hrmp_channel_contents(&self, para_id: Id, relay_parent: Hash) -> RelayChainResult<BTreeMap<Id, Vec<InboundHrmpMessage>>> {
-		Ok(BTreeMap::default())
-	}
-
-	async fn persisted_validation_data(&self, block_id: Hash, para_id: Id, _: OccupiedCoreAssumption) -> RelayChainResult<Option<PersistedValidationData>> {
-		todo!()
-	}
-
-	async fn candidate_pending_availability(&self, block_id: Hash, para_id: Id) -> RelayChainResult<Option<CommittedCandidateReceipt>> {
-		todo!()
-	}
-
-	async fn session_index_for_child(&self, block_id: Hash) -> RelayChainResult<SessionIndex> {
-		todo!()
-	}
-
-	async fn import_notification_stream(&self) -> RelayChainResult<Pin<Box<dyn Stream<Item=Header> + Send>>> {
-		todo!()
-	}
-
-	async fn new_best_notification_stream(&self) -> RelayChainResult<Pin<Box<dyn Stream<Item=Header> + Send>>> {
-		todo!()
-	}
-
-	async fn wait_for_block(&self, hash: Hash) -> RelayChainResult<()> {
-		todo!()
-	}
-
-	async fn finality_notification_stream(&self) -> RelayChainResult<Pin<Box<dyn Stream<Item=Header> + Send>>> {
-		todo!()
-	}
-
-	async fn is_major_syncing(&self) -> RelayChainResult<bool> {
-		todo!()
-	}
-
-	fn overseer_handle(&self) -> RelayChainResult<Option<OverseerHandle>> {
-		todo!()
-	}
-
-	async fn prove_read(&self, relay_parent: Hash, relevant_keys: &Vec<Vec<u8>>) -> RelayChainResult<StorageProof> {
-		todo!()
 	}
 }
 

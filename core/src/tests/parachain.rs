@@ -30,7 +30,7 @@ use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::{SlotDuration, digests::CompatibleDigestItem};
+use sp_consensus_babe::{digests::CompatibleDigestItem, SlotDuration};
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{DigestItem, Storage};

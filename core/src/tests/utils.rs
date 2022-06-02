@@ -31,4 +31,3 @@ pub fn init_logs() {
 		tracing_subscriber::fmt::init();
 	}
 }
-

@@ -2516,7 +2516,6 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.0",
  "polkadot-core-primitives",
- "polkadot-overseer",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime",
