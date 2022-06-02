@@ -114,14 +114,14 @@ where
 			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::Custom {
 				db: Arc::new(MemDb::new()),
-				require_create_flag: false,
+				require_create_flag: true,
 			},
 			keep_blocks: KeepBlocks::All,
-			// transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
 		let backend =
-			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
+			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY)
+				.map_err(|e| panic!("Nuno: Failed here {:?}", e) )?);
 		//TODO(nuno): ^ this here is failing and the error is being silenced
 
 		Ok(Self {
