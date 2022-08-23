@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 fudge = { path = "../fudge" }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 
 centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", rev = "ea784b0a08b480d4a9738160bfa9068c1be811e2"}
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.24" }

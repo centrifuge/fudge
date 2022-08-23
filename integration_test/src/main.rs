@@ -50,7 +50,10 @@ type PCidp = Box<
 >;
 
 #[allow(dead_code)]
-type Dp = Box<dyn DigestCreator + Send + Sync>;
+type PDp = Box<dyn DigestCreator<PBlock> + Send + Sync>;
+
+#[allow(dead_code)]
+type RDp = Box<dyn DigestCreator<RBlock> + Send + Sync>;
 
 fn main() {}
 
@@ -60,9 +63,9 @@ const PARA_ID: u32 = 2002u32;
 #[fudge::companion]
 struct TestEnv {
 	#[fudge::parachain(PARA_ID)]
-	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, Dp, ()>,
+	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, PDp, ()>,
 	#[fudge::parachain(2000u32)]
-	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, Dp, ()>,
+	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, PDp, ()>,
 	#[fudge::relaychain]
-	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, Dp, ()>,
+	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, RDp, ()>,
 }
