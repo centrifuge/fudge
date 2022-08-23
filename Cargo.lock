@@ -2469,6 +2469,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "node-primitives",
+ "pallet-aura",
  "pallet-babe",
  "pallet-balances",
  "pallet-timestamp",

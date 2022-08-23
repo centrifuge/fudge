@@ -77,3 +77,4 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polka
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
 tracing-subscriber = "0.2"
 centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", rev = "ea784b0a08b480d4a9738160bfa9068c1be811e2"}
+pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }

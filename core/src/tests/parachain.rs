@@ -20,7 +20,8 @@ use crate::provider::EnvProvider;
 use crate::RelaychainBuilder;
 use crate::{FudgeParaChain, ParachainBuilder};
 use centrifuge_runtime::{
-	Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi, WASM_BINARY as PCODE,
+	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
+	WASM_BINARY as PCODE,
 };
 use frame_support::traits::GenesisBuild;
 use polkadot_core_primitives::{Block as RTestBlock, Header as RTestHeader};
@@ -62,7 +63,7 @@ type RelayBuilder<R> = RelaychainBuilder<
 
 fn generate_default_setup_parachain<CIDP, DP>(
 	manager: &TaskManager,
-	storage: Storage,
+	mut storage: Storage,
 	cidp: Box<
 		dyn FnOnce(
 			Arc<TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>>,
@@ -91,6 +92,11 @@ where
 		EnvProvider::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			PCODE.unwrap(),
 		);
+	pallet_aura::GenesisConfig::<PRuntime> {
+		authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
+	}
+	.assimilate_storage(&mut storage)
+	.unwrap();
 	provider.insert_storage(storage);
 
 	let (client, backend) = provider.init_default(

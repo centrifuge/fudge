@@ -113,7 +113,7 @@ where
 			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::Custom {
 				db: Arc::new(MemDb::new()),
-				require_create_flag: false,
+				require_create_flag: true,
 			},
 			keep_blocks: KeepBlocks::All,
 		};
