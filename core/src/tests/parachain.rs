@@ -12,7 +12,7 @@
 
 use crate::builder::relay_chain::types::Heads;
 ///! Test for the ParachainBuilder
-use crate::digest::{DigestCreator, FudgeBabeDigest};
+use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
 use crate::inherent::{
 	FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
 };
@@ -20,7 +20,8 @@ use crate::provider::EnvProvider;
 use crate::RelaychainBuilder;
 use crate::{FudgeParaChain, ParachainBuilder};
 use centrifuge_runtime::{
-	Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi, WASM_BINARY as PCODE,
+	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
+	WASM_BINARY as PCODE,
 };
 use frame_support::traits::GenesisBuild;
 use polkadot_core_primitives::{Block as RTestBlock, Header as RTestHeader};
@@ -30,10 +31,10 @@ use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::digests::CompatibleDigestItem;
+use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::{DigestItem, Storage};
+use sp_runtime::Storage;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -54,7 +55,7 @@ type RelayBuilder<R> = RelaychainBuilder<
 		>,
 	>,
 	(),
-	Box<dyn DigestCreator + Send + Sync>,
+	Box<dyn DigestCreator<RTestBlock> + Send + Sync>,
 	R,
 	TFullBackend<RTestBlock>,
 	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -62,13 +63,17 @@ type RelayBuilder<R> = RelaychainBuilder<
 
 fn generate_default_setup_parachain<CIDP, DP>(
 	manager: &TaskManager,
-	storage: Storage,
+	mut storage: Storage,
 	cidp: Box<
 		dyn FnOnce(
 			Arc<TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>>,
 		) -> CIDP,
 	>,
-	dp: DP,
+	dp: Box<
+		dyn FnOnce(
+			Arc<TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>>,
+		) -> DP,
+	>,
 ) -> ParachainBuilder<
 	PTestBlock,
 	PTestRtApi,
@@ -81,12 +86,17 @@ fn generate_default_setup_parachain<CIDP, DP>(
 >
 where
 	CIDP: CreateInherentDataProviders<PTestBlock, ()> + 'static,
-	DP: DigestCreator + 'static,
+	DP: DigestCreator<PTestBlock> + 'static,
 {
 	let mut provider =
 		EnvProvider::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			PCODE.unwrap(),
 		);
+	pallet_aura::GenesisConfig::<PRuntime> {
+		authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
+	}
+	.assimilate_storage(&mut storage)
+	.unwrap();
 	provider.insert_storage(storage);
 
 	let (client, backend) = provider.init_default(
@@ -94,14 +104,13 @@ where
 		Box::new(manager.spawn_handle()),
 	);
 	let client = Arc::new(client);
-	let clone_client = client.clone();
 
 	ParachainBuilder::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
 		manager,
 		backend,
-		client,
-		cidp(clone_client),
-		dp,
+		client.clone(),
+		cidp(client.clone()),
+		dp(client.clone()),
 	)
 }
 
@@ -125,7 +134,7 @@ fn generate_default_setup_relay_chain<Runtime>(
 		>,
 	>,
 	(),
-	Box<dyn DigestCreator + Send + Sync>,
+	Box<dyn DigestCreator<RTestBlock> + Send + Sync>,
 	Runtime,
 	TFullBackend<RTestBlock>,
 	TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
@@ -175,9 +184,9 @@ where
 						.expect("Instance is initialized. qed");
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							timestamp.current_time(),
-							std::time::Duration::from_secs(6),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
 						);
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -187,19 +196,9 @@ where
 		},
 	);
 
-	let dp = Box::new(move || async move {
-		let mut digest = sp_runtime::Digest::default();
-
-		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0)
-					.expect("Instance is initialised. qed")
-					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
-			),
-		));
-
+	let dp = Box::new(move |parent, inherents| async move {
+		let babe = FudgeBabeDigest::<RTestBlock>::new();
+		let digest = babe.build_digest(&parent, &inherents).await?;
 		Ok(digest)
 	});
 
@@ -234,9 +233,9 @@ async fn parachain_creates_correct_inherents() {
 					FudgeInherentTimestamp::get_instance(1).expect("Instance is initialized. qed");
 
 				let slot =
-					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 						timestamp.current_time(),
-						std::time::Duration::from_secs(12),
+						SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
 					);
 				let inherent = inherent_builder_clone.parachain_inherent().await.unwrap();
 				let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
@@ -244,7 +243,30 @@ async fn parachain_creates_correct_inherents() {
 			}
 		}
 	});
-	let dp = Box::new(move || async move { Ok(sp_runtime::Digest::default()) });
+	let dp = Box::new(
+		|clone_client: Arc<
+			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent, inherents| {
+				let client = clone_client.clone();
+
+				async move {
+					let aura = FudgeAuraDigest::<
+						PTestBlock,
+						TFullClient<
+							PTestBlock,
+							PTestRtApi,
+							TestExec<sp_io::SubstrateHostFunctions>,
+						>,
+					>::new(&*client);
+
+					let digest = aura.build_digest(&parent, &inherents).await?;
+					Ok(digest)
+				}
+			}
+		},
+	);
+
 	let mut builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
 
 	let para = FudgeParaChain {

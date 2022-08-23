@@ -37,7 +37,7 @@ fn get_fudge_crate() -> SynResult<TokenStream> {
 }
 
 fn get_codec_crate() -> SynResult<TokenStream> {
-	let found_crate = crate_name("codec").map_err(|_| {
+	let found_crate = crate_name("parity-scale-codec").map_err(|_| {
 		syn::Error::new(
 			Span::call_site(),
 			"Crate codec must be present for companion macro.",

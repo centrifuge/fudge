@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 use crate::builder::parachain::FudgeParaBuild;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_inherents::{Error, InherentData, InherentDataProvider, InherentIdentifier};

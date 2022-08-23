@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::{DigestCreator, FudgeBabeDigest};
+use crate::digest::{DigestCreator, DigestProvider, FudgeBabeDigest};
 use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
 use crate::provider::EnvProvider;
 use crate::FudgeParaChain;
@@ -23,11 +23,11 @@ use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::digests::CompatibleDigestItem;
+use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::traits::Hash as _;
-use sp_runtime::{DigestItem, Storage};
+use sp_runtime::Storage;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -53,7 +53,7 @@ fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 >
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
-	DP: DigestCreator + 'static,
+	DP: DigestCreator<TestBlock> + 'static,
 	Runtime: paras::Config + frame_system::Config,
 {
 	let mut provider =
@@ -108,9 +108,9 @@ async fn onboarding_parachain_works() {
 						.expect("Instance is initialized. qed");
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							timestamp.current_time(),
-							std::time::Duration::from_secs(6),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
 						);
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -119,18 +119,11 @@ async fn onboarding_parachain_works() {
 			}
 		},
 	);
-	let dp = Box::new(move || async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
-		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0)
-					.expect("Instance is initialised. qed")
-					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
-			),
-		));
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &parent, &inherents).await?;
 
 		Ok(digest)
 	});
