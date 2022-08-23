@@ -72,7 +72,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
+	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -166,16 +166,18 @@ where
 			})
 			.unwrap();
 
+		let parent = self.builder.latest_header();
+		let inherents = provider.create_inherent_data().unwrap();
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| {
+				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
+					.unwrap()
+			})
 			.unwrap();
-		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
-		//       afterwards
-		let inherent = provider.create_inherent_data().unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			inherent,
+			inherents,
 			digest,
 			Duration::from_secs(60),
 			6_000_000,

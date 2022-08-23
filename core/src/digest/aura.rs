@@ -11,45 +11,64 @@
 // GNU General Public License for more details.
 
 use crate::digest::DigestProvider;
-use codec::Encode;
-use sp_consensus_babe::digests::{PreDigest, SecondaryPlainPreDigest};
-use sp_consensus_babe::inherents::BabeInherentData;
-use sp_consensus_babe::BABE_ENGINE_ID;
+use sc_client_api::{AuxStore, UsageProvider};
+use sp_api::ProvideRuntimeApi;
+use sp_consensus_aura::digests::CompatibleDigestItem;
+use sp_consensus_aura::sr25519::{AuthorityId, AuthoritySignature};
+use sp_consensus_aura::{AuraApi, Slot, SlotDuration};
 use sp_inherents::InherentData;
-use sp_runtime::traits::Block as BlockT;
+use sp_runtime::traits::Block;
 use sp_runtime::{Digest as SPDigest, DigestItem};
 use sp_std::marker::PhantomData;
+use sp_timestamp::TimestampInherentData;
 
-pub struct Digest<B> {
-	_phantom: PhantomData<B>,
+pub struct Digest<B, C> {
+	slot_duration: SlotDuration,
+	_phantom: PhantomData<(B, C)>,
 }
 
-impl<B> Digest<B> {
-	pub fn new() -> Self {
+impl<B, C> Digest<B, C>
+where
+	B: Block,
+	C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
+	C::Api: AuraApi<B, AuthorityId>,
+{
+	pub fn new(client: &C) -> Self {
+		let slot_duration = sc_consensus_aura::slot_duration(client)
+			.expect("slot_duration is always present; qed.");
+
 		Self {
+			slot_duration,
 			_phantom: Default::default(),
 		}
 	}
+}
 
+impl<B, C> Digest<B, C>
+where
+	B: Block,
+{
 	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, ()> {
-		let slot = inherents
-			.babe_inherent_data()
+		let timestamp = inherents
+			.timestamp_inherent_data()
 			.map_err(|_| ())?
-			.ok_or_else(|| ())?;
+			.expect("Timestamp is always present; qed");
 
-		let predigest = PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-			authority_index: 0,
-			slot,
-		});
-
-		Ok(DigestItem::PreRuntime(BABE_ENGINE_ID, predigest.encode()))
+		// we always calculate the new slot number based on the current time-stamp and the slot
+		// duration.
+		Ok(
+			<DigestItem as CompatibleDigestItem<AuthoritySignature>>::aura_pre_digest(
+				Slot::from_timestamp(timestamp, self.slot_duration),
+			),
+		)
 	}
 }
 
 #[async_trait::async_trait]
-impl<B> DigestProvider<B> for Digest<B>
+impl<B, C> DigestProvider<B> for Digest<B, C>
 where
-	B: BlockT,
+	B: Block,
+	C: std::marker::Sync,
 {
 	async fn build_digest(
 		&self,

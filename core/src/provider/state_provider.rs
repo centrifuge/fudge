@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 
 use sc_client_api::Backend;
-use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks, TransactionStorageMode};
+use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks};
 use sc_service::PruningMode;
 use sp_core::storage::well_known_keys::CODE;
 use sp_database::MemDb;
@@ -61,13 +61,12 @@ where
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
-			state_pruning: PruningMode::ArchiveAll,
+			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::RocksDb {
 				path: path.clone(),
 				cache_size: 0,
 			},
 			keep_blocks: KeepBlocks::All,
-			transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
 		let backend = Arc::new(
@@ -111,10 +110,12 @@ where
 		let settings = DatabaseSettings {
 			state_cache_size: 0,
 			state_cache_child_ratio: None,
-			state_pruning: PruningMode::ArchiveAll,
-			source: DatabaseSource::Custom(Arc::new(MemDb::new())),
+			state_pruning: Some(PruningMode::ArchiveAll),
+			source: DatabaseSource::Custom {
+				db: Arc::new(MemDb::new()),
+				require_create_flag: false,
+			},
 			keep_blocks: KeepBlocks::All,
-			transaction_storage: TransactionStorageMode::BlockBody,
 		};
 
 		let backend =

@@ -155,7 +155,7 @@ where
 		&mut self,
 		execute: impl FnOnce() -> R,
 	) -> (R, StorageChanges<B::Transaction, H>) {
-		let parent_hash = self.overlay.storage_root(
+		let _parent_hash = self.overlay.storage_root(
 			self.backend,
 			&mut self.storage_transaction_cache,
 			StateVersion::V0,
@@ -172,7 +172,6 @@ where
 			self.overlay
 				.drain_storage_changes::<B, H>(
 					self.backend,
-					parent_hash,
 					&mut self.storage_transaction_cache,
 					StateVersion::V0,
 				)

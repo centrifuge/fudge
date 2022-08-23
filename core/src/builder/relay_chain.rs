@@ -19,12 +19,11 @@ use crate::{
 	PoolState,
 };
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
-use cumulus_relay_chain_local::RelayChainLocal;
+use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
-use polkadot_primitives::v1::OccupiedCoreAssumption;
-use polkadot_primitives::v2::ParachainHost;
+use polkadot_primitives::{runtime_api::ParachainHost, v2::OccupiedCoreAssumption};
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
@@ -179,7 +178,7 @@ where
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
 		let parent = self.client.info().best_hash;
-		let relay_interface = RelayChainLocal::new(
+		let relay_interface = RelayChainInProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
 			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
@@ -243,7 +242,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
+	DP: DigestCreator<Block> + 'static,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	Runtime: paras::Config + frame_system::Config,
 	C::Api: BlockBuilder<Block>
@@ -398,16 +397,18 @@ where
 			})
 			.unwrap();
 
+		let parent = self.builder.latest_header();
+		let inherents = provider.create_inherent_data().unwrap();
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| {
+				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
+					.unwrap()
+			})
 			.unwrap();
-		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
-		//       afterwards
-		let inherent = provider.create_inherent_data().unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			inherent,
+			inherents,
 			digest,
 			Duration::from_secs(60),
 			6_000_000,

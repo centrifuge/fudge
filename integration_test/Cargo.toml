@@ -9,10 +9,10 @@ edition = "2021"
 fudge = { path = "../fudge" }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 
-centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", rev = "d86a8316c1e5097c857eb350b439f682b00fd398"}
-polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.17" }
-polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.17" }
-sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = true, branch = "polkadot-v0.9.17" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.17" }
+centrifuge-runtime = {git = "https://github.com/centrifuge/centrifuge-chain", rev = "ea784b0a08b480d4a9738160bfa9068c1be811e2"}
+polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.24" }
+polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.24" }
+sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = true, branch = "polkadot-v0.9.24" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.24" }
