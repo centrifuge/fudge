@@ -10,23 +10,22 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::provider::state_provider::StateProvider;
+use std::path::PathBuf;
+
 pub use externalities_provider::ExternalitiesProvider;
 use sc_executor::RuntimeVersionOf;
-use sc_service::config::ExecutionStrategies;
 use sc_service::{
-	ClientConfig, Configuration, KeystoreContainer, TFullBackend, TFullCallExecutor, TFullClient,
-	TaskManager,
+	config::ExecutionStrategies, ClientConfig, Configuration, KeystoreContainer, TFullBackend,
+	TFullCallExecutor, TFullClient, TaskManager,
 };
 use sp_api::{BlockT, ConstructRuntimeApi};
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::BuildStorage;
-use sp_std::marker::PhantomData;
-use sp_std::str::FromStr;
-use sp_std::sync::Arc;
+use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
 use sp_storage::Storage;
-use std::path::PathBuf;
+
+use crate::provider::state_provider::StateProvider;
 
 mod externalities_provider;
 mod state_provider;

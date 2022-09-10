@@ -10,15 +10,17 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::DigestProvider;
 use codec::Encode;
-use sp_consensus_babe::digests::{PreDigest, SecondaryPlainPreDigest};
-use sp_consensus_babe::inherents::BabeInherentData;
-use sp_consensus_babe::BABE_ENGINE_ID;
+use sp_consensus_babe::{
+	digests::{PreDigest, SecondaryPlainPreDigest},
+	inherents::BabeInherentData,
+	BABE_ENGINE_ID,
+};
 use sp_inherents::InherentData;
-use sp_runtime::traits::Block as BlockT;
-use sp_runtime::{Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block as BlockT, Digest as SPDigest, DigestItem};
 use sp_std::marker::PhantomData;
+
+use crate::digest::DigestProvider;
 
 pub struct Digest<B> {
 	_phantom: PhantomData<B>,

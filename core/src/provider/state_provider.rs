@@ -10,16 +10,16 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::path::PathBuf;
+
 use sc_client_api::Backend;
 use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource};
 use sc_service::PruningMode;
 use sp_core::storage::well_known_keys::CODE;
 use sp_database::MemDb;
-use sp_runtime::traits::Block as BlockT;
-use sp_runtime::BuildStorage;
+use sp_runtime::{traits::Block as BlockT, BuildStorage};
 use sp_std::{marker::PhantomData, sync::Arc};
 use sp_storage::Storage;
-use std::path::PathBuf;
 
 pub const CANONICALIZATION_DELAY: u64 = 4096;
 

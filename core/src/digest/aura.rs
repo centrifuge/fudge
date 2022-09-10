@@ -10,17 +10,19 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::DigestProvider;
 use sc_client_api::{AuxStore, UsageProvider};
 use sp_api::ProvideRuntimeApi;
-use sp_consensus_aura::digests::CompatibleDigestItem;
-use sp_consensus_aura::sr25519::{AuthorityId, AuthoritySignature};
-use sp_consensus_aura::{AuraApi, Slot, SlotDuration};
+use sp_consensus_aura::{
+	digests::CompatibleDigestItem,
+	sr25519::{AuthorityId, AuthoritySignature},
+	AuraApi, Slot, SlotDuration,
+};
 use sp_inherents::InherentData;
-use sp_runtime::traits::Block;
-use sp_runtime::{Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block, Digest as SPDigest, DigestItem};
 use sp_std::marker::PhantomData;
 use sp_timestamp::TimestampInherentData;
+
+use crate::digest::DigestProvider;
 
 pub struct Digest<B, C> {
 	slot_duration: SlotDuration,

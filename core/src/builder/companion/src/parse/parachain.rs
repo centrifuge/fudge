@@ -41,9 +41,10 @@ impl ToTokens for ParaId {
 }
 
 pub mod helper {
-	use crate::parse::CompanionDef;
 	use proc_macro2::TokenStream;
 	use quote::{quote, ToTokens};
+
+	use crate::parse::CompanionDef;
 
 	pub fn parachain_ids(def: &CompanionDef) -> Vec<TokenStream> {
 		def.parachains.iter().map(|para| para.id.clone()).collect()

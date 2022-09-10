@@ -10,12 +10,12 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::parse::parachain;
-use crate::parse::CompanionDef;
 use proc_macro2::{Ident, Span, TokenStream};
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::{quote, ToTokens};
 use syn::Result as SynResult;
+
+use crate::parse::{parachain, CompanionDef};
 
 fn get_fudge_crate() -> SynResult<TokenStream> {
 	let found_crate = crate_name("fudge").map_err(|_| {

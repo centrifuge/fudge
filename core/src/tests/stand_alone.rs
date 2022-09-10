@@ -10,10 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::{DigestCreator, DigestProvider, FudgeBabeDigest};
-use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
-use crate::provider::EnvProvider;
-use crate::StandAloneBuilder;
 use frame_benchmarking::account;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
@@ -25,6 +21,13 @@ use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
+
+use crate::{
+	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
+	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
+	provider::EnvProvider,
+	StandAloneBuilder,
+};
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
