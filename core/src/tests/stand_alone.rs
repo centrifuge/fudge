@@ -88,7 +88,8 @@ async fn mutating_genesis_works() {
 	.build_storage()
 	.unwrap();
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	let instance =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -106,7 +107,7 @@ async fn mutating_genesis_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance)
 						.expect("Instance is initialized. qed");
 
 					let slot =
@@ -205,7 +206,8 @@ async fn build_relay_block_works() {
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	let instance =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -223,7 +225,7 @@ async fn build_relay_block_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance)
 						.expect("Instance is initialized. qed");
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
@@ -280,7 +282,8 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	let instance =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -298,7 +301,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance)
 						.expect("Instance is initialized. qed");
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(

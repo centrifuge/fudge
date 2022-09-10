@@ -86,7 +86,8 @@ async fn onboarding_parachain_works() {
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	let instance =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -104,7 +105,7 @@ async fn onboarding_parachain_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance)
 						.expect("Instance is initialized. qed");
 
 					let slot =

@@ -162,7 +162,8 @@ where
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	let instance =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -180,7 +181,7 @@ where
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance)
 						.expect("Instance is initialized. qed");
 
 					let slot =
@@ -223,14 +224,15 @@ async fn parachain_creates_correct_inherents() {
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance
-	FudgeInherentTimestamp::new(1, sp_std::time::Duration::from_secs(12), None);
+	let instance_para =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
 
 	let cidp = Box::new(|_| {
 		move |_parent: H256, ()| {
 			let inherent_builder_clone = inherent_builder.clone();
 			async move {
-				let timestamp =
-					FudgeInherentTimestamp::get_instance(1).expect("Instance is initialized. qed");
+				let timestamp = FudgeInherentTimestamp::get_instance(instance_para)
+					.expect("Instance is initialized. qed");
 
 				let slot =
 					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
