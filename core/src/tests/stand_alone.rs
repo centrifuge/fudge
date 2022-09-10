@@ -87,11 +87,12 @@ async fn mutating_genesis_works() {
 	}
 	.build_storage()
 	.unwrap();
-	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
-		|clone_client: Arc<
+		move |clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
 			move |parent: H256, ()| {
@@ -106,7 +107,7 @@ async fn mutating_genesis_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 						.expect("Instance is initialized. qed");
 
 					let slot =
@@ -204,11 +205,12 @@ async fn build_relay_block_works() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
-		|clone_client: Arc<
+		move |clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
 			move |parent: H256, ()| {
@@ -223,7 +225,7 @@ async fn build_relay_block_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 						.expect("Instance is initialized. qed");
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
@@ -279,11 +281,12 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
-		|clone_client: Arc<
+		move |clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
 			move |parent: H256, ()| {
@@ -298,7 +301,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 						.expect("Instance is initialized. qed");
 					let slot =
 						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(

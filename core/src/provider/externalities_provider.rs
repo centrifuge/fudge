@@ -53,7 +53,7 @@ where
 		)
 	}
 	/*
-	/// Create a new instance of `TestExternalities` with storage.
+	/// Create a new instance_id of `TestExternalities` with storage.
 	pub fn new(storage: Storage) -> Self {
 		Self::new_with_code(&[], storage)
 	}
@@ -63,7 +63,7 @@ where
 		Self::new_with_code(&[], Storage::default())
 	}
 
-	/// Create a new instance of `TestExternalities` with code and storage.
+	/// Create a new instance_id of `TestExternalities` with code and storage.
 	pub fn new_with_code(code: &[u8], mut storage: Storage) -> Self {
 		let mut overlay = OverlayedChanges::default();
 		let changes_trie_config = storage
@@ -113,7 +113,7 @@ where
 		self.backend.insert(vec![(None, vec![(k, Some(v))])]);
 	}
 
-	/// Registers the given extension for this instance.
+	/// Registers the given extension for this instance_id.
 	pub fn register_extension<E: Any + Extension>(&mut self, ext: E) {
 		self.extensions.register(ext);
 	}
