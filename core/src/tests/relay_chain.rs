@@ -10,12 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::{DigestCreator, DigestProvider, FudgeBabeDigest};
-use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
-use crate::provider::EnvProvider;
-use crate::FudgeParaChain;
-use crate::RelayChainTypes;
-use crate::RelaychainBuilder;
 use centrifuge_runtime::WASM_BINARY as PARA_CODE;
 use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
@@ -26,10 +20,16 @@ use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::traits::Hash as _;
-use sp_runtime::Storage;
+use sp_runtime::{traits::Hash as _, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
+
+use crate::{
+	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
+	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
+	provider::EnvProvider,
+	FudgeParaChain, RelayChainTypes, RelaychainBuilder,
+};
 
 fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 	manager: &TaskManager,

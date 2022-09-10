@@ -15,10 +15,14 @@
 use sp_core::sp_std::sync::Arc;
 use sp_inherents::{InherentData, InherentIdentifier};
 use sp_runtime::SaturatedConversion;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::sync::atomic::{AtomicU64, Ordering};
-use sp_std::sync::Mutex;
-use sp_std::time::Duration;
+use sp_std::{
+	collections::btree_map::BTreeMap,
+	sync::{
+		atomic::{AtomicU64, Ordering},
+		Mutex,
+	},
+	time::Duration,
+};
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
 
 lazy_static::lazy_static!(

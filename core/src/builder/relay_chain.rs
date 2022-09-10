@@ -10,14 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::builder::parachain::FudgeParaChain;
-use crate::digest::DigestCreator;
-use crate::inherent::ArgsProvider;
-use crate::{
-	builder::core::{Builder, Operation},
-	types::StoragePair,
-	PoolState,
-};
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use polkadot_core_primitives::Block as PBlock;
@@ -36,20 +28,32 @@ use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageP
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
 use sp_consensus_babe::BabeApi;
-use sp_core::traits::CodeExecutor;
-use sp_core::H256;
+use sp_core::{traits::CodeExecutor, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
-use sp_runtime::traits::BlockIdTo;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, BlockIdTo},
+};
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use types::*;
 
+use crate::{
+	builder::{
+		core::{Builder, Operation},
+		parachain::FudgeParaChain,
+	},
+	digest::DigestCreator,
+	inherent::ArgsProvider,
+	types::StoragePair,
+	PoolState,
+};
+
 /// Recreating private storage types for easier handling storage access
 pub mod types {
-	use frame_support::traits::StorageInstance;
 	use frame_support::{
 		storage::types::{StorageMap, StorageValue, ValueQuery},
+		traits::StorageInstance,
 		Identity, Twox64Concat,
 	};
 	use polkadot_parachain::primitives::{
@@ -59,74 +63,74 @@ pub mod types {
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
+		const STORAGE_PREFIX: &'static str = "Parachains";
+
 		fn pallet_prefix() -> &'static str {
 			"ParaLifecycles"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Parachains";
 	}
 	pub type ParaLifecycles = StorageMap<ParaLifecyclesPrefix, Twox64Concat, ParaId, ParaLifecycle>;
 
 	pub struct ParachainsPrefix;
 	impl StorageInstance for ParachainsPrefix {
+		const STORAGE_PREFIX: &'static str = "Parachains";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Parachains";
 	}
 	pub type Parachains = StorageValue<ParachainsPrefix, Vec<ParaId>, ValueQuery>;
 
 	pub struct HeadsPrefix;
 	impl StorageInstance for HeadsPrefix {
+		const STORAGE_PREFIX: &'static str = "Heads";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Heads";
 	}
 	pub type Heads = StorageMap<HeadsPrefix, Twox64Concat, ParaId, HeadData>;
 
 	pub struct CurrentCodeHashPrefix;
 	impl StorageInstance for CurrentCodeHashPrefix {
+		const STORAGE_PREFIX: &'static str = "CurrentCodeHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CurrentCodeHash";
 	}
 	pub type CurrentCodeHash =
 		StorageMap<CurrentCodeHashPrefix, Twox64Concat, ParaId, ValidationCodeHash>;
 
 	pub struct CodeByHashPrefix;
 	impl StorageInstance for CodeByHashPrefix {
+		const STORAGE_PREFIX: &'static str = "CodeByHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CodeByHash";
 	}
 	pub type CodeByHash =
 		StorageMap<CodeByHashPrefix, Identity, ValidationCodeHash, ValidationCode>;
 
 	pub struct CodeByHashRefsPrefix;
 	impl StorageInstance for CodeByHashRefsPrefix {
+		const STORAGE_PREFIX: &'static str = "CodeByHashRefs";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CodeByHashRefs";
 	}
 	pub type CodeByHashRefs =
 		StorageMap<CodeByHashRefsPrefix, Identity, ValidationCodeHash, u32, ValueQuery>;
 
 	pub struct PastCodeHashPrefix;
 	impl StorageInstance for PastCodeHashPrefix {
+		const STORAGE_PREFIX: &'static str = "PastCodeHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "PastCodeHash";
 	}
 	#[allow(type_alias_bounds)]
 	pub type PastCodeHash<T: frame_system::Config> =

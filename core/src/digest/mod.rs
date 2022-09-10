@@ -1,3 +1,5 @@
+pub use aura::Digest as FudgeAuraDigest;
+pub use babe::Digest as FudgeBabeDigest;
 use sp_inherents::InherentData;
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
@@ -11,9 +13,6 @@ use sp_inherents::InherentData;
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 use sp_runtime::Digest;
-
-pub use aura::Digest as FudgeAuraDigest;
-pub use babe::Digest as FudgeBabeDigest;
 
 mod aura;
 mod babe;

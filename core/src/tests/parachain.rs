@@ -10,15 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::builder::relay_chain::types::Heads;
-///! Test for the ParachainBuilder
-use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
-use crate::inherent::{
-	FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
-};
-use crate::provider::EnvProvider;
-use crate::RelaychainBuilder;
-use crate::{FudgeParaChain, ParachainBuilder};
 use centrifuge_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	WASM_BINARY as PCODE,
@@ -37,6 +28,17 @@ use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::Storage;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
+
+///! Test for the ParachainBuilder
+use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
+use crate::{
+	builder::relay_chain::types::Heads,
+	inherent::{
+		FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
+	},
+	provider::EnvProvider,
+	FudgeParaChain, ParachainBuilder, RelaychainBuilder,
+};
 
 type RelayBuilder<R> = RelaychainBuilder<
 	RTestBlock,

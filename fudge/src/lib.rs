@@ -10,6 +10,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+pub use fudge_companion::companion;
+pub use fudge_core::{digest, inherent, provider::EnvProvider};
 ///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
 ///!
 ///! Generally only this dependency is needed in order to use FUDGE.
@@ -17,9 +19,6 @@
 ///! referred to the fudge-core repository.
 use sc_executor::WasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
-
-pub use fudge_companion::companion;
-pub use fudge_core::{digest, inherent, provider::EnvProvider};
 
 pub type ParachainBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::ParachainBuilder<
 	Block,
@@ -56,8 +55,7 @@ pub type StandaloneBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::StandAloneBu
 >;
 
 pub mod primitives {
-	pub use fudge_core::FudgeParaChain;
-	pub use fudge_core::PoolState;
+	pub use fudge_core::{FudgeParaChain, PoolState};
 	pub use polkadot_parachain::primitives::Id as ParaId;
 
 	#[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]

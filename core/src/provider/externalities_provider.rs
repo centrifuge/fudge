@@ -10,11 +10,12 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::panic::{AssertUnwindSafe, UnwindSafe};
+
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use sp_storage::StateVersion;
-use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 pub struct ExternalitiesProvider<'a, H, B>
 where
@@ -52,6 +53,7 @@ where
 			None,
 		)
 	}
+
 	/*
 	/// Create a new instance_id of `TestExternalities` with storage.
 	pub fn new(storage: Storage) -> Self {

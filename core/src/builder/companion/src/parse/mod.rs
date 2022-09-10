@@ -10,8 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::parse::parachain::ParachainDef;
-use crate::parse::relaychain::RelaychainDef;
 use proc_macro2::Span;
 use quote::ToTokens;
 use syn::{
@@ -20,6 +18,8 @@ use syn::{
 	spanned::Spanned,
 	Attribute, Error, Field, FieldsNamed, Ident, ItemStruct, Result, Visibility,
 };
+
+use crate::parse::{parachain::ParachainDef, relaychain::RelaychainDef};
 
 pub mod parachain;
 pub mod relaychain;
