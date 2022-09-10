@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 
 use sc_client_api::Backend;
-use sc_client_db::{DatabaseSettings, DatabaseSource, KeepBlocks};
+use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource};
 use sc_service::PruningMode;
 use sp_core::storage::well_known_keys::CODE;
 use sp_database::MemDb;
@@ -66,7 +66,7 @@ where
 				path: path.clone(),
 				cache_size: 0,
 			},
-			keep_blocks: KeepBlocks::All,
+			blocks_pruning: BlocksPruning::All,
 		};
 
 		let backend = Arc::new(
@@ -115,7 +115,7 @@ where
 				db: Arc::new(MemDb::new()),
 				require_create_flag: true,
 			},
-			keep_blocks: KeepBlocks::All,
+			blocks_pruning: BlocksPruning::All,
 		};
 
 		let backend =

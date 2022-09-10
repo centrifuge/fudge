@@ -20,7 +20,6 @@ use crate::{
 };
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
-use parking_lot::Mutex;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
 use polkadot_primitives::{runtime_api::ParachainHost, v2::OccupiedCoreAssumption};
@@ -181,7 +180,7 @@ where
 		let relay_interface = RelayChainInProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
-			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+			Arc::new(NoNetwork {}),
 			None,
 		);
 		let api = self.client.runtime_api();
