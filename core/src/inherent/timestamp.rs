@@ -22,29 +22,29 @@ use sp_std::time::Duration;
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
 
 lazy_static::lazy_static!(
-	pub static ref INSTANCES: Arc<Mutex<BTreeMap<Instance, CurrTimeProvider>>> = Arc::new(Mutex::new(BTreeMap::new()));
-	pub static ref COUNTER: Arc<AtomicU64> = Arc::new(AtomicU64::new());
+	pub static ref INSTANCES: Arc<Mutex<BTreeMap<InstanceId, CurrTimeProvider>>> = Arc::new(Mutex::new(BTreeMap::new()));
+	pub static ref COUNTER: Arc<AtomicU64> = Arc::new(AtomicU64::new(0));
 );
 
-#[derive(Copy)]
-pub struct Instance(u64);
+#[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq, Debug)]
+pub struct InstanceId(u64);
 
 pub type Ticks = u128;
 
 #[derive(Clone, Debug)]
 pub struct CurrTimeProvider {
-	instance: Instance,
+	instance_id: InstanceId,
 	start: Duration,
 	delta: Duration,
 	ticks: Ticks,
 }
 
 impl CurrTimeProvider {
-	/// Overwrites an existing instance. If the instance was not yet existant, returns an error.
+	/// Overwrites an existing instance_id. If the instance was not yet existant, returns an error.
 	///
 	/// To get the actual instance please use `CurrTimeProvider::get_instance()`.
 	pub fn force_new(
-		instance: Instance,
+		instance_id: InstanceId,
 		delta: Duration,
 		start: Option<Duration>,
 	) -> Result<(), ()> {
@@ -63,10 +63,10 @@ impl CurrTimeProvider {
 		};
 
 		locked_instances
-			.get_mut(&instance)
+			.get_mut(&instance_id)
 			.map(|time| {
 				*time = CurrTimeProvider {
-					instance,
+					instance_id,
 					start,
 					delta,
 					ticks: 0,
@@ -75,8 +75,8 @@ impl CurrTimeProvider {
 			.ok_or(())
 	}
 
-	pub fn create_instance(delta: Duration, start: Option<Duration>) -> Instance {
-		let instance = Instance(COUNTER.fetch_add(1, Ordering::SeqCst));
+	pub fn create_instance(delta: Duration, start: Option<Duration>) -> InstanceId {
+		let instance_id = InstanceId(COUNTER.fetch_add(1, Ordering::SeqCst));
 
 		let start = if let Some(start) = start {
 			start
@@ -92,24 +92,24 @@ impl CurrTimeProvider {
 		let storage = INSTANCES.clone();
 		let mut locked_instances = storage.lock().expect("Time MUST NOT fail.");
 		locked_instances.insert(
-			instance,
+			instance_id,
 			CurrTimeProvider {
-				instance,
+				instance_id,
 				start,
 				delta,
 				ticks: 0,
 			},
 		);
 
-		instance
+		instance_id
 	}
 
-	pub fn get_instance(instance: Instance) -> Option<Self> {
+	pub fn get_instance(instance_id: InstanceId) -> Option<Self> {
 		let storage = INSTANCES.clone();
 		let locked_instances = storage.lock().expect("Time MUST NOT fail.");
 
 		locked_instances
-			.get(&instance)
+			.get(&instance_id)
 			.map(|instance| instance.clone())
 	}
 
@@ -117,7 +117,7 @@ impl CurrTimeProvider {
 		let storage = INSTANCES.clone();
 		let mut instances = storage.lock().expect("Time MUST NOT fail.");
 		let instance = instances
-			.get_mut(&self.instance)
+			.get_mut(&self.instance_id)
 			.expect("ONLY calls this method after new(). qed");
 		instance.ticks = instance.ticks + 1;
 	}
@@ -170,9 +170,10 @@ mod test {
 		const DELTA: u64 = 12u64;
 
 		let delta = Duration::from_secs(DELTA);
-		let instance =
+		let instance_id =
 			CurrTimeProvider::create_instance(delta, Some(Duration::from_secs(START_DATE)));
-		let time = CurrTimeProvider::get_instance(instance).expect("Instance is initialized. qed");
+		let time =
+			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 
 		assert_eq!(
 			time.current_time().as_duration().as_secs() as u64,
@@ -181,7 +182,8 @@ mod test {
 
 		// Progress time by delta
 		time.update_time();
-		let time = CurrTimeProvider::get_instance(instance).expect("Instance is initialized. qed");
+		let time =
+			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
 			time.current_time().as_duration().as_secs() as u64,
 			START_DATE + delta.as_secs() as u64
@@ -189,7 +191,8 @@ mod test {
 
 		// Progress time by delta
 		time.update_time();
-		let time = CurrTimeProvider::get_instance(instance).expect("Instance is initialized. qed");
+		let time =
+			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
 			time.current_time().as_duration().as_secs() as u64,
 			START_DATE + 2 * delta.as_secs() as u64

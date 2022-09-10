@@ -85,12 +85,12 @@ async fn onboarding_parachain_works() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-	// Init timestamp instance
-	let instance =
+	// Init timestamp instance_id
+	let instance_id =
 		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
-		|clone_client: Arc<
+		move |clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
 			move |parent: H256, ()| {
@@ -105,7 +105,7 @@ async fn onboarding_parachain_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(instance)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 						.expect("Instance is initialized. qed");
 
 					let slot =
