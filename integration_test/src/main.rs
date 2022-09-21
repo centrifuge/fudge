@@ -10,7 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use centrifuge_runtime::{Block as PBlock, RuntimeApi as PRtApi};
 use fudge::{
 	digest::DigestCreator,
 	inherent::{
@@ -19,6 +18,7 @@ use fudge::{
 	},
 	ParachainBuilder, RelaychainBuilder,
 };
+use fudge_test_runtime::{Block as PBlock, RuntimeApi as PRtApi};
 use polkadot_core_primitives::{Block as RBlock, Header as RHeader};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi};
 

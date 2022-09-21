@@ -69,11 +69,6 @@ pallet-sudo = { git = "https://github.com/paritytech/substrate", default-feature
 pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.29" }
 
-
-#orml pallets
-orml-tokens = { git = "https://github.com/open-web3-stack/open-runtime-module-library", default-features = false, branch = "polkadot-v0.9.29" }
-orml-traits = { git = "https://github.com/open-web3-stack/open-runtime-module-library", default-features = false, branch = "polkadot-v0.9.29" }
-
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 
@@ -116,7 +111,6 @@ std = [
     "pallet-aura/std",
     "sp-consensus-aura/std",
     "polkadot-runtime-common/std",
-    "orml-tokens/std",
     "pallet-treasury/std",
     "pallet-preimage/std",
     "pallet-identity/std",

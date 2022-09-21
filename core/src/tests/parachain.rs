@@ -10,11 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use centrifuge_runtime::{
+use frame_support::traits::GenesisBuild;
+use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	WASM_BINARY as PCODE,
 };
-use frame_support::traits::GenesisBuild;
 use polkadot_core_primitives::{Block as RTestBlock, Header as RTestHeader};
 use polkadot_parachain::primitives::Id;
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};

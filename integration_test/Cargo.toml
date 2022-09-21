@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 fudge = { path = "../fudge" }
+fudge-test-runtime = {path = "../core/src/tests/test-parachain", default-features = true}
 codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
-centrifuge-runtime = {git = "https://github.com/gruberb/centrifuge-chain", branch = "polkadot-v0.9.28"}
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29" }
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.29" }
 sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }

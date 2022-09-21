@@ -78,5 +78,5 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "p
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 tracing-subscriber = "0.2"
-centrifuge-runtime = {git = "https://github.com/gruberb/centrifuge-chain", branch = "polkadot-v0.9.28"}
 pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+fudge-test-runtime = {path = "./src/tests/test-parachain", default-features = true}

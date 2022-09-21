@@ -49,6 +49,7 @@ use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+
 mod primitives;
 
 pub struct WeightToFee;
@@ -57,7 +58,7 @@ impl WeightToFeePolynomial for WeightToFee {
 
 	fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
 		let p = CENTI_CUR;
-		let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+		let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 
 		smallvec!(WeightToFeeCoefficient {
 			degree: 1,
@@ -175,8 +176,8 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ReservedXcmpWeight: Weight = MAXIMUM_BLOCK_WEIGHT / 4;
-	pub const ReservedDmpWeight: Weight = MAXIMUM_BLOCK_WEIGHT / 4;
+	pub const ReservedXcmpWeight: Weight = MAXIMUM_BLOCK_WEIGHT.saturating_div(4);
+	pub const ReservedDmpWeight: Weight = MAXIMUM_BLOCK_WEIGHT.saturating_div(4);
 }
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
