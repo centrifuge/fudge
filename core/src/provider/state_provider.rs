@@ -59,8 +59,7 @@ where
 	pub fn from_db(path: PathBuf) -> Self {
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
-			state_cache_size: 0,
-			state_cache_child_ratio: None,
+			trie_cache_maximum_size: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::RocksDb {
 				path: path.clone(),
@@ -108,8 +107,7 @@ where
 	fn with_in_mem_db() -> Result<Self, ()> {
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
-			state_cache_size: 0,
-			state_cache_child_ratio: None,
+			trie_cache_maximum_size: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::Custom {
 				db: Arc::new(MemDb::new()),
