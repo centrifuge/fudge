@@ -9,13 +9,14 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use crate::builder::parachain::FudgeParaBuild;
-use polkadot_primitives::v1::{
+use polkadot_primitives::v2::{
 	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_inherents::{Error, InherentData, InherentDataProvider, InherentIdentifier};
 use sp_runtime::traits::Header;
 use sp_std::sync::Arc;
+
+use crate::builder::parachain::FudgeParaBuild;
 
 pub struct DummyInherent<HDR> {
 	parent_head: HDR,

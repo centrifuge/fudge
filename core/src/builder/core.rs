@@ -9,37 +9,35 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use crate::provider::ExternalitiesProvider;
-use frame_support::pallet_prelude::TransactionSource;
-use frame_support::sp_runtime::traits::NumberFor;
-use sc_client_api::{AuxStore, Backend as BackendT, BlockOf, HeaderBackend, UsageProvider};
-use sc_client_db::Backend;
-use sc_consensus::{BlockImport, BlockImportParams};
-use sc_executor::RuntimeVersionOf;
-use sc_service::TFullClient;
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
-use sp_block_builder::BlockBuilder;
-use sp_consensus::Environment;
-use sp_core::traits::CodeExecutor;
-use sp_runtime::{generic::BlockId, traits::One};
-use sp_state_machine::StorageProof;
-use sp_std::time::Duration;
-use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use std::{marker::PhantomData, sync::Arc};
 
-use crate::StoragePair;
-use sc_client_api::backend::TransactionFor;
-use sc_client_api::blockchain::Backend as BlockchainBackend;
-use sc_client_api::{BlockBackend, BlockImportOperation, NewBlockState};
-use sc_consensus::ImportResult;
-use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
+use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
+use sc_client_api::{
+	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
+	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
+	UsageProvider,
+};
+use sc_client_db::Backend;
+use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
+use sc_executor::RuntimeVersionOf;
+use sc_service::{SpawnTaskHandle, TFullClient, TaskManager, TransactionPool};
 use sc_transaction_pool::{FullChainApi, RevalidationType};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
-use sp_api::HashFor;
-use sp_consensus::{InherentData, Proposal, Proposer};
-use sp_runtime::traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Zero};
-use sp_runtime::Digest;
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi, StorageChanges};
+use sp_block_builder::BlockBuilder;
+use sp_consensus::{Environment, InherentData, Proposal, Proposer};
+use sp_core::traits::CodeExecutor;
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, One, Zero},
+	Digest,
+};
+use sp_state_machine::StorageProof;
+use sp_std::time::Duration;
 use sp_storage::StateVersion;
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+
+use crate::{provider::ExternalitiesProvider, StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -421,9 +419,10 @@ where
 				hash: best_hash,
 				tree_route: None,
 			}));
+			let route = [prev_hash];
 			futures::executor::block_on(self.pool.maintain(ChainEvent::Finalized {
 				hash: best_hash,
-				tree_route: Arc::new(vec![prev_hash]),
+				tree_route: Arc::new(route),
 			}));
 		};
 

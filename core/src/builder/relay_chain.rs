@@ -12,29 +12,22 @@
 
 // TODO: Make this more adaptable for giving a parachain a name
 const LOG_TARGET: &str = "fudge-relaychain";
-use crate::builder::parachain::FudgeParaChain;
-use crate::digest::DigestCreator;
-use crate::inherent::ArgsProvider;
-use crate::{
-	builder::core::{Builder, Operation},
-	types::StoragePair,
-	PoolState,
-};
 use bitvec::vec::BitVec;
 use codec::{Decode, Encode};
 use cumulus_primitives_core::PersistedValidationData;
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
-use cumulus_relay_chain_local::RelayChainLocal;
-use parking_lot::Mutex;
+use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
 use polkadot_core_primitives::Block as PBlock;
 use polkadot_node_primitives::Collation;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
-use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex, OccupiedCoreAssumption,
+use polkadot_primitives::{
+	runtime_api::ParachainHost,
+	v2::{
+		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
+		OccupiedCoreAssumption,
+	},
 };
-use polkadot_primitives::v2::ParachainHost;
-use polkadot_runtime_parachains::inclusion::CandidatePendingAvailability;
-use polkadot_runtime_parachains::{paras, ParaLifecycle};
+use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
 	UsageProvider,
@@ -47,16 +40,27 @@ use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, 
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
 use sp_consensus_babe::BabeApi;
-use sp_core::traits::CodeExecutor;
-use sp_core::H256;
+use sp_core::{traits::CodeExecutor, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
-use sp_runtime::traits::BlockIdTo;
 use sp_runtime::{
-	generic::BlockId, traits::Block as BlockT, traits::Header as HeaderT, TransactionOutcome,
+	generic::BlockId,
+	traits::{Block as BlockT, BlockIdTo, Header as HeaderT},
+	TransactionOutcome,
 };
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use types::*;
+
+use crate::{
+	builder::{
+		core::{Builder, Operation},
+		parachain::FudgeParaChain,
+	},
+	digest::DigestCreator,
+	inherent::ArgsProvider,
+	types::StoragePair,
+	PoolState,
+};
 
 /// Recreating private storage types for easier handling storage access
 pub mod types {
@@ -70,7 +74,7 @@ pub mod types {
 	use polkadot_parachain::primitives::{
 		HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	};
-	use polkadot_primitives::v1::{
+	use polkadot_primitives::v2::{
 		CandidateCommitments, CandidateDescriptor, CandidateHash, CoreIndex, GroupIndex,
 	};
 	use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, ParaLifecycle};
@@ -78,74 +82,74 @@ pub mod types {
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
+		const STORAGE_PREFIX: &'static str = "Parachains";
+
 		fn pallet_prefix() -> &'static str {
 			"ParaLifecycles"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Parachains";
 	}
 	pub type ParaLifecycles = StorageMap<ParaLifecyclesPrefix, Twox64Concat, ParaId, ParaLifecycle>;
 
 	pub struct ParachainsPrefix;
 	impl StorageInstance for ParachainsPrefix {
+		const STORAGE_PREFIX: &'static str = "Parachains";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Parachains";
 	}
 	pub type Parachains = StorageValue<ParachainsPrefix, Vec<ParaId>, ValueQuery>;
 
 	pub struct HeadsPrefix;
 	impl StorageInstance for HeadsPrefix {
+		const STORAGE_PREFIX: &'static str = "Heads";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "Heads";
 	}
 	pub type Heads = StorageMap<HeadsPrefix, Twox64Concat, ParaId, HeadData>;
 
 	pub struct CurrentCodeHashPrefix;
 	impl StorageInstance for CurrentCodeHashPrefix {
+		const STORAGE_PREFIX: &'static str = "CurrentCodeHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CurrentCodeHash";
 	}
 	pub type CurrentCodeHash =
 		StorageMap<CurrentCodeHashPrefix, Twox64Concat, ParaId, ValidationCodeHash>;
 
 	pub struct CodeByHashPrefix;
 	impl StorageInstance for CodeByHashPrefix {
+		const STORAGE_PREFIX: &'static str = "CodeByHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CodeByHash";
 	}
 	pub type CodeByHash =
 		StorageMap<CodeByHashPrefix, Identity, ValidationCodeHash, ValidationCode>;
 
 	pub struct CodeByHashRefsPrefix;
 	impl StorageInstance for CodeByHashRefsPrefix {
+		const STORAGE_PREFIX: &'static str = "CodeByHashRefs";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "CodeByHashRefs";
 	}
 	pub type CodeByHashRefs =
 		StorageMap<CodeByHashRefsPrefix, Identity, ValidationCodeHash, u32, ValueQuery>;
 
 	pub struct PastCodeHashPrefix;
 	impl StorageInstance for PastCodeHashPrefix {
+		const STORAGE_PREFIX: &'static str = "PastCodeHash";
+
 		fn pallet_prefix() -> &'static str {
 			"Paras"
 		}
-
-		const STORAGE_PREFIX: &'static str = "PastCodeHash";
 	}
 	#[allow(type_alias_bounds)]
 	pub type PastCodeHash<T: frame_system::Config> =
@@ -153,11 +157,11 @@ pub mod types {
 
 	pub struct PendingAvailabilityPrefix;
 	impl StorageInstance for PendingAvailabilityPrefix {
+		const STORAGE_PREFIX: &'static str = "PendingAvailability";
+
 		fn pallet_prefix() -> &'static str {
 			"ParaInclusion"
 		}
-
-		const STORAGE_PREFIX: &'static str = "PendingAvailability";
 	}
 	#[allow(type_alias_bounds)]
 	pub type PendingAvailability<T: frame_system::Config> = StorageMap<
@@ -169,11 +173,11 @@ pub mod types {
 
 	pub struct PendingAvailabilityCommitmentsPrefix;
 	impl StorageInstance for PendingAvailabilityCommitmentsPrefix {
+		const STORAGE_PREFIX: &'static str = "PendingAvailabilityCommitments";
+
 		fn pallet_prefix() -> &'static str {
 			"ParaInclusion"
 		}
-
-		const STORAGE_PREFIX: &'static str = "PendingAvailabilityCommitments";
 	}
 	pub type PendingAvailabilityCommitments = StorageMap<
 		PendingAvailabilityCommitmentsPrefix,
@@ -196,9 +200,9 @@ pub mod types {
 		/// The candidate descriptor.
 		pub descriptor: CandidateDescriptor<H>,
 		/// The received availability votes. One bit per validator.
-		pub availability_votes: BitVec<BitOrderLsb0, u8>,
+		pub availability_votes: BitVec<u8, BitOrderLsb0>,
 		/// The backers of the candidate pending availability.
-		pub backers: BitVec<BitOrderLsb0, u8>,
+		pub backers: BitVec<u8, BitOrderLsb0>,
 		/// The block number of the relay-parent of the receipt.
 		pub relay_parent_number: N,
 		/// The block number of the relay-chain block this was backed in.
@@ -274,10 +278,10 @@ where
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
 		let parent = self.client.info().best_hash;
-		let relay_interface = RelayChainLocal::new(
+		let relay_interface = RelayChainInProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
-			Arc::new(Mutex::new(Box::new(NoNetwork {}))),
+			Arc::new(NoNetwork {}),
 			None,
 		);
 		let api = self.client.runtime_api();
@@ -333,7 +337,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
+	DP: DigestCreator<Block> + 'static,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	Runtime:
 		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
@@ -487,16 +491,18 @@ where
 			})
 			.unwrap();
 
+		let parent = self.builder.latest_header();
+		let inherents = provider.create_inherent_data().unwrap();
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| {
+				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
+					.unwrap()
+			})
 			.unwrap();
-		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
-		//       afterwards
-		let inherent = provider.create_inherent_data().unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			inherent,
+			inherents,
 			digest,
 			Duration::from_secs(60),
 			6_000_000,
@@ -631,7 +637,7 @@ where
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
-				polkadot_runtime_parachains::runtime_api_impl::v1::persisted_validation_data::<
+				polkadot_runtime_parachains::runtime_api_impl::v2::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
 				.unwrap();

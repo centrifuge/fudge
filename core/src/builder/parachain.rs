@@ -14,15 +14,6 @@
 // TODO: Make this more adaptable for giving a parachain a name
 const LOG_TARGET: &str = "fudge-parachain";
 
-use crate::builder::relay_chain::{CollationBuilder, CollationJudgement};
-use crate::digest::DigestCreator;
-use crate::inherent::ArgsProvider;
-use crate::provider::ExternalitiesProvider;
-use crate::{
-	builder::core::{Builder, Operation},
-	types::StoragePair,
-	PoolState,
-};
 use codec::{Decode, Encode};
 use cumulus_primitives_core::{
 	CollationInfo, CollectCollationInfo, ParachainBlockData, PersistedValidationData,
@@ -41,11 +32,27 @@ use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
-use sp_runtime::traits::BlockIdTo;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT, traits::Header};
-use sp_std::sync::Mutex;
-use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, BlockIdTo, Header},
+};
+use sp_std::{
+	marker::PhantomData,
+	sync::{Arc, Mutex},
+	time::Duration,
+};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+
+use crate::{
+	builder::{
+		core::{Builder, Operation},
+		relay_chain::{CollationBuilder, CollationJudgement},
+	},
+	digest::DigestCreator,
+	inherent::ArgsProvider,
+	types::StoragePair,
+	PoolState,
+};
 
 pub struct FudgeParaBuild {
 	pub parent_head: HeadData,
@@ -126,7 +133,7 @@ where
 
 	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
 		let at = BlockId::Hash(self.client.info().best_hash);
-		let state = self.backend.state_at(at.clone()).ok()?;
+		let _state = self.backend.state_at(at.clone()).ok()?;
 		//ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
 		//	.execute_with(|| self.create_collation(validation_data))
 		self.create_collation(validation_data)
@@ -244,7 +251,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
+	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -337,16 +344,18 @@ where
 			})
 			.unwrap();
 
+		let parent = self.builder.latest_header();
+		let inherents = provider.create_inherent_data().unwrap();
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| {
+				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
+					.unwrap()
+			})
 			.unwrap();
-		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
-		//       afterwards
-		let inherent = provider.create_inherent_data().unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			inherent,
+			inherents,
 			digest,
 			Duration::from_secs(60), // TODO: This should be configurable, best via an public config on the builder
 			6_000_000, // TODO: This should be configurable, best via an public config on the builder

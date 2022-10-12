@@ -1,3 +1,6 @@
+pub use aura::Digest as FudgeAuraDigest;
+pub use babe::Digest as FudgeBabeDigest;
+use sp_inherents::InherentData;
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
 // This file is part of the FUDGE project.
@@ -11,34 +14,61 @@
 // GNU General Public License for more details.
 use sp_runtime::Digest;
 
-pub use babe::Digest as FudgeBabeDigest;
+mod aura;
 mod babe;
+use sp_runtime::traits::Block;
 
 #[async_trait::async_trait]
-pub trait DigestCreator {
-	async fn create_digest(&self) -> Result<Digest, ()>;
-}
-
-#[async_trait::async_trait]
-pub trait DigestProvider {
-	async fn build_digest(&self) -> Result<Digest, ()>;
-	async fn append_digest(&self, digest: &mut Digest) -> Result<(), ()>;
-}
-
-#[async_trait::async_trait]
-impl<F, Fut> DigestCreator for F
+pub trait DigestCreator<B>
 where
-	F: Fn() -> Fut + Sync + Send,
+	B: Block,
+{
+	async fn create_digest(&self, parent: B::Header, inherents: InherentData)
+		-> Result<Digest, ()>;
+}
+
+#[async_trait::async_trait]
+pub trait DigestProvider<B: Block> {
+	async fn build_digest(
+		&self,
+		parent: &B::Header,
+		inherents: &InherentData,
+	) -> Result<Digest, ()>;
+
+	async fn append_digest(
+		&self,
+		digest: &mut Digest,
+		parent: &B::Header,
+		inherents: &InherentData,
+	) -> Result<(), ()>;
+}
+
+#[async_trait::async_trait]
+impl<F, Fut, B> DigestCreator<B> for F
+where
+	B: Block,
+	F: Fn(B::Header, InherentData) -> Fut + Sync + Send,
 	Fut: std::future::Future<Output = Result<Digest, ()>> + Send + 'static,
 {
-	async fn create_digest(&self) -> Result<Digest, ()> {
-		(*self)().await
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, ()> {
+		(*self)(parent, inherents).await
 	}
 }
 
 #[async_trait::async_trait]
-impl DigestCreator for Box<dyn DigestCreator + Send + Sync> {
-	async fn create_digest(&self) -> Result<Digest, ()> {
-		(**self).create_digest().await
+impl<B> DigestCreator<B> for Box<dyn DigestCreator<B> + Send + Sync>
+where
+	B: Block,
+{
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, ()> {
+		(**self).create_digest(parent, inherents).await
 	}
 }

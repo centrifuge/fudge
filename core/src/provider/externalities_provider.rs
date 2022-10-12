@@ -10,11 +10,12 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::panic::{AssertUnwindSafe, UnwindSafe};
+
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use sp_storage::StateVersion;
-use std::panic::{AssertUnwindSafe, UnwindSafe};
 
 pub struct ExternalitiesProvider<'a, H, B>
 where
@@ -52,8 +53,9 @@ where
 			None,
 		)
 	}
+
 	/*
-	/// Create a new instance of `TestExternalities` with storage.
+	/// Create a new instance_id of `TestExternalities` with storage.
 	pub fn new(storage: Storage) -> Self {
 		Self::new_with_code(&[], storage)
 	}
@@ -63,7 +65,7 @@ where
 		Self::new_with_code(&[], Storage::default())
 	}
 
-	/// Create a new instance of `TestExternalities` with code and storage.
+	/// Create a new instance_id of `TestExternalities` with code and storage.
 	pub fn new_with_code(code: &[u8], mut storage: Storage) -> Self {
 		let mut overlay = OverlayedChanges::default();
 		let changes_trie_config = storage
@@ -113,7 +115,7 @@ where
 		self.backend.insert(vec![(None, vec![(k, Some(v))])]);
 	}
 
-	/// Registers the given extension for this instance.
+	/// Registers the given extension for this instance_id.
 	pub fn register_extension<E: Any + Extension>(&mut self, ext: E) {
 		self.extensions.register(ext);
 	}
@@ -155,7 +157,7 @@ where
 		&mut self,
 		execute: impl FnOnce() -> R,
 	) -> (R, StorageChanges<B::Transaction, H>) {
-		let parent_hash = self.overlay.storage_root(
+		let _parent_hash = self.overlay.storage_root(
 			self.backend,
 			&mut self.storage_transaction_cache,
 			StateVersion::V0,
@@ -172,7 +174,6 @@ where
 			self.overlay
 				.drain_storage_changes::<B, H>(
 					self.backend,
-					parent_hash,
 					&mut self.storage_transaction_cache,
 					StateVersion::V0,
 				)

@@ -9,13 +9,6 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use crate::digest::DigestCreator;
-use crate::inherent::ArgsProvider;
-use crate::{
-	builder::core::{Builder, Operation},
-	types::StoragePair,
-	PoolState,
-};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
@@ -28,11 +21,21 @@ use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
-use sp_runtime::traits::BlockIdTo;
-use sp_runtime::{generic::BlockId, traits::Block as BlockT};
+use sp_runtime::{
+	generic::BlockId,
+	traits::{Block as BlockT, BlockIdTo},
+};
 use sp_state_machine::StorageProof;
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+
+use crate::{
+	builder::core::{Builder, Operation},
+	digest::DigestCreator,
+	inherent::ArgsProvider,
+	types::StoragePair,
+	PoolState,
+};
 
 pub struct StandAloneBuilder<
 	Block: BlockT,
@@ -72,7 +75,7 @@ where
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	CIDP: CreateInherentDataProviders<Block, ExtraArgs> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: Send,
-	DP: DigestCreator,
+	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -166,16 +169,18 @@ where
 			})
 			.unwrap();
 
+		let parent = self.builder.latest_header();
+		let inherents = provider.create_inherent_data().unwrap();
 		let digest = self
-			.with_state(|| futures::executor::block_on(self.dp.create_digest()).unwrap())
+			.with_state(|| {
+				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
+					.unwrap()
+			})
 			.unwrap();
-		// NOTE: Need to crate inherents AFTER digest, as timestamp updates itself
-		//       afterwards
-		let inherent = provider.create_inherent_data().unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.handle.clone(),
-			inherent,
+			inherents,
 			digest,
 			Duration::from_secs(60),
 			6_000_000,

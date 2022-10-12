@@ -10,26 +10,26 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use crate::digest::{DigestCreator, FudgeBabeDigest};
-use crate::inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp};
-use crate::provider::EnvProvider;
-use crate::FudgeParaChain;
-use crate::RelayChainTypes;
-use crate::RelaychainBuilder;
-use centrifuge_runtime::WASM_BINARY as PARA_CODE;
+use fudge_test_runtime::WASM_BINARY as PARA_CODE;
 use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use polkadot_runtime_parachains::paras;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
-use sp_consensus_babe::digests::CompatibleDigestItem;
+use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::traits::Hash as _;
-use sp_runtime::{DigestItem, Storage};
+use sp_runtime::{traits::Hash as _, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
+
+use crate::{
+	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
+	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
+	provider::EnvProvider,
+	FudgeParaChain, RelayChainTypes, RelaychainBuilder,
+};
 
 fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 	manager: &TaskManager,
@@ -53,9 +53,9 @@ fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
 >
 where
 	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
-	DP: DigestCreator + 'static,
 	Runtime:
 		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
+	DP: DigestCreator<TestBlock> + 'static,
 {
 	let mut provider =
 		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
@@ -86,11 +86,12 @@ async fn onboarding_parachain_works() {
 	super::utils::init_logs();
 
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
-	// Init timestamp instance
-	FudgeInherentTimestamp::new(0, sp_std::time::Duration::from_secs(6), None);
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
 
 	let cidp = Box::new(
-		|clone_client: Arc<
+		move |clone_client: Arc<
 			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
 			move |parent: H256, ()| {
@@ -105,13 +106,13 @@ async fn onboarding_parachain_works() {
 						&*client, parent,
 					)?;
 
-					let timestamp = FudgeInherentTimestamp::get_instance(0)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 						.expect("Instance is initialized. qed");
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							timestamp.current_time(),
-							std::time::Duration::from_secs(6),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
 						);
 
 					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
@@ -120,18 +121,11 @@ async fn onboarding_parachain_works() {
 			}
 		},
 	);
-	let dp = Box::new(move || async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
-		let slot_duration = pallet_babe::Pallet::<Runtime>::slot_duration();
-		digest.push(<DigestItem as CompatibleDigestItem>::babe_pre_digest(
-			FudgeBabeDigest::pre_digest(
-				FudgeInherentTimestamp::get_instance(0)
-					.expect("Instance is initialised. qed")
-					.current_time(),
-				sp_std::time::Duration::from_millis(slot_duration),
-			),
-		));
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &parent, &inherents).await?;
 
 		Ok(digest)
 	});
