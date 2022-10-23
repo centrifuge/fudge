@@ -12,6 +12,7 @@
 
 pub use fudge_companion::companion;
 pub use fudge_core::{digest, inherent, provider::EnvProvider};
+pub use fudge_helpers as helpers;
 ///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
 ///!
 ///! Generally only this dependency is needed in order to use FUDGE.

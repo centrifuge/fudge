@@ -63,7 +63,7 @@ where
 			state_pruning: Some(PruningMode::ArchiveAll),
 			source: DatabaseSource::RocksDb {
 				path: path.clone(),
-				cache_size: 0,
+				cache_size: 1024,
 			},
 			blocks_pruning: BlocksPruning::All,
 		};
