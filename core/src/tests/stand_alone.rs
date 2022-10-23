@@ -166,41 +166,46 @@ async fn mutating_genesis_works() {
 	assert_eq!(recv_data_pre, recv_data_post);
 }
 
-// TODO: THis should be tested....
-/*
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
 	super::utils::init_logs();
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
+	let provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::from_db(
+			std::path::PathBuf::from(
+				"/Users/frederik/Projects/centrifuge-fudge/core/src/tests/test_dbs/full_1",
+			),
+		);
+	let (client, backend) = provider.init_default(
+		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		Box::new(manager.spawn_handle()),
+	);
+	let client = Arc::new(client);
+	let cidp = Box::new(move |_, ()| async move { Ok(()) });
+	let dp = Box::new(move |_, _| async move { Ok(sp_runtime::Digest::default()) });
 
-		let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
-		let manager = TaskManager::new(Handle::current(), None).unwrap();
+	let builder = StandAloneBuilder::<
+		TestBlock,
+		TestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+	>::new(&manager, backend, client, cidp, dp);
 
-		let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::from_db(std::path::PathBuf::from("/Users/frederik/Projects/centrifuge-fudge/core/src/tests/data/relay-chain/rococo_local_testnet/db/full"));
-		let (client, backend) = provider
-			.init_default(
-				TestExec::new(
-					WasmExecutionMethod::Interpreted,
-					None,
-					host_functions,
-					6,
-					None,
-				),
-				Box::new(manager.spawn_handle())
-			);
-		let client = Arc::new(client);
+	let _events_at_1 = builder
+		.with_state_at(BlockId::Number(1), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
 
-		let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
-
-		builder.with_state_at(BlockId::Number(1), || {
-
-		}).unwrap();
-
-		builder.with_state_at(BlockId::Number(20), || {
-
-		}).unwrap();
+	let _events_at_20 = builder
+		.with_state_at(BlockId::Number(20), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
 }
-*/
 
 #[tokio::test]
 async fn build_relay_block_works() {

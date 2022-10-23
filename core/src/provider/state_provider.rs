@@ -60,10 +60,10 @@ where
 		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
 			trie_cache_maximum_size: None,
-			state_pruning: Some(PruningMode::ArchiveAll),
+			state_pruning: None,
 			source: DatabaseSource::RocksDb {
 				path: path.clone(),
-				cache_size: 0,
+				cache_size: 1024,
 			},
 			blocks_pruning: BlocksPruning::All,
 		};
