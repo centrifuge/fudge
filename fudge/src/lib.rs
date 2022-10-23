@@ -17,14 +17,14 @@
 //! referred to the fudge-core repository.
 
 pub use fudge_companion::companion;
-pub use fudge_core::{
-	builder::relay_chain::InherentBuilder,
-	digest, inherent,
-	provider::{
-		backend, initiator, state, BackendProvider, ClientProvider, DefaultClient, Initiator,
-		TWasmExecutor,
-	},
-};
+pub use fudge_core::{digest, inherent, provider::EnvProvider};
+pub use fudge_helpers as helpers;
+///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
+///!
+///! Generally only this dependency is needed in order to use FUDGE.
+///! Developers who want to use the more raw apis and types are
+///! referred to the fudge-core repository.
+use sc_executor::WasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 
 pub mod primitives {

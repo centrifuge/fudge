@@ -254,3 +254,70 @@ async fn parachain_creates_correct_inherents() {
 		.unwrap();
 	assert_eq!(builder.head(), para_head);
 }
+
+#[test]
+fn xcm_is_transported() {
+	super::utils::init_logs();
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+
+	let mut relay_builder =
+		generate_default_setup_relay_chain::<RRuntime>(&manager, Storage::default());
+	let para_id = Id::from(2001u32);
+	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
+	// Init timestamp instance_id
+	let instance_id_para =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+
+	let cidp = Box::new(move |_| {
+		move |_parent: H256, ()| {
+			let inherent_builder_clone = inherent_builder.clone();
+			async move {
+				let timestamp = FudgeInherentTimestamp::get_instance(instance_id_para)
+					.expect("Instance is initialized. qed");
+
+				let slot =
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						timestamp.current_time(),
+						SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+					);
+				let inherent = inherent_builder_clone.parachain_inherent().await.unwrap();
+				let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
+				Ok((timestamp, slot, relay_para_inherent))
+			}
+		}
+	});
+	let dp = Box::new(
+		|clone_client: Arc<
+			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent, inherents| {
+				let client = clone_client.clone();
+
+				async move {
+					let aura = FudgeAuraDigest::<
+						PTestBlock,
+						TFullClient<
+							PTestBlock,
+							PTestRtApi,
+							TestExec<sp_io::SubstrateHostFunctions>,
+						>,
+					>::new(&*client);
+
+					let digest = aura.build_digest(&parent, &inherents).await?;
+					Ok(digest)
+				}
+			}
+		},
+	);
+
+	let mut builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
+
+	let para = FudgeParaChain {
+		id: para_id,
+		head: builder.head(),
+		code: builder.code(),
+	};
+	relay_builder
+		.onboard_para(para, Box::new(builder.collator()))
+		.unwrap();
+}
