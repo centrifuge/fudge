@@ -23,6 +23,15 @@ use sp_storage::Storage;
 
 pub const CANONICALIZATION_DELAY: u64 = 4096;
 
+pub enum DbOpen {
+	FullConfig(DatabaseSettings),
+	SparseConfig {
+		path: PathBuf,
+		state_pruning: PruningMode,
+	},
+	Default(PathBuf),
+}
+
 pub struct StateProvider<B, Block> {
 	backend: Arc<B>,
 	pseudo_genesis: Storage,
@@ -37,12 +46,25 @@ where
 	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
 		let Storage {
 			top,
-			children_default: _children_default,
+			children_default,
 		} = storage;
 
 		self.pseudo_genesis.top.extend(top.into_iter());
-		// TODO: Not sure how to handle childrens here?
-		// self.pseudo_genesis.children_default.
+		for (k, other_map) in children_default.iter() {
+			let k = k.clone();
+			if let Some(map) = self.pseudo_genesis.children_default.get_mut(&k) {
+				map.data
+					.extend(other_map.data.iter().map(|(k, v)| (k.clone(), v.clone())));
+				if !map.child_info.try_update(&other_map.child_info) {
+					// TODO: Error out instead
+					//return Err("Incompatible child info update".to_string())
+				}
+			} else {
+				self.pseudo_genesis
+					.children_default
+					.insert(k, other_map.clone());
+			}
+		}
 		self
 	}
 
@@ -55,17 +77,30 @@ impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
-	/// Note: When using this option, it will only be
-	pub fn from_db(path: PathBuf) -> Self {
-		// TODO: Maybe allow to set these settings
-		let settings = DatabaseSettings {
-			trie_cache_maximum_size: None,
-			state_pruning: Some(PruningMode::ArchiveAll),
-			source: DatabaseSource::RocksDb {
-				path: path.clone(),
-				cache_size: 1024,
+	pub fn from_db(open: DbOpen) -> Self {
+		let settings = match open {
+			DbOpen::FullConfig(settings) => settings,
+			DbOpen::SparseConfig {
+				path,
+				state_pruning,
+			} => DatabaseSettings {
+				trie_cache_maximum_size: None,
+				state_pruning: Some(state_pruning),
+				source: DatabaseSource::RocksDb {
+					path: path,
+					cache_size: 1024,
+				},
+				blocks_pruning: BlocksPruning::All,
 			},
-			blocks_pruning: BlocksPruning::All,
+			DbOpen::Default(path) => DatabaseSettings {
+				trie_cache_maximum_size: None,
+				state_pruning: None,
+				source: DatabaseSource::RocksDb {
+					path: path,
+					cache_size: 1024,
+				},
+				blocks_pruning: BlocksPruning::All,
+			},
 		};
 
 		let backend = Arc::new(
@@ -105,7 +140,6 @@ where
 	}
 
 	fn with_in_mem_db() -> Result<Self, ()> {
-		// TODO: Maybe allow to set these settings
 		let settings = DatabaseSettings {
 			trie_cache_maximum_size: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
@@ -136,7 +170,7 @@ where
 		Ok(self.pseudo_genesis.clone())
 	}
 
-	fn assimilate_storage(&self, _storage: &mut Storage) -> Result<(), String> {
-		todo!()
+	fn assimilate_storage(&self, storage: &mut Storage) -> Result<(), String> {
+		self.pseudo_genesis.assimilate_storage(storage)
 	}
 }

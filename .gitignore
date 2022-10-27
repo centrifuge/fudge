@@ -1,3 +1,7 @@
 /target
-/core/src/tests/data
+/core/src/tests/test_dbs/**/*.log
+/core/src/tests/test_dbs/rococo_local_full/LOCK
+/core/src/tests/test_dbs/rococo_local_full/LOG
+/core/src/tests/test_dbs/rococo_local_full/OPTIONS-*
 .idea
+
