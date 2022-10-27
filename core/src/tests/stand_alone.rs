@@ -269,19 +269,45 @@ async fn opening_state_from_db_path_works() {
 		builder.import_block().unwrap();
 	}
 
-	let _events_at_1 = builder
+	let (send_data_pre_1, recv_data_pre_1) = builder
 		.with_state_at(BlockId::Number(1), || {
-			frame_system::Pallet::<Runtime>::events()
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
 		})
 		.unwrap();
 
-	let _events_at_20 = builder
+	let (send_data_pre_20, recv_data_pre_20) = builder
+		.with_state_at(BlockId::Number(20), || {
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	assert_eq!(send_data_pre_1, send_data_pre_20);
+	assert_eq!(recv_data_pre_1, recv_data_pre_20);
+
+	let events_at_20_before = builder
 		.with_state_at(BlockId::Number(20), || {
 			frame_system::Pallet::<Runtime>::events()
 		})
 		.unwrap();
+	assert!(!events_at_20_before
+		.into_iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
 
-	let (_send_data_pre, _recv_data_pre) = builder
+	let (send_data_post_20, recv_data_post_20) = builder
 		.with_mut_state(|| {
 			polkadot_runtime::Balances::transfer(
 				polkadot_runtime::Origin::signed(AccountId32::new([0u8; 32])),
@@ -297,11 +323,31 @@ async fn opening_state_from_db_path_works() {
 		})
 		.unwrap();
 
-	let _events_at_20_after = builder
+	let events_at_20_after = builder
 		.with_state_at(BlockId::Number(20), || {
 			frame_system::Pallet::<Runtime>::events()
 		})
 		.unwrap();
+
+	assert_eq!(
+		send_data_pre_20.data.free,
+		send_data_post_20.data.free + 1_000_000_000_000u128,
+	);
+	assert_eq!(
+		recv_data_pre_20.data.free,
+		recv_data_post_20.data.free - 1_000_000_000_000u128
+	);
+	assert!(events_at_20_after
+		.iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
 
 	// Clean up after the test
 
