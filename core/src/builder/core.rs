@@ -223,7 +223,7 @@ where
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(exec);
+		let (r, changes) = ext.execute_with_mut(StateVersion::V0, exec);
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
@@ -272,7 +272,7 @@ where
 			.expect("State is available. qed");
 
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(exec);
+		let (r, changes) = ext.execute_with_mut(StateVersion::V0, exec);
 
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
