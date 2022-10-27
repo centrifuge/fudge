@@ -10,8 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::path::PathBuf;
-
 pub use externalities_provider::ExternalitiesProvider;
 use sc_executor::RuntimeVersionOf;
 use sc_service::{
@@ -25,6 +23,7 @@ use sp_runtime::BuildStorage;
 use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
 use sp_storage::Storage;
 
+pub use crate::provider::state_provider::DbOpen;
 use crate::provider::state_provider::StateProvider;
 
 mod externalities_provider;
@@ -86,9 +85,9 @@ where
 		}
 	}
 
-	pub fn from_db(path: PathBuf) -> Self {
+	pub fn from_db(open: DbOpen) -> Self {
 		Self {
-			state: StateProvider::from_db(path),
+			state: StateProvider::from_db(open),
 			_phantom: Default::default(),
 		}
 	}
@@ -171,7 +170,6 @@ where
 		);
 
 		// TODO: Client config pass?
-		// Client<TFullBackend<TBl>, TFullCallExecutor<TBl, TExec>, TBl, TRtApi>;
 		let client = sc_service::client::Client::<
 			TFullBackend<Block>,
 			TFullCallExecutor<Block, Exec>,

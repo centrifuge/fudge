@@ -13,7 +13,7 @@
 use frame_benchmarking::account;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
-use sc_service::{TFullBackend, TFullClient, TaskManager};
+use sc_service::{PruningMode, TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
@@ -25,7 +25,7 @@ use tokio::runtime::Handle;
 use crate::{
 	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
 	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
-	provider::EnvProvider,
+	provider::{DbOpen, EnvProvider},
 	StandAloneBuilder,
 };
 
@@ -166,41 +166,193 @@ async fn mutating_genesis_works() {
 	assert_eq!(recv_data_pre, recv_data_post);
 }
 
-// TODO: THis should be tested....
-/*
 #[tokio::test]
 async fn opening_state_from_db_path_works() {
+	use std::fs::{create_dir_all, remove_dir_all};
+
 	super::utils::init_logs();
 
+	// We need some temp folder here for testing
+	let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+	path.push("src");
+	path.push("tests");
+	path.push("test_dbs");
+	path.push("test_opening_database");
+	let static_path = path;
+	if static_path.is_dir() {
+		// Clean up before the test, in case there where failures in between
+		remove_dir_all(&static_path).unwrap();
+	}
+	create_dir_all(&static_path).unwrap();
 
-		let mut host_functions = sp_io::SubstrateHostFunctions::host_functions();
-		let manager = TaskManager::new(Handle::current(), None).unwrap();
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
-		let mut provider = EnvProvider::<TestBlock, TestRtApi, TestExec>::from_db(std::path::PathBuf::from("/Users/frederik/Projects/centrifuge-fudge/core/src/tests/data/relay-chain/rococo_local_testnet/db/full"));
-		let (client, backend) = provider
-			.init_default(
-				TestExec::new(
-					WasmExecutionMethod::Interpreted,
-					None,
-					host_functions,
-					6,
-					None,
-				),
-				Box::new(manager.spawn_handle())
-			);
-		let client = Arc::new(client);
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::from_db(
+			DbOpen::SparseConfig {
+				path: static_path.clone(),
+				state_pruning: PruningMode::ArchiveAll,
+			},
+		);
+	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(account("test", 0, 0), 10_000_000_000_000u128),
+			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
+		],
+	}
+	.build_storage()
+	.unwrap();
+	storage.top.insert(
+		sp_storage::well_known_keys::CODE.to_vec(),
+		CODE.unwrap().to_vec(),
+	);
+	provider.insert_storage(storage);
+	let (client, backend) = provider.init_default(
+		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		Box::new(manager.spawn_handle()),
+	);
+	let client = Arc::new(client);
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
 
-		let mut builder = StandAloneBuilder::<TestBlock, TestRtApi, TestExec,  _, _>::new(backend, client);
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
 
-		builder.with_state_at(BlockId::Number(1), || {
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
 
-		}).unwrap();
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
 
-		builder.with_state_at(BlockId::Number(20), || {
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, uncles, slot, relay_para_inherent))
+				}
+			}
+		},
+	);
 
-		}).unwrap();
+	let dp = Box::new(move |parent, inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &parent, &inherents).await?;
+
+		Ok(digest)
+	});
+
+	let mut builder = StandAloneBuilder::<
+		TestBlock,
+		TestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+	>::new(&manager, backend, client.clone(), cidp(client), dp);
+
+	for _ in 0..20 {
+		builder.build_block().unwrap();
+		builder.import_block().unwrap();
+	}
+
+	let (send_data_pre_1, recv_data_pre_1) = builder
+		.with_state_at(BlockId::Number(1), || {
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	let (send_data_pre_20, recv_data_pre_20) = builder
+		.with_state_at(BlockId::Number(20), || {
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	assert_eq!(send_data_pre_1, send_data_pre_20);
+	assert_eq!(recv_data_pre_1, recv_data_pre_20);
+
+	let events_at_20_before = builder
+		.with_state_at(BlockId::Number(20), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
+	assert!(!events_at_20_before
+		.into_iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
+
+	let (send_data_post_20, recv_data_post_20) = builder
+		.with_mut_state(|| {
+			polkadot_runtime::Balances::transfer(
+				polkadot_runtime::Origin::signed(AccountId32::new([0u8; 32])),
+				MultiAddress::Id(account("test", 0, 0)),
+				1_000_000_000_000u128,
+			)
+			.unwrap();
+
+			(
+				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
+				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+			)
+		})
+		.unwrap();
+
+	let events_at_20_after = builder
+		.with_state_at(BlockId::Number(20), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
+
+	assert_eq!(
+		send_data_pre_20.data.free,
+		send_data_post_20.data.free + 1_000_000_000_000u128,
+	);
+	assert_eq!(
+		recv_data_pre_20.data.free,
+		recv_data_post_20.data.free - 1_000_000_000_000u128
+	);
+	assert!(events_at_20_after
+		.iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
+
+	// Clean up after the test
+
+	remove_dir_all(&static_path).unwrap();
 }
-*/
 
 #[tokio::test]
 async fn build_relay_block_works() {
