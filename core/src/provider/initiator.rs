@@ -31,11 +31,12 @@ use tokio::runtime::Handle;
 
 use crate::{provider::BackendProvider, GenesisState, Initiator};
 
-pub struct Init<Block, RtApi, Exec, State>
+pub struct Init<Block, RtApi, Exec>
 where
 	Block: BlockT,
 {
-	state: State,
+	backend: Box<dyn BackendProvider>,
+	genesis: Option<Box<dyn BuildStorage>>,
 	handle: TaskManager,
 	exec: Exec,
 	/// Optional keystore that can be appended
@@ -47,17 +48,17 @@ where
 	_phantom: PhantomData<(Block, RtApi, Exec)>,
 }
 
-impl<Block, RtApi, Exec, State> Init<Block, RtApi, Exec, State>
+impl<Block, RtApi, Exec> Init<Block, RtApi, Exec>
 where
 	Block: BlockT,
 	Block::Hash: FromStr,
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	State: GenesisState + BackendProvider,
 {
-	pub fn new(state: State, exec: Exec, handle: Handle) -> Self {
+	pub fn new(backend: Box<dyn BackendProvider>, exec: Exec, handle: Handle) -> Self {
 		Self {
-			state,
+			backend,
+			genesis: None,
 			handle: TaskManager::new(handle, None).unwrap(),
 			exec,
 			keystore: None,
@@ -67,24 +68,12 @@ where
 		}
 	}
 
-	// TODO: Elaborate if this method is actually useful or harmful.
-	//       That is why it is not public.
-	fn into_from_config(
-		exec: Exec,
-		config: &Configuration,
-	) -> (
-		TFullClient<Block, RtApi, Exec>,
-		Arc<TFullBackend<Block>>,
-		KeystoreContainer,
-		TaskManager,
-	) {
-		sc_service::new_full_parts(config, None, exec)
-			.map_err(|_| "err".to_string())
-			.unwrap()
-	}
-
 	pub fn with_exec_strategies(&mut self, execution_strategies: ExecutionStrategies) {
 		self.execution_strategies = Some(execution_strategies);
+	}
+
+	pub fn with_genesis(&mut self, genesis: Box<dyn BuilStorage>) {
+		self.genesis = Some(genesis);
 	}
 
 	pub fn with_config(&mut self, config: ClientConfig<Block>) {
@@ -193,3 +182,70 @@ impl<Block, RtApi, Exec, State> Initiator<Block> for Init<Block, RtApi, Exec, St
 		Ok((client, backend, pool, executor, task_manager))
 	}
 }
+
+/*
+Actually create Initiator froma Configuration and an executor
+
+pub struct FromConfiguration<Block, RtApi, Exec, R> {
+	exec: Exec,
+	config: Configuration,
+	keystore_receiver: R;
+	_phantom: PhantomData<(Block, RtApi)>,
+};
+
+impl<Block, RtApi, Exec, R> FromConfiguration<Block, RtApi, Exec, R>
+where
+	R: FnOnce(KeyStoreContainer)
+{
+	pub fn new(exec: Exec, config: Configuration, keystore_receiver: R) -> Self {
+		Self {
+			exec,
+			config,
+			keystore_receiver,
+			_phantom: Default::default()
+		}
+	 }
+}
+
+impl Initiator<Block, Exec, RtApi> for FromConfiguration<Block, RtApi, Exec> {
+	type Backend = Arc<TFullBackend<Block>>;
+	type Client = Arc<TFullClient<Block, RtApi, Exec>>;
+	type Executor = Exec;
+	type Pool = Arc<FullPool<Block, Self::Client>>;
+
+	fn init(
+		self,
+	) -> Result<
+		(
+			Arc<TFullClient<Block, RtApi, Exec>>,
+			Arc<TFullBackend<Block>>,
+			Arc<FullPool<Block, TFullClient<Block, RtApi, Exec>>>,
+			Exec,
+			TaskManager,
+		),
+		(),
+	> {
+		let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts(self.config, None, self.exec.clone())
+				.unwrap();
+		let client = Arc::new(client);
+
+		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
+			Default::default(),
+			true.into(),
+			Arc::new(FullChainApi::new(
+				client.clone(),
+				None,
+				&manager.spawn_essential_handle(),
+			)),
+			None,
+			RevalidationType::Full,
+			manager.spawn_essential_handle(),
+			client.usage_info().chain.best_number,
+		));
+
+		self.keystore_receiver(keystore_container);
+		Ok((client, backend, pool, self.exec, task_manager))
+	}
+}
+
+ */
