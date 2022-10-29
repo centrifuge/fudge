@@ -16,12 +16,13 @@
 
 use std::{marker::PhantomData, str::FromStr, sync::Arc};
 
-use sc_client_api::{backend, execution_extensions::ExecutionStrategies};
+use sc_client_api::{backend, execution_extensions::ExecutionStrategies, UsageProvider};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{
 	ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend,
 	TFullCallExecutor, TFullClient, TaskManager,
 };
+use sc_transaction_pool::{FullChainApi, FullPool, RevalidationType};
 use sp_api::{BlockT, ConstructRuntimeApi};
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_keystore::SyncCryptoStorePtr;
@@ -112,10 +113,11 @@ where
 	}
 }
 
-impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
+impl<Block, RtApi, Exec, State> Initiator<Block> for Init<Block, RtApi, Exec, State> {
 	type Backend = Arc<TFullBackend<Block>>;
 	type Client = Arc<TFullClient<Block, RtApi, Exec>>;
-	type Executor = LocalCallExecutor<Block, TFullBackend<Block>, Exec>;
+	type Executor = Exec;
+	type Pool = Arc<FullPool<Block, Self::Client>>;
 
 	fn init(
 		self,
@@ -123,7 +125,8 @@ impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
 		(
 			Arc<TFullClient<Block, RtApi, Exec>>,
 			Arc<TFullBackend<Block>>,
-			LocalCallExecutor<Block, TFullBackend<Block>, Exec>,
+			Arc<FullPool<Block, TFullClient<Block, RtApi, Exec>>>,
+			Exec,
 			TaskManager,
 		),
 		(),
@@ -138,9 +141,9 @@ impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
 			keystore,
 		) = self.destruct();
 
-		let executor = sc_service::client::LocalCallExecutor::new(
+		let call_executor = sc_service::client::LocalCallExecutor::new(
 			backend.clone(),
-			executor,
+			executor.clone(),
 			Box::new(task_manager.spawn_handle()),
 			client_config.clone(),
 		)
@@ -160,7 +163,7 @@ impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
 				RtApi,
 			>::new(
 				backend.clone(),
-				executor.clone(),
+				call_executor,
 				&*genesis,
 				None,
 				None,
@@ -173,6 +176,20 @@ impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
 			.unwrap(),
 		);
 
-		Ok((client, backend, executor, task_manager))
+		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
+			Default::default(),
+			true.into(),
+			Arc::new(FullChainApi::new(
+				client.clone(),
+				None,
+				&manager.spawn_essential_handle(),
+			)),
+			None,
+			RevalidationType::Full,
+			manager.spawn_essential_handle(),
+			client.usage_info().chain.best_number,
+		));
+
+		Ok((client, backend, pool, executor, task_manager))
 	}
 }

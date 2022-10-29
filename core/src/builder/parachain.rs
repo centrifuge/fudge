@@ -36,7 +36,7 @@ use crate::{
 	digest::DigestCreator,
 	inherent::ArgsProvider,
 	types::StoragePair,
-	PoolState,
+	Initiator, PoolState,
 };
 
 pub struct FudgeParaBuild {
@@ -108,9 +108,9 @@ where
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 {
-	pub fn new(manager: &TaskManager, backend: Arc<B>, client: Arc<C>, cidp: CIDP, dp: DP) -> Self {
+	pub fn new(init: impl Initiator<Block>, cidp: CIDP, dp: DP) -> Self {
 		Self {
-			builder: Builder::new(backend, client, manager),
+			builder: Builder::new(init),
 			cidp,
 			dp,
 			next: None,

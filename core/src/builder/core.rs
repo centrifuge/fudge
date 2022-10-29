@@ -14,8 +14,8 @@ use std::{marker::PhantomData, sync::Arc};
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
 	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
-	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
-	UsageProvider,
+	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, CallExecutor, HeaderBackend,
+	NewBlockState, UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
@@ -37,7 +37,7 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::ExternalitiesProvider, StoragePair};
+use crate::{provider::ExternalitiesProvider, Initiator, StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -56,31 +56,16 @@ pub enum PoolState {
 	Busy(usize),
 }
 
-pub struct Builder<
-	Block: BlockT,
-	RtApi,
-	Exec,
-	B = Backend<Block>,
-	C = TFullClient<Block, RtApi, Exec>,
-> where
-	Block: BlockT,
-	C: ProvideRuntimeApi<Block>
-		+ BlockBackend<Block>
-		+ BlockIdTo<Block>
-		+ HeaderBackend<Block>
-		+ Send
-		+ Sync
-		+ 'static,
-	C::Api: TaggedTransactionQueue<Block>,
-{
+pub struct Builder<Block, RtApi, Exec, B, C, A> {
 	backend: Arc<B>,
 	client: Arc<C>,
-	pool: Arc<sc_transaction_pool::FullPool<Block, C>>,
+	pool: Arc<A>,
+	executor: Exec,
 	cache: TransitionCache,
-	_phantom: PhantomData<(Block, RtApi, Exec)>,
+	_phantom: PhantomData<(Block, RtApi)>,
 }
 
-impl<Block, RtApi, Exec, B, C> Builder<Block, RtApi, Exec, B, C>
+impl<Block, RtApi, Exec, B, C, A> Builder<Block, RtApi, Exec, B, C, A>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -102,29 +87,20 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+	A: TransactionPool<Block = Block> + 'static,
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new(backend: Arc<B>, client: Arc<C>, manager: &TaskManager) -> Self {
-		let pool = Arc::new(
-			sc_transaction_pool::FullPool::<Block, C>::with_revalidation_type(
-				Default::default(),
-				true.into(),
-				Arc::new(FullChainApi::new(
-					client.clone(),
-					None,
-					&manager.spawn_essential_handle(),
-				)),
-				None,
-				RevalidationType::Full,
-				manager.spawn_essential_handle(),
-				client.usage_info().chain.best_number,
-			),
-		);
+	pub fn new<Init>(initiator: Init) -> Self
+	where
+		Init: Initiator<Block>,
+	{
+		let (client, backend, pool, executor, manager) = initiator.init().unwrap();
 
 		Builder {
-			backend: backend,
-			client: client,
-			pool: pool,
+			backend,
+			client,
+			pool,
+			executor,
 			cache: TransitionCache {
 				auxilliary: Vec::new(),
 			},

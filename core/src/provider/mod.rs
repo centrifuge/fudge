@@ -12,19 +12,58 @@
 
 pub use externalities::ExternalitiesProvider;
 pub use initiator::Init;
+use sc_client_api::{
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, CallExecutor, HeaderBackend,
+	UsageProvider,
+};
+use sc_consensus::BlockImport;
+use sc_executor::RuntimeVersionOf;
 use sc_service::TaskManager;
+use sc_transaction_pool_api::TransactionPool;
+use sp_api::{ApiExt, CallApiAt, ProvideRuntimeApi};
+use sp_core::traits::CodeExecutor;
+use sp_runtime::traits::{Block as BlockT, BlockIdTo};
 pub use state::{DbOpen, StateProvider};
 
 mod externalities;
 mod initiator;
 mod state;
 
-pub trait Initiator {
-	type Client;
-	type Backend;
-	type Executor;
+pub trait Initiator<Block: BlockT>
+where
+	<Self::Client as ProvideRuntimeApi<Block>>::Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+		+ TaggedTransactionQueue<Block>,
+{
+	type Client: 'static
+		+ ProvideRuntimeApi<Block>
+		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ HeaderBackend<Block>
+		+ BlockImport<Block>
+		+ CallApiAt<Block>
+		+ sc_block_builder::BlockBuilderProvider<B, Block, C>;
+	type Backend: 'static + BackendT<Block>;
+	type Pool: 'static + TransactionPool<Block = Block>;
+	type Executor: 'static + CodeExecutor + Clone;
 
-	fn init(self) -> Result<(Self::Client, Self::Backend, Self::Executor, TaskManager), ()>;
+	fn init(
+		self,
+	) -> Result<
+		(
+			Self::Client,
+			Self::Backend,
+			Self::Pool,
+			Self::Executor,
+			TaskManager,
+		),
+		(),
+	>;
 }
 
 pub trait GenesisState {}
