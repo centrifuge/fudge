@@ -32,7 +32,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, One, Zero},
 	Digest,
 };
-use sp_state_machine::StorageProof;
+use sp_state_machine::{StorageChanges, StorageProof};
 use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -160,6 +160,19 @@ where
 		.unwrap()
 	}
 
+	fn state_version(&self) -> StateVersion {
+		// TODO: Fetch the actual StateVersion from the runtime_version.
+		//       make runtime version its own call. Actually, this needs the executor to be instantiaded and be part
+		//       part of the builder
+		/*
+		RuntimeVersionOf::runtime_version(executor, &mut ext, &runtime_code)
+			.map_err(|e| sp_blockchain::Error::VersionInvalid(e.to_string()))?;
+
+		 */
+
+		StateVersion::V0
+	}
+
 	pub fn with_state<R>(
 		&self,
 		op: Operation,
@@ -183,33 +196,35 @@ where
 					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
 				self.backend.begin_state_operation(&mut op, at).unwrap();
 
-				let res = if self
+				let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
+				let r = ext.execute_with(exec);
+
+				if self
 					.backend
 					.blockchain()
 					.block_number_from_id(&at)
 					.unwrap()
 					.unwrap() == Zero::zero()
 				{
-					self.mutate_genesis(&mut op, &state, exec)
+					self.mutate_genesis(&mut op, ext.drain(self.state_version()))
 				} else {
-					// We need to unfinalize the latest block and re-import it again in order to
-					// mutate it
+					// We need to revert the latest block and re-import it again in order to
+					// mutate it if it was already finalized
 					let info = self.client.info();
 					if info.best_hash == info.finalized_hash {
 						self.backend
 							.revert(NumberFor::<Block>::one(), true)
 							.unwrap();
 					}
-					self.mutate_normal(&mut op, &state, exec, at)
-				};
+					self.mutate_normal(&mut op, ext.drain(self.state_version()), at)
+				}?;
 
 				self.backend
 					.commit_operation(op)
 					.map_err(|_| "Unable to commit state-operation on backend".to_string())?;
 
-				res
+				Ok(r)
 			}
-			// TODO: Does this actually NOT change the state?
 			Operation::DryRun => Ok(
 				ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state).execute_with(exec),
 			),
@@ -219,14 +234,12 @@ where
 	fn mutate_genesis<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		state: &B::State,
-		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(StateVersion::V0, exec);
+		changes: StorageChanges<B::Transaction, HashFor<Block>>,
+	) -> Result<(), String> {
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
 		// We nee this in order to UNSET commited
+		// TODO: Why not needed anymore?
 		// op.set_genesis_state(Storage::default(), true, StateVersion::V0)
 		//	.unwrap();
 		op.update_db_storage(tx).unwrap();
@@ -254,28 +267,22 @@ where
 		)
 		.map_err(|_| "Could not set block data".to_string())?;
 
-		Ok(r)
+		Ok(())
 	}
 
 	fn mutate_normal<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		state: &B::State,
-		exec: impl FnOnce() -> R,
+		changes: StorageChanges<B::Transaction, HashFor<Block>>,
 		at: BlockId<Block>,
-	) -> Result<R, String> {
+	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend
 			.header(at)
 			.ok()
 			.flatten()
 			.expect("State is available. qed");
-
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(StateVersion::V0, exec);
-
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
-
 		header.set_state_root(root);
 		op.update_db_storage(tx).unwrap();
 		op.update_storage(main_sc, child_sc)
@@ -293,7 +300,6 @@ where
 			.justifications(at)
 			.expect("State is available. qed.");
 
-		// TODO: We set as final, this might not be correct.
 		op.set_block_data(
 			header,
 			body,
@@ -302,7 +308,7 @@ where
 			NewBlockState::Final,
 		)
 		.unwrap();
-		Ok(r)
+		Ok(())
 	}
 
 	/// Append a given set of key-value-pairs into the builder cache

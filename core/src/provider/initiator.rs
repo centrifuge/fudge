@@ -14,122 +14,165 @@
 //! Builders will expect something that implements this trait in
 //! order to retrieve a `client` and a `backend`.
 
-pub struct Initiator<Block, RtApi, Exec>
+use std::{marker::PhantomData, str::FromStr, sync::Arc};
+
+use sc_client_api::{backend, execution_extensions::ExecutionStrategies};
+use sc_executor::RuntimeVersionOf;
+use sc_service::{
+	ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend,
+	TFullCallExecutor, TFullClient, TaskManager,
+};
+use sp_api::{BlockT, ConstructRuntimeApi};
+use sp_core::traits::{CodeExecutor, SpawnNamed};
+use sp_keystore::SyncCryptoStorePtr;
+use sp_runtime::BuildStorage;
+use tokio::runtime::Handle;
+
+use crate::{provider::BackendProvider, GenesisState, Initiator};
+
+pub struct Init<Block, RtApi, Exec, State>
 where
 	Block: BlockT,
 {
-	state: StateProvider<TFullBackend<Block>, Block>,
+	state: State,
+	handle: TaskManager,
+	exec: Exec,
+	/// Optional keystore that can be appended
+	keystore: Option<SyncCryptoStorePtr>,
+	/// Optional ClientConfig that can be appended
+	client_config: Option<ClientConfig<Block>>,
+	/// Optional ExecutionStrategies that can be appended
+	execution_strategies: Option<ExecutionStrategies>,
 	_phantom: PhantomData<(Block, RtApi, Exec)>,
 }
 
-impl<Block, RtApi, Exec> Initiator<Block, RtApi, Exec>
+impl<Block, RtApi, Exec, State> Init<Block, RtApi, Exec, State>
 where
 	Block: BlockT,
 	Block::Hash: FromStr,
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
+	State: GenesisState + BackendProvider,
 {
-	pub fn into_from_config(
-		config: &Configuration,
+	pub fn new(state: State, exec: Exec, handle: Handle) -> Self {
+		Self {
+			state,
+			handle: TaskManager::new(handle, None).unwrap(),
+			exec,
+			keystore: None,
+			client_config: None,
+			execution_strategies: None,
+			_phantom: Default::default(),
+		}
+	}
+
+	// TODO: Elaborate if this method is actually useful or harmful.
+	//       That is why it is not public.
+	fn into_from_config(
 		exec: Exec,
+		config: &Configuration,
 	) -> (
 		TFullClient<Block, RtApi, Exec>,
 		Arc<TFullBackend<Block>>,
 		KeystoreContainer,
 		TaskManager,
 	) {
-		//TODO: Handle unwrap
 		sc_service::new_full_parts(config, None, exec)
 			.map_err(|_| "err".to_string())
 			.unwrap()
 	}
 
-	pub fn init_default(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, None, None)
+	pub fn with_exec_strategies(&mut self, execution_strategies: ExecutionStrategies) {
+		self.execution_strategies = Some(execution_strategies);
 	}
 
-	pub fn init_with_config(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, None, Some(config))
+	pub fn with_config(&mut self, config: ClientConfig<Block>) {
+		self.client_config = Some(config);
 	}
 
-	pub fn init_full(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: SyncCryptoStorePtr,
-		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, Some(keystore), Some(config))
+	pub fn with_keystore(&mut self, keystore: SyncCryptoStorePtr) {
+		self.keystore = Some(keystore);
 	}
 
-	pub fn init_with_keystore(
+	fn destruct<Backend>(
 		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: SyncCryptoStorePtr,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, Some(keystore), None)
+	) -> (
+		Arc<Backend>,
+		Box<dyn BuildStorage>,
+		Exec,
+		TaskManager,
+		ExecutionStrategies,
+		ClientConfig<Block>,
+		Option<SyncCryptoStorePtr>,
+	)
+	where
+		Backend: backend::LocalBackend<Block> + 'static,
+	{
+		todo!()
 	}
+}
+
+impl<Block, RtApi, Exec, State> Initiator for Init<Block, RtApi, Exec, State> {
+	type Backend = Arc<TFullBackend<Block>>;
+	type Client = Arc<TFullClient<Block, RtApi, Exec>>;
+	type Executor = LocalCallExecutor<Block, TFullBackend<Block>, Exec>;
 
 	fn init(
 		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: Option<SyncCryptoStorePtr>,
-		config: Option<ClientConfig<Block>>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		let backend = self.state.backend();
-		let config = config.clone().unwrap_or(Self::client_config());
+	) -> Result<
+		(
+			Arc<TFullClient<Block, RtApi, Exec>>,
+			Arc<TFullBackend<Block>>,
+			LocalCallExecutor<Block, TFullBackend<Block>, Exec>,
+			TaskManager,
+		),
+		(),
+	> {
+		let (
+			backend,
+			genesis,
+			executor,
+			task_manager,
+			execution_strategies,
+			client_config,
+			keystore,
+		) = self.destruct();
 
-		// TODO: Handle unwrap
 		let executor = sc_service::client::LocalCallExecutor::new(
 			backend.clone(),
-			exec,
-			handle,
-			config.clone(),
+			executor,
+			Box::new(task_manager.spawn_handle()),
+			client_config.clone(),
 		)
 		.unwrap();
 
-		// TODO: Execution strategies default is not right. Use always wasm instead
 		let extensions = sc_client_api::execution_extensions::ExecutionExtensions::new(
-			ExecutionStrategies::default(),
+			execution_strategies,
 			keystore,
 			sc_offchain::OffchainDb::factory_from_backend(&*backend),
 		);
 
-		// TODO: Client config pass?
-		let client = sc_service::client::Client::<
-			TFullBackend<Block>,
-			TFullCallExecutor<Block, Exec>,
-			Block,
-			RtApi,
-		>::new(
-			backend.clone(),
-			executor,
-			&self.state,
-			None,
-			None,
-			extensions,
-			None,
-			None,
-			config.clone(),
-		)
-		.map_err(|_| "err".to_string())
-		.unwrap();
+		let client = Arc::new(
+			sc_service::client::Client::<
+				TFullBackend<Block>,
+				TFullCallExecutor<Block, Exec>,
+				Block,
+				RtApi,
+			>::new(
+				backend.clone(),
+				executor.clone(),
+				&*genesis,
+				None,
+				None,
+				extensions,
+				None,
+				None,
+				client_config,
+			)
+			.map_err(|_| "err".to_string())
+			.unwrap(),
+		);
 
-		(client, backend)
-	}
-
-	fn client_config() -> ClientConfig<Block> {
-		ClientConfig::default()
+		Ok((client, backend, executor, task_manager))
 	}
 }

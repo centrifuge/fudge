@@ -20,7 +20,7 @@ pub use builder::{
 	stand_alone::StandAloneBuilder,
 	PoolState,
 };
-pub use provider::EnvProvider;
+pub use provider::{GenesisState, Initiator, StateProvider};
 pub use types::{Bytes, StoragePair};
 
 pub mod builder;

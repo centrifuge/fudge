@@ -10,26 +10,23 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-pub use externalities_provider::ExternalitiesProvider;
-use sc_executor::RuntimeVersionOf;
-use sc_service::{
-	config::ExecutionStrategies, ClientConfig, Configuration, KeystoreContainer, TFullBackend,
-	TFullCallExecutor, TFullClient, TaskManager,
-};
-use sp_api::{BlockT, ConstructRuntimeApi};
-use sp_core::traits::{CodeExecutor, SpawnNamed};
-use sp_keystore::SyncCryptoStorePtr;
-use sp_runtime::BuildStorage;
-use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
-use sp_storage::Storage;
-
-pub use crate::provider::state_provider::DbOpen;
-use crate::provider::state_provider::StateProvider;
+pub use externalities::ExternalitiesProvider;
+pub use initiator::Init;
+use sc_service::TaskManager;
+pub use state::{DbOpen, StateProvider};
 
 mod externalities;
 mod initiator;
 mod state;
 
-pub trait Initiator {}
+pub trait Initiator {
+	type Client;
+	type Backend;
+	type Executor;
+
+	fn init(self) -> Result<(Self::Client, Self::Backend, Self::Executor, TaskManager), ()>;
+}
 
 pub trait GenesisState {}
+
+pub trait BackendProvider {}

@@ -95,7 +95,7 @@ where
 	/// Otherwise, returns `Err`.
 	pub fn execute_with_safe<R>(
 		&mut self,
-		f: impl FnOnce() -> R + UnwindSafe,
+		execute: impl FnOnce() -> R + UnwindSafe,
 	) -> Result<R, String> {
 		let mut ext = AssertUnwindSafe(self.ext());
 		std::panic::catch_unwind(move || {

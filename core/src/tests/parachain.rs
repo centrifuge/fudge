@@ -36,7 +36,7 @@ use crate::{
 	inherent::{
 		FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
 	},
-	provider::EnvProvider,
+	provider::Init,
 	FudgeParaChain, ParachainBuilder, RelaychainBuilder,
 };
 
