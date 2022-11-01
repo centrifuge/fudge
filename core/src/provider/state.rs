@@ -10,6 +10,9 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+//! A module concerned with providing a data structure that can
+//! be used to provide a genesis state for a builder.
+
 use std::path::PathBuf;
 
 use sc_client_api::Backend;
@@ -21,151 +24,60 @@ use sp_runtime::{traits::Block as BlockT, BuildStorage};
 use sp_std::{marker::PhantomData, sync::Arc};
 use sp_storage::Storage;
 
-pub const CANONICALIZATION_DELAY: u64 = 4096;
-
-pub enum DbOpen {
-	FullConfig(DatabaseSettings),
-	SparseConfig {
-		path: PathBuf,
-		state_pruning: PruningMode,
-	},
-	Default(PathBuf),
-}
-
-pub struct StateProvider<B, Block> {
-	backend: Arc<B>,
+/// Helping struct to ease provisioning of a
+/// genesis state.
+pub struct StateProvider {
 	pseudo_genesis: Storage,
-	_phantom: PhantomData<Block>,
 }
 
-impl<B, Block> StateProvider<B, Block>
-where
-	Block: BlockT,
-	B: Backend<Block>,
-{
-	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
-		let Storage {
-			top,
-			children_default,
-		} = storage;
-
-		self.pseudo_genesis.top.extend(top.into_iter());
-		for (k, other_map) in children_default.iter() {
-			let k = k.clone();
-			if let Some(map) = self.pseudo_genesis.children_default.get_mut(&k) {
-				map.data
-					.extend(other_map.data.iter().map(|(k, v)| (k.clone(), v.clone())));
-				if !map.child_info.try_update(&other_map.child_info) {
-					// TODO: Error out instead
-					//return Err("Incompatible child info update".to_string())
-				}
-			} else {
-				self.pseudo_genesis
-					.children_default
-					.insert(k, other_map.clone());
-			}
-		}
+impl StateProvider {
+	/// Anything that implements `trait BuildStorage` can appends its state to the
+	/// existing `StateProvider`.
+	///
+	/// **panics+* upon providing wrongly formatted child storage items.
+	pub fn insert_storage(&mut self, storage: impl BuildStorage) -> &mut Self {
+		assert!(storage.assimilate_storage(&mut self.pseudo_genesis).is_ok());
 		self
 	}
 
-	pub fn backend(&self) -> Arc<B> {
-		self.backend.clone()
-	}
-}
-
-impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
-where
-	Block: BlockT,
-{
-	pub fn from_db(open: DbOpen) -> Self {
-		let settings = match open {
-			DbOpen::FullConfig(settings) => settings,
-			DbOpen::SparseConfig {
-				path,
-				state_pruning,
-			} => DatabaseSettings {
-				trie_cache_maximum_size: None,
-				state_pruning: Some(state_pruning),
-				source: DatabaseSource::RocksDb {
-					path: path,
-					cache_size: 1024,
-				},
-				blocks_pruning: BlocksPruning::All,
-			},
-			DbOpen::Default(path) => DatabaseSettings {
-				trie_cache_maximum_size: None,
-				state_pruning: None,
-				source: DatabaseSource::RocksDb {
-					path: path,
-					cache_size: 1024,
-				},
-				blocks_pruning: BlocksPruning::All,
-			},
-		};
-
-		let backend = Arc::new(
-			sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY)
-				.map_err(|_| ())
-				.unwrap(),
-		);
-
+	/// Generates a truly empty `StateProvider`
+	pub fn empty() -> Self {
 		Self {
-			backend,
 			pseudo_genesis: Storage::default(),
-			_phantom: Default::default(),
 		}
 	}
 
-	pub fn from_spec() -> Self {
-		todo!()
-	}
-
-	pub fn from_storage(storage: Storage) -> Self {
-		let mut provider = StateProvider::empty_default(None);
+	/// Builds a `StorageProvider` from anything that implements
+	/// `trait BuildStorage`
+	///
+	/// E.g.: This could be used to a spec of a chain to build the
+	///       correct genesis state for a chain. All specs implement
+	///       `trait BuildStorage`
+	/// (See: https://github.com/paritytech/substrate/blob/0d64ba4268106fffe430d41b541c1aeedd4f8da5/client/chain-spec/src/chain_spec.rs#L111-L141)
+	pub fn from_storage(storage: impl BuildStorage) -> Self {
+		let mut provider = StateProvider::empty();
 		provider.insert_storage(storage);
 		provider
 	}
 
-	pub fn empty_default(code: Option<&[u8]>) -> Self {
-		// TODO: Handle unwrap
-		let mut provider = StateProvider::with_in_mem_db().unwrap();
-
+	/// Creates a new instance of `StorageBuilder`.
+	///
+	/// As instantiating an actual client needs in most cases
+	/// an existing wasm blob to be present, this method enforces
+	/// providing the code.
+	///
+	/// Developers opting out of this should use `StateProvider::empty()`.
+	pub fn new(code: &[u8]) -> Self {
 		let mut storage = Storage::default();
-		if let Some(code) = code {
-			storage.top.insert(CODE.to_vec(), code.to_vec());
-		}
+		storage.top.insert(CODE.to_vec(), code.to_vec());
 
+		let mut provider = StateProvider::empty();
 		provider.insert_storage(storage);
 		provider
-	}
-
-	fn with_in_mem_db() -> Result<Self, ()> {
-		let settings = DatabaseSettings {
-			trie_cache_maximum_size: None,
-			state_pruning: Some(PruningMode::ArchiveAll),
-			source: DatabaseSource::Custom {
-				db: Arc::new(MemDb::new()),
-				require_create_flag: true,
-			},
-			blocks_pruning: BlocksPruning::All,
-		};
-
-		let backend =
-			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
-
-		Ok(Self {
-			backend,
-			pseudo_genesis: Storage::default(),
-			_phantom: Default::default(),
-		})
 	}
 }
 
-impl<B, Block> BuildStorage for StateProvider<B, Block>
-where
-	Block: BlockT,
-	B: Backend<Block>,
-{
+impl BuildStorage for StateProvider {
 	fn build_storage(&self) -> Result<Storage, String> {
 		Ok(self.pseudo_genesis.clone())
 	}

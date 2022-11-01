@@ -35,7 +35,7 @@ pub struct Init<Block, RtApi, Exec>
 where
 	Block: BlockT,
 {
-	backend: Box<dyn BackendProvider>,
+	backend: Box<dyn BackendProvider<Block>>,
 	genesis: Option<Box<dyn BuildStorage>>,
 	handle: TaskManager,
 	exec: Exec,
@@ -55,7 +55,7 @@ where
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
-	pub fn new(backend: Box<dyn BackendProvider>, exec: Exec, handle: Handle) -> Self {
+	pub fn new(backend: Box<dyn BackendProvider<Block>>, exec: Exec, handle: Handle) -> Self {
 		Self {
 			backend,
 			genesis: None,
@@ -102,19 +102,19 @@ where
 	}
 }
 
-impl<Block, RtApi, Exec, State> Initiator<Block> for Init<Block, RtApi, Exec, State> {
-	type Backend = Arc<TFullBackend<Block>>;
-	type Client = Arc<TFullClient<Block, RtApi, Exec>>;
+impl<Block, RtApi, Exec> Initiator<Block> for Init<Block, RtApi, Exec> {
+	type Backend = BackendProvider<Block>::Backend;
+	type Client = TFullClient<Block, RtApi, Exec>;
 	type Executor = Exec;
-	type Pool = Arc<FullPool<Block, Self::Client>>;
+	type Pool = FullPool<Block, Self::Client>;
 
 	fn init(
 		self,
 	) -> Result<
 		(
-			Arc<TFullClient<Block, RtApi, Exec>>,
-			Arc<TFullBackend<Block>>,
-			Arc<FullPool<Block, TFullClient<Block, RtApi, Exec>>>,
+			TFullClient<Block, RtApi, Exec>,
+			TFullBackend<Block>,
+			FullPool<Block, TFullClient<Block, RtApi, Exec>>,
 			Exec,
 			TaskManager,
 		),

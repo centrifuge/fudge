@@ -10,6 +10,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::sync::Arc;
+
 pub use externalities::ExternalitiesProvider;
 pub use initiator::Init;
 use sc_client_api::{
@@ -25,6 +27,7 @@ use sp_core::traits::CodeExecutor;
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
 pub use state::{DbOpen, StateProvider};
 
+mod backend;
 mod externalities;
 mod initiator;
 mod state;
@@ -56,9 +59,9 @@ where
 		self,
 	) -> Result<
 		(
-			Self::Client,
-			Self::Backend,
-			Self::Pool,
+			Arc<Self::Client>,
+			Arc<Self::Backend>,
+			Arc<Self::Pool>,
 			Self::Executor,
 			TaskManager,
 		),
@@ -68,4 +71,8 @@ where
 
 pub trait GenesisState {}
 
-pub trait BackendProvider {}
+pub trait BackendProvider<Block> {
+	type Backend: 'static + BackendT<Block>;
+
+	fn provide(&self) -> Self::Backend;
+}
