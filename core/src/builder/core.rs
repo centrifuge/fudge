@@ -14,14 +14,12 @@ use std::{marker::PhantomData, sync::Arc};
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
 	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
-	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, CallExecutor, HeaderBackend,
-	NewBlockState, UsageProvider,
+	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
+	StateBackend, UsageProvider,
 };
-use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullClient, TaskManager, TransactionPool};
-use sc_transaction_pool::{FullChainApi, RevalidationType};
+use sc_service::{SpawnTaskHandle, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -37,7 +35,7 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::ExternalitiesProvider, Initiator, StoragePair};
+use crate::{provider::externalities::ExternalitiesProvider, Initiator, StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -210,7 +208,7 @@ where
 	fn mutate_genesis<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		changes: StorageChanges<B::Transaction, HashFor<Block>>,
+		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
 	) -> Result<(), String> {
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
 
@@ -249,7 +247,7 @@ where
 	fn mutate_normal<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		changes: StorageChanges<B::Transaction, HashFor<Block>>,
+		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
 		at: BlockId<Block>,
 	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();

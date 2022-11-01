@@ -13,15 +13,8 @@
 //! A module concerned with providing a data structure that can
 //! be used to provide a genesis state for a builder.
 
-use std::path::PathBuf;
-
-use sc_client_api::Backend;
-use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource};
-use sc_service::PruningMode;
 use sp_core::storage::well_known_keys::CODE;
-use sp_database::MemDb;
-use sp_runtime::{traits::Block as BlockT, BuildStorage};
-use sp_std::{marker::PhantomData, sync::Arc};
+use sp_runtime::BuildStorage;
 use sp_storage::Storage;
 
 /// Helping struct to ease provisioning of a

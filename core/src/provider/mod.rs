@@ -12,25 +12,22 @@
 
 use std::{error::Error, sync::Arc};
 
-pub use externalities::ExternalitiesProvider;
-pub use initiator::Init;
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, CallExecutor, HeaderBackend,
-	UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_consensus::BlockImport;
-use sc_executor::RuntimeVersionOf;
 use sc_service::TaskManager;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::{ApiExt, CallApiAt, ProvideRuntimeApi};
+use sp_block_builder::BlockBuilder;
 use sp_core::traits::CodeExecutor;
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
-pub use state::StateProvider;
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-mod backend;
-mod externalities;
-mod initiator;
-mod state;
+pub mod backend;
+pub mod externalities;
+pub mod initiator;
+pub mod state;
 
 pub trait Initiator<Block: BlockT>
 where
@@ -50,7 +47,7 @@ where
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<B, Block, C>;
+		+ sc_block_builder::BlockBuilderProvider<Self::Backend, Block, Self::Client>;
 	type Backend: 'static + BackendT<Block>;
 	type Pool: 'static + TransactionPool<Block = Block>;
 	type Executor: 'static + CodeExecutor + Clone;

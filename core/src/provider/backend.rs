@@ -10,13 +10,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::{
-	marker::PhantomData,
-	path::{Path, PathBuf},
-	sync::Arc,
-};
+use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 
-use sc_client_api::blockchain::tree_route;
 use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource, PruningMode};
 use sc_service::TFullBackend;
 
@@ -72,35 +67,35 @@ impl<Block> MemDb<Block> {
 
 	/// Overwrites current block pruning. The newly set `BlockPruning` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_blocks_pruning(&mut self, pruning: BlocksPruning) -> &mut Self<Block> {
+	pub fn with_blocks_pruning(&mut self, pruning: BlocksPruning) -> &mut Self {
 		self.blocks_pruning = pruning;
 		self
 	}
 
 	/// Overwrites current trie cache. The newly set trie cache size will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_trie_cache(&mut self, trie_cache: usize) -> &mut Self<Block> {
+	pub fn with_trie_cache(&mut self, trie_cache: usize) -> &mut Self {
 		self.trie_cache = Some(trie_cache);
 		self
 	}
 
 	/// Overwrites current state pruning mode. The newly set `PruningMode` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self<Block> {
+	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self {
 		self.state_pruning = Some(pruning);
 		self
 	}
 
 	/// Overwrites current requiere create flag. The newly set flag will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_create_flag(&mut self, create: bool) -> &mut Self<Block> {
+	pub fn with_create_flag(&mut self, create: bool) -> &mut Self {
 		self.require_create_flag = create;
 		self
 	}
 
 	/// Overwrites current canonicalization delay. The newly set canonicalization delay will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_canonicalization_delay(&mut self, delay: u64) -> &mut Self<Block> {
+	pub fn with_canonicalization_delay(&mut self, delay: u64) -> &mut Self {
 		self.canonicalization_delay = delay;
 		self
 	}
@@ -172,35 +167,35 @@ impl<Block> DiskDb<Block> {
 
 	/// Overwrites current block pruning. The newly set `BlockPruning` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_blocks_pruning(&mut self, pruning: BlocksPruning) -> &mut Self<Block> {
+	pub fn with_blocks_pruning(&mut self, pruning: BlocksPruning) -> &mut Self {
 		self.blocks_pruning = pruning;
 		self
 	}
 
 	/// Overwrites current trie cache. The newly set trie cache size will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_trie_cache(&mut self, trie_cache: usize) -> &mut Self<Block> {
+	pub fn with_trie_cache(&mut self, trie_cache: usize) -> &mut Self {
 		self.trie_cache = Some(trie_cache);
 		self
 	}
 
 	/// Overwrites current state pruning mode. The newly set `PruningMode` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self<Block> {
+	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self {
 		self.state_pruning = Some(pruning);
 		self
 	}
 
 	/// Overwrites current database type. The newly set `DiskDatabaseType` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_database_type(&mut self, datbase_type: DiskDatabaseType) -> &mut Self<Block> {
+	pub fn with_database_type(&mut self, datbase_type: DiskDatabaseType) -> &mut Self {
 		self.database_type = datbase_type;
 		self
 	}
 
 	/// Overwrites current canonicalization delay. The newly set canonicalization delay will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_canonicalization_delay(&mut self, delay: u64) -> &mut Self<Block> {
+	pub fn with_canonicalization_delay(&mut self, delay: u64) -> &mut Self {
 		self.canonicalization_delay = delay;
 		self
 	}

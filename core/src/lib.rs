@@ -20,7 +20,12 @@ pub use builder::{
 	stand_alone::StandAloneBuilder,
 	PoolState,
 };
-pub use provider::{GenesisState, Initiator, StateProvider};
+pub use provider::{
+	backend::{DiskDatabaseType, DiskDb, MemDb},
+	initiator::{FromConfiguration, Init, PoolConfig},
+	state::StateProvider,
+	BackendProvider, Initiator,
+};
 pub use types::{Bytes, StoragePair};
 
 pub mod builder;

@@ -18,7 +18,7 @@ use sc_client_api::{
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullClient, TaskManager};
+use sc_service::{SpawnTaskHandle, TFullClient};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};

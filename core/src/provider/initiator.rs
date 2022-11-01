@@ -24,12 +24,12 @@ use sc_service::{
 };
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{BlockT, ConstructRuntimeApi};
-use sp_core::traits::{CodeExecutor, SpawnNamed};
+use sp_core::traits::CodeExecutor;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::BuildStorage;
 use tokio::runtime::Handle;
 
-use crate::{provider::BackendProvider, GenesisState, Initiator};
+use crate::{provider::BackendProvider, Initiator};
 
 /// A struct that holds configuration
 /// options for a transaction pool.
@@ -117,7 +117,7 @@ where
 
 	/// Overwrites the used genesis that will be used when initiating the
 	/// structs for a core builder.
-	pub fn with_genesis(&mut self, genesis: Box<dyn BuilStorage>) -> &mut Self {
+	pub fn with_genesis(&mut self, genesis: Box<dyn BuildStorage>) -> &mut Self {
 		self.genesis = Some(genesis);
 		self
 	}
@@ -163,7 +163,7 @@ where
 }
 
 impl<Block, RtApi, Exec> Initiator<Block> for Init<Block, RtApi, Exec> {
-	type Backend = BackendProvider<Block>::Backend;
+	type Backend = <BackendProvider<Block> as BackendProviderT>::Backend;
 	type Client = TFullClient<Block, RtApi, Exec>;
 	type Error = sp_blockchain::Error;
 	type Executor = Exec;
@@ -222,17 +222,17 @@ impl<Block, RtApi, Exec> Initiator<Block> for Init<Block, RtApi, Exec> {
 			client_config,
 		)?);
 
-		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
+		let pool = Arc::new(FullPool::<Block, Self::Client>::with_revalidation_type(
 			pool_config.options,
 			pool_config.is_validator.into(),
 			Arc::new(FullChainApi::new(
 				client.clone(),
 				None,
-				&manager.spawn_essential_handle(),
+				&task_manager.spawn_essential_handle(),
 			)),
 			None,
 			pool_config.revalidation,
-			manager.spawn_essential_handle(),
+			task_manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
 		));
 
@@ -257,7 +257,7 @@ pub struct FromConfiguration<Block, RtApi, Exec, R> {
 
 impl<Block, RtApi, Exec, R> FromConfiguration<Block, RtApi, Exec, R>
 where
-	R: FnOnce(KeyStoreContainer),
+	R: FnOnce(KeystoreContainer),
 {
 	/// Creates a new instance of `FromConfiguration` with some
 	/// sane defaults.
@@ -329,17 +329,17 @@ impl<Block, RtApi, Exec, R> Initiator<Block> for FromConfiguration<Block, RtApi,
 			sc_service::new_full_parts(&self.config, None, self.exec.clone())?;
 		let client = Arc::new(client);
 
-		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
+		let pool = Arc::new(FullPool::<Block, Self::Client>::with_revalidation_type(
 			self.pool_config.options,
 			self.pool_config.is_validator.into(),
 			Arc::new(FullChainApi::new(
 				client.clone(),
 				None,
-				&manager.spawn_essential_handle(),
+				&task_manager.spawn_essential_handle(),
 			)),
 			None,
 			self.pool_config.revalidation,
-			manager.spawn_essential_handle(),
+			task_manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
 		));
 
