@@ -22,7 +22,7 @@ use sc_service::{
 	ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend,
 	TFullCallExecutor, TFullClient, TaskManager,
 };
-use sc_transaction_pool::{FullChainApi, FullPool, RevalidationType};
+use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{BlockT, ConstructRuntimeApi};
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_keystore::SyncCryptoStorePtr;
@@ -31,6 +31,19 @@ use tokio::runtime::Handle;
 
 use crate::{provider::BackendProvider, GenesisState, Initiator};
 
+/// A struct that holds configuration
+/// options for a transaction pool.
+pub struct PoolConfig {
+	is_validator: bool,
+	options: Options,
+	revalidation: RevalidationType,
+}
+
+/// A structure that provides all necessary
+/// configuration to instantiate the needed
+/// structures for a core builder of fudge.
+///
+/// It implements `Initiator`.
 pub struct Init<Block, RtApi, Exec>
 where
 	Block: BlockT,
@@ -39,6 +52,7 @@ where
 	genesis: Option<Box<dyn BuildStorage>>,
 	handle: TaskManager,
 	exec: Exec,
+	pool_config: PoolConfig,
 	/// Optional keystore that can be appended
 	keystore: Option<SyncCryptoStorePtr>,
 	/// Optional ClientConfig that can be appended
@@ -55,6 +69,27 @@ where
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
+	/// Creates a new `Init` instance with some sane defaults:
+	///
+	/// ```ignore
+	/// Self {
+	/// 	backend,
+	/// 	genesis: None,
+	/// 	handle: TaskManager::new(handle, None).unwrap(),
+	/// 	exec,
+	/// 	keystore: None,
+	/// 	client_config: None,
+	/// 	pool_config: PoolConfig {
+	/// 		is_validator: true,
+	/// 		options: Options::default(),
+	/// 		revalidation: RevalidationType::Full,
+	/// 	},
+	/// 	execution_strategies: None,
+	/// 	_phantom: Default::default(),
+	/// }
+	/// ```
+	///
+	/// Every configuration field can be overwritten with the respective `with_*` method.
 	pub fn new(backend: Box<dyn BackendProvider<Block>>, exec: Exec, handle: Handle) -> Self {
 		Self {
 			backend,
@@ -63,25 +98,49 @@ where
 			exec,
 			keystore: None,
 			client_config: None,
+			pool_config: PoolConfig {
+				is_validator: true,
+				options: Options::default(),
+				revalidation: RevalidationType::Full,
+			},
 			execution_strategies: None,
 			_phantom: Default::default(),
 		}
 	}
 
-	pub fn with_exec_strategies(&mut self, execution_strategies: ExecutionStrategies) {
+	/// Overwrites the used `ExecutionStrategies` that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_exec_strategies(&mut self, execution_strategies: ExecutionStrategies) -> &mut Self {
 		self.execution_strategies = Some(execution_strategies);
+		self
 	}
 
-	pub fn with_genesis(&mut self, genesis: Box<dyn BuilStorage>) {
+	/// Overwrites the used genesis that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_genesis(&mut self, genesis: Box<dyn BuilStorage>) -> &mut Self {
 		self.genesis = Some(genesis);
+		self
 	}
 
-	pub fn with_config(&mut self, config: ClientConfig<Block>) {
+	/// Overwrites the used `ClientConfig` that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_config(&mut self, config: ClientConfig<Block>) -> &mut Self {
 		self.client_config = Some(config);
+		self
 	}
 
-	pub fn with_keystore(&mut self, keystore: SyncCryptoStorePtr) {
+	/// Overwrites the used keystore pointer that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_keystore(&mut self, keystore: SyncCryptoStorePtr) -> &mut Self {
 		self.keystore = Some(keystore);
+		self
+	}
+
+	/// Overwrites the used `PoolConfig` that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_pool_config(&mut self, pool_config: PoolConfig) -> &mut Self {
+		self.pool_config = pool_config;
+		self
 	}
 
 	fn destruct<Backend>(
@@ -94,6 +153,7 @@ where
 		ExecutionStrategies,
 		ClientConfig<Block>,
 		Option<SyncCryptoStorePtr>,
+		PoolConfig,
 	)
 	where
 		Backend: backend::LocalBackend<Block> + 'static,
@@ -105,113 +165,9 @@ where
 impl<Block, RtApi, Exec> Initiator<Block> for Init<Block, RtApi, Exec> {
 	type Backend = BackendProvider<Block>::Backend;
 	type Client = TFullClient<Block, RtApi, Exec>;
+	type Error = sp_blockchain::Error;
 	type Executor = Exec;
 	type Pool = FullPool<Block, Self::Client>;
-
-	fn init(
-		self,
-	) -> Result<
-		(
-			TFullClient<Block, RtApi, Exec>,
-			TFullBackend<Block>,
-			FullPool<Block, TFullClient<Block, RtApi, Exec>>,
-			Exec,
-			TaskManager,
-		),
-		(),
-	> {
-		let (
-			backend,
-			genesis,
-			executor,
-			task_manager,
-			execution_strategies,
-			client_config,
-			keystore,
-		) = self.destruct();
-
-		let call_executor = sc_service::client::LocalCallExecutor::new(
-			backend.clone(),
-			executor.clone(),
-			Box::new(task_manager.spawn_handle()),
-			client_config.clone(),
-		)
-		.unwrap();
-
-		let extensions = sc_client_api::execution_extensions::ExecutionExtensions::new(
-			execution_strategies,
-			keystore,
-			sc_offchain::OffchainDb::factory_from_backend(&*backend),
-		);
-
-		let client = Arc::new(
-			sc_service::client::Client::<
-				TFullBackend<Block>,
-				TFullCallExecutor<Block, Exec>,
-				Block,
-				RtApi,
-			>::new(
-				backend.clone(),
-				call_executor,
-				&*genesis,
-				None,
-				None,
-				extensions,
-				None,
-				None,
-				client_config,
-			)
-			.map_err(|_| "err".to_string())
-			.unwrap(),
-		);
-
-		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
-			Default::default(),
-			true.into(),
-			Arc::new(FullChainApi::new(
-				client.clone(),
-				None,
-				&manager.spawn_essential_handle(),
-			)),
-			None,
-			RevalidationType::Full,
-			manager.spawn_essential_handle(),
-			client.usage_info().chain.best_number,
-		));
-
-		Ok((client, backend, pool, executor, task_manager))
-	}
-}
-
-/*
-Actually create Initiator froma Configuration and an executor
-
-pub struct FromConfiguration<Block, RtApi, Exec, R> {
-	exec: Exec,
-	config: Configuration,
-	keystore_receiver: R;
-	_phantom: PhantomData<(Block, RtApi)>,
-};
-
-impl<Block, RtApi, Exec, R> FromConfiguration<Block, RtApi, Exec, R>
-where
-	R: FnOnce(KeyStoreContainer)
-{
-	pub fn new(exec: Exec, config: Configuration, keystore_receiver: R) -> Self {
-		Self {
-			exec,
-			config,
-			keystore_receiver,
-			_phantom: Default::default()
-		}
-	 }
-}
-
-impl Initiator<Block, Exec, RtApi> for FromConfiguration<Block, RtApi, Exec> {
-	type Backend = Arc<TFullBackend<Block>>;
-	type Client = Arc<TFullClient<Block, RtApi, Exec>>;
-	type Executor = Exec;
-	type Pool = Arc<FullPool<Block, Self::Client>>;
 
 	fn init(
 		self,
@@ -225,20 +181,164 @@ impl Initiator<Block, Exec, RtApi> for FromConfiguration<Block, RtApi, Exec> {
 		),
 		(),
 	> {
-		let (client, backend, keystore_container, task_manager) = sc_service::new_full_parts(self.config, None, self.exec.clone())
-				.unwrap();
-		let client = Arc::new(client);
+		let (
+			backend,
+			genesis,
+			executor,
+			task_manager,
+			execution_strategies,
+			client_config,
+			keystore,
+			pool_config,
+		) = self.destruct();
+
+		let call_executor = LocalCallExecutor::new(
+			backend.clone(),
+			executor.clone(),
+			Box::new(task_manager.spawn_handle()),
+			client_config.clone(),
+		)?;
+
+		let extensions = sc_client_api::execution_extensions::ExecutionExtensions::new(
+			execution_strategies,
+			keystore,
+			sc_offchain::OffchainDb::factory_from_backend(&*backend),
+		);
+
+		let client = Arc::new(sc_service::client::Client::<
+			TFullBackend<Block>,
+			TFullCallExecutor<Block, Exec>,
+			Block,
+			RtApi,
+		>::new(
+			backend.clone(),
+			call_executor,
+			&*genesis,
+			None,
+			None,
+			extensions,
+			None,
+			None,
+			client_config,
+		)?);
 
 		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
-			Default::default(),
-			true.into(),
+			pool_config.options,
+			pool_config.is_validator.into(),
 			Arc::new(FullChainApi::new(
 				client.clone(),
 				None,
 				&manager.spawn_essential_handle(),
 			)),
 			None,
-			RevalidationType::Full,
+			pool_config.revalidation,
+			manager.spawn_essential_handle(),
+			client.usage_info().chain.best_number,
+		));
+
+		Ok((client, backend, pool, executor, task_manager))
+	}
+}
+
+/// A structure that provides all necessary
+/// configuration to instantiate the needed
+/// structures for a core builder of fudge.
+///
+/// It implements `Initiator`. This
+/// struct uses the `Configuration` struct
+/// used by many services of actual Substrate nodes.
+pub struct FromConfiguration<Block, RtApi, Exec, R> {
+	exec: Exec,
+	config: Configuration,
+	keystore_receiver: R,
+	pool_config: PoolConfig,
+	_phantom: PhantomData<(Block, RtApi)>,
+}
+
+impl<Block, RtApi, Exec, R> FromConfiguration<Block, RtApi, Exec, R>
+where
+	R: FnOnce(KeyStoreContainer),
+{
+	/// Creates a new instance of `FromConfiguration` with some
+	/// sane defaults.
+	///
+	/// ```ignore
+	/// Self {
+	/// 	exec,
+	/// 	config,
+	/// 	keystore_receiver: |_| {},
+	/// 	pool_config: PoolConfig {
+	/// 		is_validator: true,
+	/// 		options: Options::default(),
+	/// 		revalidation: RevalidationType::Full,
+	/// 	},
+	/// 	_phantom: Default::default(),
+	/// }
+	/// ```
+	/// The given defaults can be overwritten with the
+	/// respective `with_*` methods.
+	pub fn new(exec: Exec, config: Configuration) -> Self {
+		Self {
+			exec,
+			config,
+			keystore_receiver: |_| {},
+			pool_config: PoolConfig {
+				is_validator: true,
+				options: Options::default(),
+				revalidation: RevalidationType::Full,
+			},
+			_phantom: Default::default(),
+		}
+	}
+
+	/// Overwrites the used `PoolConfig` that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_pool_config(&mut self, pool_config: PoolConfig) -> &mut Self {
+		self.pool_config = pool_config;
+		self
+	}
+
+	/// Overwrites the used keystore receiver that will be used when initiating the
+	/// structs for a core builder.
+	pub fn with_keystore_receiver(&mut self, receiver: R) -> &mut Self {
+		self.keystore_receiver = receiver;
+		self
+	}
+}
+
+impl<Block, RtApi, Exec, R> Initiator<Block> for FromConfiguration<Block, RtApi, Exec, R> {
+	type Backend = TFullBackend<Block>;
+	type Client = TFullClient<Block, RtApi, Exec>;
+	type Error = sp_blockchain::Error;
+	type Executor = Exec;
+	type Pool = FullPool<Block, Self::Client>;
+
+	fn init(
+		self,
+	) -> Result<
+		(
+			Arc<TFullClient<Block, RtApi, Exec>>,
+			Arc<TFullBackend<Block>>,
+			Arc<FullPool<Block, TFullClient<Block, RtApi, Exec>>>,
+			Exec,
+			TaskManager,
+		),
+		Self::Error,
+	> {
+		let (client, backend, keystore_container, task_manager) =
+			sc_service::new_full_parts(&self.config, None, self.exec.clone())?;
+		let client = Arc::new(client);
+
+		let pool = Arc::new(FullPool::<Block, C>::with_revalidation_type(
+			self.pool_config.options,
+			self.pool_config.is_validator.into(),
+			Arc::new(FullChainApi::new(
+				client.clone(),
+				None,
+				&manager.spawn_essential_handle(),
+			)),
+			None,
+			self.pool_config.revalidation,
 			manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
 		));
@@ -247,5 +347,3 @@ impl Initiator<Block, Exec, RtApi> for FromConfiguration<Block, RtApi, Exec> {
 		Ok((client, backend, pool, self.exec, task_manager))
 	}
 }
-
- */

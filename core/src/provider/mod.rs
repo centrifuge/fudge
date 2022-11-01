@@ -25,7 +25,7 @@ use sc_transaction_pool_api::TransactionPool;
 use sp_api::{ApiExt, CallApiAt, ProvideRuntimeApi};
 use sp_core::traits::CodeExecutor;
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
-pub use state::{DbOpen, StateProvider};
+pub use state::StateProvider;
 
 mod backend;
 mod externalities;
@@ -54,6 +54,7 @@ where
 	type Backend: 'static + BackendT<Block>;
 	type Pool: 'static + TransactionPool<Block = Block>;
 	type Executor: 'static + CodeExecutor + Clone;
+	type Error: 'static + Error;
 
 	fn init(
 		self,
@@ -65,7 +66,7 @@ where
 			Self::Executor,
 			TaskManager,
 		),
-		(),
+		Self::Error,
 	>;
 }
 
