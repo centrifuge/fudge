@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 
 pub use externalities::ExternalitiesProvider;
 pub use initiator::Init;
@@ -69,10 +69,9 @@ where
 	>;
 }
 
-pub trait GenesisState {}
-
 pub trait BackendProvider<Block> {
 	type Backend: 'static + BackendT<Block>;
+	type Error: 'static + Error;
 
-	fn provide(&self) -> Self::Backend;
+	fn provide(&self) -> Result<Arc<Self::Backend>, Self::Error>;
 }
