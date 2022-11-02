@@ -14,6 +14,7 @@ use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 
 use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource, PruningMode};
 use sc_service::TFullBackend;
+use sp_api::BlockT;
 
 use crate::provider::BackendProvider;
 
@@ -101,11 +102,10 @@ impl<Block> MemDb<Block> {
 	}
 }
 
-impl<Block> BackendProvider<Block> for MemDb<Block> {
+impl<Block: BlockT> BackendProvider<Block> for MemDb<Block> {
 	type Backend = TFullBackend<Block>;
-	type Error = sp_blockchain::Error;
 
-	fn provide(&self) -> Result<Arc<Self::Backend>, Self::Error> {
+	fn provide(&self) -> Result<Arc<Self::Backend>, sp_blockchain::Error> {
 		let settings = DatabaseSettings {
 			trie_cache_maximum_size: self.trie_cache,
 			state_pruning: self.state_pruning.clone(),
@@ -201,11 +201,10 @@ impl<Block> DiskDb<Block> {
 	}
 }
 
-impl<Block> BackendProvider<Block> for DiskDb<Block> {
+impl<Block: BlockT> BackendProvider<Block> for DiskDb<Block> {
 	type Backend = TFullBackend<Block>;
-	type Error = sp_blockchain::Error;
 
-	fn provide(&self) -> Result<Arc<Self::Backend>, Self::Error> {
+	fn provide(&self) -> Result<Arc<Self::Backend>, sp_blockchain::Error> {
 		let settings = DatabaseSettings {
 			trie_cache_maximum_size: self.trie_cache,
 			state_pruning: self.state_pruning.clone(),

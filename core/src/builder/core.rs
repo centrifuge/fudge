@@ -19,7 +19,7 @@ use sc_client_api::{
 };
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TransactionPool};
+use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -59,6 +59,7 @@ pub struct Builder<Block, RtApi, Exec, B, C, A> {
 	client: Arc<C>,
 	pool: Arc<A>,
 	executor: Exec,
+	task_manager: TaskManager,
 	cache: TransitionCache,
 	_phantom: PhantomData<(Block, RtApi)>,
 }
@@ -85,20 +86,21 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
-	A: TransactionPool<Block = Block> + 'static,
+	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	/// Create a new Builder with provided backend and client.
 	pub fn new<Init>(initiator: Init) -> Self
 	where
-		Init: Initiator<Block>,
+		Init: Initiator<Block, Client = C, Backend = B, Pool = A, Executor = Exec>,
 	{
-		let (client, backend, pool, executor, manager) = initiator.init().unwrap();
+		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
 
 		Builder {
 			backend,
 			client,
 			pool,
 			executor,
+			task_manager,
 			cache: TransitionCache {
 				auxilliary: Vec::new(),
 			},
@@ -132,6 +134,10 @@ where
 			frame_support::storage::unhashed::get_raw(sp_storage::well_known_keys::CODE).unwrap()
 		})
 		.unwrap()
+	}
+
+	pub fn handle(&self) -> SpawnTaskHandle {
+		self.task_manager.spawn_handle()
 	}
 
 	fn state_version(&self) -> StateVersion {
@@ -180,7 +186,7 @@ where
 					.unwrap()
 					.unwrap() == Zero::zero()
 				{
-					self.mutate_genesis(&mut op, ext.drain(self.state_version()))
+					self.mutate_genesis::<R>(&mut op, ext.drain(self.state_version()))
 				} else {
 					// We need to revert the latest block and re-import it again in order to
 					// mutate it if it was already finalized
@@ -190,7 +196,7 @@ where
 							.revert(NumberFor::<Block>::one(), true)
 							.unwrap();
 					}
-					self.mutate_normal(&mut op, ext.drain(self.state_version()), at)
+					self.mutate_normal::<R>(&mut op, ext.drain(self.state_version()), at)
 				}?;
 
 				self.backend

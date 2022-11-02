@@ -12,16 +12,23 @@
 
 use std::{error::Error, sync::Arc};
 
+use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
+	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, BlockBackend,
+	BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_consensus::BlockImport;
-use sc_service::TaskManager;
-use sc_transaction_pool_api::TransactionPool;
+use sc_executor::RuntimeVersionOf;
+use sc_service::{ClientConfig, LocalCallExecutor, TaskManager};
+use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::CodeExecutor;
-use sp_runtime::traits::{Block as BlockT, BlockIdTo};
+use sp_keystore::SyncCryptoStorePtr;
+use sp_runtime::{
+	traits::{Block as BlockT, BlockIdTo},
+	BuildStorage,
+};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
 pub mod backend;
@@ -29,14 +36,13 @@ pub mod externalities;
 pub mod initiator;
 pub mod state;
 
-pub trait Initiator<Block: BlockT>
-where
-	<Self::Client as ProvideRuntimeApi<Block>>::Api: BlockBuilder<Block>
+pub trait Initiator<Block: BlockT> {
+	type Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
-		+ TaggedTransactionQueue<Block>,
-{
+		+ BlockBuilderApi<Block>
+		+ TaggedTransactionQueue<Block>;
 	type Client: 'static
-		+ ProvideRuntimeApi<Block>
+		+ ProvideRuntimeApi<Block, Api = Self::Api>
 		+ BlockOf
 		+ BlockBackend<Block>
 		+ BlockIdTo<Block>
@@ -47,10 +53,12 @@ where
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
 	type Backend: 'static + BackendT<Block>;
-	type Pool: 'static + TransactionPool<Block = Block>;
-	type Executor: 'static + CodeExecutor + Clone;
+	type Pool: 'static
+		+ TransactionPool<Block = Block, Hash = Block::Hash>
+		+ MaintainedTransactionPool;
+	type Executor: 'static + CodeExecutor + RuntimeVersionOf + Clone;
 	type Error: 'static + Error;
 
 	fn init(
@@ -67,9 +75,40 @@ where
 	>;
 }
 
-pub trait BackendProvider<Block> {
+pub trait BackendProvider<Block: BlockT> {
 	type Backend: 'static + BackendT<Block>;
-	type Error: 'static + Error;
 
-	fn provide(&self) -> Result<Arc<Self::Backend>, Self::Error>;
+	fn provide(&self) -> Result<Arc<Self::Backend>, sp_blockchain::Error>;
+}
+
+pub trait ClientProvider<Block: BlockT> {
+	type Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+		+ BlockBuilderApi<Block>
+		+ TaggedTransactionQueue<Block>;
+	type Client: 'static
+		+ ProvideRuntimeApi<Block, Api = Self::Api>
+		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ HeaderBackend<Block>
+		+ BlockImport<Block>
+		+ CallApiAt<Block>
+		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+	type Backend: 'static + BackendT<Block>;
+	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
+
+	fn provide(
+		&self,
+		config: ClientConfig<Block>,
+		genesis: Box<dyn BuildStorage>,
+		execution_strategies: ExecutionStrategies,
+		keystore: Option<SyncCryptoStorePtr>,
+		backend: Arc<Self::Backend>,
+		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+	) -> Result<Arc<Self::Client>, ()>;
 }

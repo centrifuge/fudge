@@ -100,7 +100,7 @@ where
 		let mut ext = AssertUnwindSafe(self.ext());
 		std::panic::catch_unwind(move || {
 			ext.storage_start_transaction();
-			let r = sp_externalities::set_and_run_with_externalities(&mut ext, execute);
+			let r = sp_externalities::set_and_run_with_externalities(&mut *ext, execute);
 			ext.storage_commit_transaction().expect(
 				"Started a transaction above. Runtime takes care of opening and closing transactions correctly too. Qed.",
 			);
