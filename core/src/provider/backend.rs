@@ -46,7 +46,7 @@ impl<Block> MemDb<Block> {
 	///       path,
 	///       blocks_pruning: BlocksPruning::All,
 	///       trie_cache: None,
-	///       state_pruning: None,
+	///       state_pruning: Some(PruningMode::ArchiveAll),
 	///       require_create_flag: true,
 	///       canonicalization_delay: 4096,
 	///       _phantom: Default::default()
@@ -59,7 +59,7 @@ impl<Block> MemDb<Block> {
 		Self {
 			blocks_pruning: BlocksPruning::All,
 			trie_cache: None,
-			state_pruning: None,
+			state_pruning: Some(PruningMode::ArchiveAll),
 			require_create_flag: true,
 			canonicalization_delay: CANONICALIZATION_DELAY,
 			_phantom: Default::default(),

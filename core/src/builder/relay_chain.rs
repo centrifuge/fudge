@@ -271,12 +271,16 @@ where
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I>(init: I, cidp: CIDP, dp: DP) -> Self
+	pub fn new<I, F>(initiator: I, setup: F) -> Self
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
+		F: FnOnce(Arc<C>) -> (CIDP, DP),
 	{
+		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
+		let (cidp, dp) = setup(client.clone());
+
 		Self {
-			builder: Builder::new(init),
+			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
 			next: None,

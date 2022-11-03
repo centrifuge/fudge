@@ -156,7 +156,6 @@ where
 	/// 		revalidation: RevalidationType::Full,
 	/// 	},
 	/// 	execution_strategies: None,
-	/// 	_phantom: Default::default(),
 	/// }
 	/// ```
 	///

@@ -9,7 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use std::{marker::PhantomData, sync::Arc};
+use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
@@ -35,7 +35,7 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::externalities::ExternalitiesProvider, Initiator, StoragePair};
+use crate::{provider::externalities::ExternalitiesProvider, StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -89,12 +89,13 @@ where
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new<Init>(initiator: Init) -> Self
-	where
-		Init: Initiator<Block, Client = C, Backend = B, Pool = A, Executor = Exec>,
-	{
-		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
-
+	pub fn new(
+		client: Arc<C>,
+		backend: Arc<B>,
+		pool: Arc<A>,
+		executor: Exec,
+		task_manager: TaskManager,
+	) -> Self {
 		Builder {
 			backend,
 			client,
@@ -141,16 +142,22 @@ where
 	}
 
 	fn state_version(&self) -> StateVersion {
-		// TODO: Fetch the actual StateVersion from the runtime_version.
-		//       make runtime version its own call. Actually, this needs the executor to be instantiaded and be part
-		//       part of the builder
-		/*
-		RuntimeVersionOf::runtime_version(executor, &mut ext, &runtime_code)
-			.map_err(|e| sp_blockchain::Error::VersionInvalid(e.to_string()))?;
-
-		 */
-
-		StateVersion::V0
+		let wasm = self.latest_code();
+		let code_fetcher = sp_core::traits::WrappedRuntimeCode(wasm.as_slice().into());
+		let runtime_code = sp_core::traits::RuntimeCode {
+			code_fetcher: &code_fetcher,
+			heap_pages: None,
+			hash: {
+				use std::hash::{Hash, Hasher};
+				let mut state = DefaultHasher::new();
+				wasm.hash(&mut state);
+				state.finish().to_le_bytes().to_vec()
+			},
+		};
+		let mut ext = sp_state_machine::BasicExternalities::new_empty(); // just to read runtime version.
+		let runtime_version =
+			RuntimeVersionOf::runtime_version(&self.executor, &mut ext, &runtime_code).unwrap();
+		runtime_version.state_version()
 	}
 
 	pub fn with_state<R>(
@@ -216,20 +223,22 @@ where
 		op: &mut B::BlockImportOperation,
 		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
 	) -> Result<(), String> {
-		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
+		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
-		// We nee this in order to UNSET commited
-		// TODO: Why not needed anymore?
-		// op.set_genesis_state(Storage::default(), true, StateVersion::V0)
-		//	.unwrap();
 		op.update_db_storage(tx).unwrap();
+		op.update_storage(main_sc, child_sc)
+			.map_err(|_| "Updating storage not possible.")
+			.unwrap();
+		op.update_transaction_index(tx_index)
+			.map_err(|_| "Updating transaction index not possible.")
+			.unwrap();
 
 		let genesis_block = Block::new(
 			Block::Header::new(
 				Zero::zero(),
 				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
 					Vec::new(),
-					StateVersion::V0,
+					self.state_version(),
 				),
 				root,
 				Default::default(),
@@ -262,8 +271,10 @@ where
 			.ok()
 			.flatten()
 			.expect("State is available. qed");
+
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 		header.set_state_root(root);
+
 		op.update_db_storage(tx).unwrap();
 		op.update_storage(main_sc, child_sc)
 			.map_err(|_| "Updating storage not possible.")
