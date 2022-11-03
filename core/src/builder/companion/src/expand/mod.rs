@@ -160,14 +160,16 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 			pub fn append_extrinsic(&mut self, chain: _hidden_Chain, xt: Vec<u8>) -> Result<(), ()> {
 				match chain {
 					_hidden_Chain::Relay => {
-						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?);
-						Ok(())
+						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?)
+							.map(|_|())
+							.map_err(|_|())
 					},
 					_hidden_Chain::Para(id) => match id {
 						#(
 							_ if id == #parachain_ids => {
-								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?);
-								Ok(())
+								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?)
+									.map(|_|())
+									.map_err(|_|())
 							},
 						)*
 						_ => return Err(()),
@@ -179,14 +181,14 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				match chain {
 					_hidden_Chain::Relay => {
 						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - with_state:));
-						self.#relay_chain_name.with_state(exec).map_err(|_| ()),
-					}
+						self.#relay_chain_name.with_state(exec).map_err(|_| ())
+					},
 					_hidden_Chain::Para(id) => match id {
 						#(
 							_ if id == #parachain_ids => {
 								__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - with_state:));
-								self.#parachain_names.with_state(exec).map_err(|_| ()),
-							}
+								self.#parachain_names.with_state(exec).map_err(|_| ())
+							},
 						)*
 						_ => Err(())
 					}
@@ -197,14 +199,14 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				match chain {
 					_hidden_Chain::Relay => {
 						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - with_state:));
-						self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()),
-					}
+						self.#relay_chain_name.with_mut_state(exec).map_err(|_| ())
+					},
 					_hidden_Chain::Para(id) => match id {
 						#(
 							_ if id == #parachain_ids => {
 								__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - with_state:));
-								self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
-							}
+								self.#parachain_names.with_mut_state(exec).map_err(|_| ())
+							},
 						)*
 						_ => Err(())
 					}

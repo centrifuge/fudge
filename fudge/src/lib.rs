@@ -26,7 +26,6 @@ pub use fudge_core::{
 ///! Generally only this dependency is needed in order to use FUDGE.
 ///! Developers who want to use the more raw apis and types are
 ///! referred to the fudge-core repository.
-use sc_executor::WasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 
 pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder<
