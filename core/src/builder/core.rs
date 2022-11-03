@@ -9,19 +9,17 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use std::{marker::PhantomData, sync::Arc};
+use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
 	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
 	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
-	UsageProvider,
+	StateBackend, UsageProvider,
 };
-use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullClient, TaskManager, TransactionPool};
-use sc_transaction_pool::{FullChainApi, RevalidationType};
+use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -32,12 +30,12 @@ use sp_runtime::{
 	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, One, Zero},
 	Digest,
 };
-use sp_state_machine::StorageProof;
+use sp_state_machine::{StorageChanges, StorageProof};
 use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::ExternalitiesProvider, StoragePair};
+use crate::{provider::externalities::ExternalitiesProvider, StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -56,31 +54,17 @@ pub enum PoolState {
 	Busy(usize),
 }
 
-pub struct Builder<
-	Block: BlockT,
-	RtApi,
-	Exec,
-	B = Backend<Block>,
-	C = TFullClient<Block, RtApi, Exec>,
-> where
-	Block: BlockT,
-	C: ProvideRuntimeApi<Block>
-		+ BlockBackend<Block>
-		+ BlockIdTo<Block>
-		+ HeaderBackend<Block>
-		+ Send
-		+ Sync
-		+ 'static,
-	C::Api: TaggedTransactionQueue<Block>,
-{
+pub struct Builder<Block, RtApi, Exec, B, C, A> {
 	backend: Arc<B>,
 	client: Arc<C>,
-	pool: Arc<sc_transaction_pool::FullPool<Block, C>>,
+	pool: Arc<A>,
+	executor: Exec,
+	task_manager: TaskManager,
 	cache: TransitionCache,
-	_phantom: PhantomData<(Block, RtApi, Exec)>,
+	_phantom: PhantomData<(Block, RtApi)>,
 }
 
-impl<Block, RtApi, Exec, B, C> Builder<Block, RtApi, Exec, B, C>
+impl<Block, RtApi, Exec, B, C, A> Builder<Block, RtApi, Exec, B, C, A>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -102,29 +86,22 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	/// Create a new Builder with provided backend and client.
-	pub fn new(backend: Arc<B>, client: Arc<C>, manager: &TaskManager) -> Self {
-		let pool = Arc::new(
-			sc_transaction_pool::FullPool::<Block, C>::with_revalidation_type(
-				Default::default(),
-				true.into(),
-				Arc::new(FullChainApi::new(
-					client.clone(),
-					None,
-					&manager.spawn_essential_handle(),
-				)),
-				None,
-				RevalidationType::Full,
-				manager.spawn_essential_handle(),
-				client.usage_info().chain.best_number,
-			),
-		);
-
+	pub fn new(
+		client: Arc<C>,
+		backend: Arc<B>,
+		pool: Arc<A>,
+		executor: Exec,
+		task_manager: TaskManager,
+	) -> Self {
 		Builder {
-			backend: backend,
-			client: client,
-			pool: pool,
+			backend,
+			client,
+			pool,
+			executor,
+			task_manager,
 			cache: TransitionCache {
 				auxilliary: Vec::new(),
 			},
@@ -160,6 +137,29 @@ where
 		.unwrap()
 	}
 
+	pub fn handle(&self) -> SpawnTaskHandle {
+		self.task_manager.spawn_handle()
+	}
+
+	fn state_version(&self) -> StateVersion {
+		let wasm = self.latest_code();
+		let code_fetcher = sp_core::traits::WrappedRuntimeCode(wasm.as_slice().into());
+		let runtime_code = sp_core::traits::RuntimeCode {
+			code_fetcher: &code_fetcher,
+			heap_pages: None,
+			hash: {
+				use std::hash::{Hash, Hasher};
+				let mut state = DefaultHasher::new();
+				wasm.hash(&mut state);
+				state.finish().to_le_bytes().to_vec()
+			},
+		};
+		let mut ext = sp_state_machine::BasicExternalities::new_empty(); // just to read runtime version.
+		let runtime_version =
+			RuntimeVersionOf::runtime_version(&self.executor, &mut ext, &runtime_code).unwrap();
+		runtime_version.state_version()
+	}
+
 	pub fn with_state<R>(
 		&self,
 		op: Operation,
@@ -183,33 +183,35 @@ where
 					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
 				self.backend.begin_state_operation(&mut op, at).unwrap();
 
-				let res = if self
+				let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
+				let r = ext.execute_with(exec);
+
+				if self
 					.backend
 					.blockchain()
 					.block_number_from_id(&at)
 					.unwrap()
 					.unwrap() == Zero::zero()
 				{
-					self.mutate_genesis(&mut op, &state, exec)
+					self.mutate_genesis::<R>(&mut op, ext.drain(self.state_version()))
 				} else {
-					// We need to unfinalize the latest block and re-import it again in order to
-					// mutate it
+					// We need to revert the latest block and re-import it again in order to
+					// mutate it if it was already finalized
 					let info = self.client.info();
 					if info.best_hash == info.finalized_hash {
 						self.backend
 							.revert(NumberFor::<Block>::one(), true)
 							.unwrap();
 					}
-					self.mutate_normal(&mut op, &state, exec, at)
-				};
+					self.mutate_normal::<R>(&mut op, ext.drain(self.state_version()), at)
+				}?;
 
 				self.backend
 					.commit_operation(op)
 					.map_err(|_| "Unable to commit state-operation on backend".to_string())?;
 
-				res
+				Ok(r)
 			}
-			// TODO: Does this actually NOT change the state?
 			Operation::DryRun => Ok(
 				ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state).execute_with(exec),
 			),
@@ -219,24 +221,24 @@ where
 	fn mutate_genesis<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		state: &B::State,
-		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(exec);
-		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
+		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
+	) -> Result<(), String> {
+		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
-		// We nee this in order to UNSET commited
-		// op.set_genesis_state(Storage::default(), true, StateVersion::V0)
-		//	.unwrap();
 		op.update_db_storage(tx).unwrap();
+		op.update_storage(main_sc, child_sc)
+			.map_err(|_| "Updating storage not possible.")
+			.unwrap();
+		op.update_transaction_index(tx_index)
+			.map_err(|_| "Updating transaction index not possible.")
+			.unwrap();
 
 		let genesis_block = Block::new(
 			Block::Header::new(
 				Zero::zero(),
 				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
 					Vec::new(),
-					StateVersion::V0,
+					self.state_version(),
 				),
 				root,
 				Default::default(),
@@ -254,16 +256,15 @@ where
 		)
 		.map_err(|_| "Could not set block data".to_string())?;
 
-		Ok(r)
+		Ok(())
 	}
 
 	fn mutate_normal<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
-		state: &B::State,
-		exec: impl FnOnce() -> R,
+		changes: StorageChanges<<<B as sc_client_api::Backend<Block>>::State as StateBackend<HashFor<Block>>>::Transaction, HashFor<Block>>,
 		at: BlockId<Block>,
-	) -> Result<R, String> {
+	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();
 		let mut header = chain_backend
 			.header(at)
@@ -271,12 +272,9 @@ where
 			.flatten()
 			.expect("State is available. qed");
 
-		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
-		let (r, changes) = ext.execute_with_mut(exec);
-
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
-
 		header.set_state_root(root);
+
 		op.update_db_storage(tx).unwrap();
 		op.update_storage(main_sc, child_sc)
 			.map_err(|_| "Updating storage not possible.")
@@ -293,7 +291,6 @@ where
 			.justifications(at)
 			.expect("State is available. qed.");
 
-		// TODO: We set as final, this might not be correct.
 		op.set_block_data(
 			header,
 			body,
@@ -302,7 +299,7 @@ where
 			NewBlockState::Final,
 		)
 		.unwrap();
-		Ok(r)
+		Ok(())
 	}
 
 	/// Append a given set of key-value-pairs into the builder cache

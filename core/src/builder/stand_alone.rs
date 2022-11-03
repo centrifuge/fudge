@@ -15,7 +15,9 @@ use sc_client_api::{
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullClient, TaskManager};
+use sc_service::TFullClient;
+use sc_transaction_pool::FullPool;
+use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
@@ -34,7 +36,7 @@ use crate::{
 	digest::DigestCreator,
 	inherent::ArgsProvider,
 	types::StoragePair,
-	PoolState,
+	Initiator, PoolState,
 };
 
 pub struct StandAloneBuilder<
@@ -46,6 +48,7 @@ pub struct StandAloneBuilder<
 	DP,
 	B = Backend<Block>,
 	C = TFullClient<Block, RtApi, Exec>,
+	A = FullPool<Block, C>,
 > where
 	Block: BlockT,
 	C: ProvideRuntimeApi<Block>
@@ -56,18 +59,18 @@ pub struct StandAloneBuilder<
 		+ Sync
 		+ 'static,
 	C::Api: TaggedTransactionQueue<Block>,
+	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	builder: Builder<Block, RtApi, Exec, B, C>,
+	builder: Builder<Block, RtApi, Exec, B, C, A>,
 	cidp: CIDP,
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
-	handle: SpawnTaskHandle,
 	_phantom: PhantomData<ExtraArgs>,
 }
 
-impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
-	StandAloneBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C>
+impl<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C, A>
+	StandAloneBuilder<Block, RtApi, Exec, CIDP, ExtraArgs, DP, B, C, A>
 where
 	B: BackendT<Block> + 'static,
 	Block: BlockT,
@@ -93,15 +96,22 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new(manager: &TaskManager, backend: Arc<B>, client: Arc<C>, cidp: CIDP, dp: DP) -> Self {
+	pub fn new<I, F>(initiator: I, setup: F) -> Self
+	where
+		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
+		F: FnOnce(Arc<C>) -> (CIDP, DP),
+	{
+		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
+		let (cidp, dp) = setup(client.clone());
+
 		Self {
-			builder: Builder::new(backend, client, manager),
+			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
 			next: None,
 			imports: Vec::new(),
-			handle: manager.spawn_handle(),
 			_phantom: Default::default(),
 		}
 	}
@@ -179,7 +189,7 @@ where
 			.unwrap();
 
 		let Proposal { block, proof, .. } = self.builder.build_block(
-			self.handle.clone(),
+			self.builder.handle(),
 			inherents,
 			digest,
 			Duration::from_secs(60),

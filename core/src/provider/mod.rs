@@ -10,189 +10,169 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-pub use externalities_provider::ExternalitiesProvider;
-use sc_executor::RuntimeVersionOf;
-use sc_service::{
-	config::ExecutionStrategies, ClientConfig, Configuration, KeystoreContainer, TFullBackend,
-	TFullCallExecutor, TFullClient, TaskManager,
+use std::{error::Error, marker::PhantomData, sync::Arc};
+
+use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_client_api::{
+	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, Backend,
+	BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
-use sp_api::{BlockT, ConstructRuntimeApi};
-use sp_core::traits::{CodeExecutor, SpawnNamed};
+use sc_consensus::BlockImport;
+#[cfg(feature = "runtime-benchmarks")]
+use sc_executor::sp_wasm_interface::HostFunctions;
+use sc_executor::{RuntimeVersionOf, WasmExecutor};
+use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
+use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_block_builder::BlockBuilder;
+use sp_core::traits::CodeExecutor;
 use sp_keystore::SyncCryptoStorePtr;
-use sp_runtime::BuildStorage;
-use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
-use sp_storage::Storage;
+use sp_runtime::{
+	traits::{Block as BlockT, BlockIdTo},
+	BuildStorage,
+};
+use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-pub use crate::provider::state_provider::DbOpen;
-use crate::provider::state_provider::StateProvider;
+pub mod backend;
+pub mod externalities;
+pub mod initiator;
+pub mod state;
 
-mod externalities_provider;
-mod state_provider;
-
-pub struct EnvProvider<Block, RtApi, Exec>
-where
-	Block: BlockT,
-{
-	state: StateProvider<TFullBackend<Block>, Block>,
-	_phantom: PhantomData<(Block, RtApi, Exec)>,
-}
-
-impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
-where
-	Block: BlockT,
-	Block::Hash: FromStr,
-	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
-	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-{
-	pub fn empty() -> Self {
-		Self {
-			state: StateProvider::empty_default(None),
-			_phantom: Default::default(),
-		}
-	}
-
-	pub fn with_code(code: &'static [u8]) -> Self {
-		Self {
-			state: StateProvider::empty_default(Some(code)),
-			_phantom: Default::default(),
-		}
-	}
-
-	pub fn from_spec(spec: &dyn BuildStorage) -> Self {
-		let storage = spec.build_storage().unwrap();
-		Self::from_storage(storage)
-	}
-
-	pub fn into_from_config(
-		config: &Configuration,
-		exec: Exec,
-	) -> (
-		TFullClient<Block, RtApi, Exec>,
-		Arc<TFullBackend<Block>>,
-		KeystoreContainer,
-		TaskManager,
-	) {
-		//TODO: Handle unwrap
-		sc_service::new_full_parts(config, None, exec)
-			.map_err(|_| "err".to_string())
-			.unwrap()
-	}
-
-	pub fn from_storage(storage: Storage) -> Self {
-		Self {
-			state: StateProvider::from_storage(storage),
-			_phantom: Default::default(),
-		}
-	}
-
-	pub fn from_db(open: DbOpen) -> Self {
-		Self {
-			state: StateProvider::from_db(open),
-			_phantom: Default::default(),
-		}
-	}
-
-	pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Self {
-		let mut state = StateProvider::empty_default(Some(code));
-		state.insert_storage(storage);
-
-		Self {
-			state,
-			_phantom: Default::default(),
-		}
-	}
-
-	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
-		self.state.insert_storage(storage);
-		self
-	}
-
-	pub fn init_default(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, None, None)
-	}
-
-	pub fn init_with_config(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, None, Some(config))
-	}
-
-	pub fn init_full(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: SyncCryptoStorePtr,
-		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, Some(keystore), Some(config))
-	}
-
-	pub fn init_with_keystore(
-		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: SyncCryptoStorePtr,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		self.init(exec, handle, Some(keystore), None)
-	}
+pub trait Initiator<Block: BlockT> {
+	type Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+		+ BlockBuilderApi<Block>
+		+ TaggedTransactionQueue<Block>;
+	type Client: 'static
+		+ ProvideRuntimeApi<Block, Api = Self::Api>
+		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ HeaderBackend<Block>
+		+ BlockImport<Block>
+		+ CallApiAt<Block>
+		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+	type Backend: 'static + BackendT<Block>;
+	type Pool: 'static
+		+ TransactionPool<Block = Block, Hash = Block::Hash>
+		+ MaintainedTransactionPool;
+	type Executor: 'static + CodeExecutor + RuntimeVersionOf + Clone;
+	type Error: 'static + Error;
 
 	fn init(
 		self,
-		exec: Exec,
-		handle: Box<dyn SpawnNamed>,
-		keystore: Option<SyncCryptoStorePtr>,
-		config: Option<ClientConfig<Block>>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
-		let backend = self.state.backend();
-		let config = config.clone().unwrap_or(Self::client_config());
+	) -> Result<
+		(
+			Arc<Self::Client>,
+			Arc<Self::Backend>,
+			Arc<Self::Pool>,
+			Self::Executor,
+			TaskManager,
+		),
+		Self::Error,
+	>;
+}
 
-		// TODO: Handle unwrap
-		let executor = sc_service::client::LocalCallExecutor::new(
+pub trait BackendProvider<Block: BlockT> {
+	type Backend: 'static + BackendT<Block>;
+
+	fn provide(&self) -> Result<Arc<Self::Backend>, sp_blockchain::Error>;
+}
+
+pub trait ClientProvider<Block: BlockT> {
+	type Api: BlockBuilder<Block>
+		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+		+ BlockBuilderApi<Block>
+		+ TaggedTransactionQueue<Block>;
+	type Backend: 'static + BackendT<Block>;
+	type Client: 'static
+		+ ProvideRuntimeApi<Block, Api = Self::Api>
+		+ BlockOf
+		+ BlockBackend<Block>
+		+ BlockIdTo<Block>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<Block>
+		+ HeaderBackend<Block>
+		+ BlockImport<Block>
+		+ CallApiAt<Block>
+		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
+
+	fn provide(
+		&self,
+		config: ClientConfig<Block>,
+		genesis: Box<dyn BuildStorage>,
+		execution_strategies: ExecutionStrategies,
+		keystore: Option<SyncCryptoStorePtr>,
+		backend: Arc<Self::Backend>,
+		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+	) -> Result<Arc<Self::Client>, ()>;
+}
+
+pub struct DefaultClient<Block, RtApi, Exec>(PhantomData<(Block, RtApi, Exec)>);
+
+impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
+	pub fn new() -> Self {
+		Self(Default::default())
+	}
+}
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+/// HostFunctions that do not include benchmarking specific host functions
+pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
+#[cfg(feature = "runtime-benchmarks")]
+/// Host functions that include benchmarking specific functionalities
+pub type TWasmExecutor = sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+	sp_io::SubstrateHostFunctions,
+	frame_benchmarking::benchmarking::HostFunctions,
+>;
+
+impl<Block, RtApi, Exec> ClientProvider<Block> for DefaultClient<Block, RtApi, Exec>
+where
+	Block: BlockT,
+	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send + Sync + 'static,
+	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
+		TaggedTransactionQueue<Block>
+			+ BlockBuilderApi<Block>
+			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+	Exec: CodeExecutor + RuntimeVersionOf,
+{
+	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;
+	type Backend = TFullBackend<Block>;
+	type Client = TFullClient<Block, RtApi, Exec>;
+	type Exec = Exec;
+
+	fn provide(
+		&self,
+		config: ClientConfig<Block>,
+		genesis: Box<dyn BuildStorage>,
+		execution_strategies: ExecutionStrategies,
+		keystore: Option<SyncCryptoStorePtr>,
+		backend: Arc<Self::Backend>,
+		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+	) -> Result<Arc<Self::Client>, ()> {
+		TFullClient::new(
 			backend.clone(),
 			exec,
-			handle,
-			config.clone(),
+			&(*genesis),
+			None,
+			None,
+			sc_client_api::execution_extensions::ExecutionExtensions::new(
+				execution_strategies,
+				keystore,
+				sc_offchain::OffchainDb::factory_from_backend(&*backend),
+			),
+			None,
+			None,
+			config,
 		)
-		.unwrap();
-
-		// TODO: Execution strategies default is not right. Use always wasm instead
-		let extensions = sc_client_api::execution_extensions::ExecutionExtensions::new(
-			ExecutionStrategies::default(),
-			keystore,
-			sc_offchain::OffchainDb::factory_from_backend(&*backend),
-		);
-
-		// TODO: Client config pass?
-		let client = sc_service::client::Client::<
-			TFullBackend<Block>,
-			TFullCallExecutor<Block, Exec>,
-			Block,
-			RtApi,
-		>::new(
-			backend.clone(),
-			executor,
-			&self.state,
-			None,
-			None,
-			extensions,
-			None,
-			None,
-			config.clone(),
-		)
-		.map_err(|_| "err".to_string())
-		.unwrap();
-
-		(client, backend)
-	}
-
-	fn client_config() -> ClientConfig<Block> {
-		ClientConfig::default()
+		.map_err(|_| ())
+		.map(|client| Arc::new(client))
 	}
 }

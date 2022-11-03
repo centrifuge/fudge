@@ -63,9 +63,9 @@ const PARA_ID: u32 = 2002u32;
 #[fudge::companion]
 struct TestEnv {
 	#[fudge::parachain(PARA_ID)]
-	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, PDp, ()>,
+	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, PDp>,
 	#[fudge::parachain(2000u32)]
-	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, PDp, ()>,
+	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, PDp>,
 	#[fudge::relaychain]
-	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, RDp, ()>,
+	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, RDp>,
 }
