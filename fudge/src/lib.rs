@@ -11,7 +11,16 @@
 // GNU General Public License for more details.
 
 pub use fudge_companion::companion;
-pub use fudge_core::{digest, inherent, provider::EnvProvider};
+use fudge_core::provider::TWasmExecutor;
+pub use fudge_core::{
+	digest, inherent,
+	provider::{
+		backend::{DiskDatabaseType, DiskDb, MemDb},
+		initiator::{FromConfiguration, Init, PoolConfig},
+		state::StateProvider,
+		BackendProvider, ClientProvider, DefaultClient, Initiator,
+	},
+};
 ///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
 ///!
 ///! Generally only this dependency is needed in order to use FUDGE.
@@ -20,38 +29,38 @@ pub use fudge_core::{digest, inherent, provider::EnvProvider};
 use sc_executor::WasmExecutor;
 use sc_service::{TFullBackend, TFullClient};
 
-pub type ParachainBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::ParachainBuilder<
+pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<H>,
+	TWasmExecutor,
 	CIDP,
 	(),
 	DP,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<H>>,
+	TFullClient<Block, RtApi, TWasmExecutor>,
 >;
 
-pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP, H> = fudge_core::RelaychainBuilder<
+pub type RelaychainBuilder<Block, RtApi, Runtime, CIDP, DP> = fudge_core::RelaychainBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<H>,
+	TWasmExecutor,
 	CIDP,
 	(),
 	DP,
 	Runtime,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<H>>,
+	TFullClient<Block, RtApi, TWasmExecutor>,
 >;
 
-pub type StandaloneBuilder<Block, RtApi, CIDP, DP, H> = fudge_core::StandAloneBuilder<
+pub type StandaloneBuilder<Block, RtApi, CIDP, DP> = fudge_core::StandAloneBuilder<
 	Block,
 	RtApi,
-	WasmExecutor<H>,
+	TWasmExecutor,
 	CIDP,
 	(),
 	DP,
 	TFullBackend<Block>,
-	TFullClient<Block, RtApi, WasmExecutor<H>>,
+	TFullClient<Block, RtApi, TWasmExecutor>,
 >;
 
 pub mod primitives {

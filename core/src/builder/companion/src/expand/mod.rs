@@ -134,15 +134,17 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					#(#others_names,)*
 				};
 
-				#(
-					let para = _hidden_FudgeParaChain {
-						id: _hidden_ParaId::from(#parachain_ids),
-						head: companion.#parachain_names.head(),
-						code: companion.#parachain_names.code(),
-					};
-					companion.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
-
-				)*
+				{
+					#(
+						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - Onboarding(#parachain_names):));
+						let para = _hidden_FudgeParaChain {
+							id: _hidden_ParaId::from(#parachain_ids),
+							head: companion.#parachain_names.head(),
+							code: companion.#parachain_names.code(),
+						};
+						companion.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
+					)*
+				}
 
 				Ok(companion)
 			}
@@ -175,10 +177,16 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 			pub fn with_state<R>(&self, chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<R, ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_state(exec).map_err(|_| ()),
+					_hidden_Chain::Relay => {
+						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - with_state:));
+						self.#relay_chain_name.with_state(exec).map_err(|_| ()),
+					}
 					_hidden_Chain::Para(id) => match id {
 						#(
-							_ if id == #parachain_ids => self.#parachain_names.with_state(exec).map_err(|_| ()),
+							_ if id == #parachain_ids => {
+								__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - with_state:));
+								self.#parachain_names.with_state(exec).map_err(|_| ()),
+							}
 						)*
 						_ => Err(())
 					}
@@ -187,10 +195,16 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 			pub fn with_mut_state<R>(&mut self,  chain: _hidden_Chain, exec: impl FnOnce() -> R) -> Result<R, ()> {
 				match chain {
-					_hidden_Chain::Relay => self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()),
+					_hidden_Chain::Relay => {
+						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - with_state:));
+						self.#relay_chain_name.with_mut_state(exec).map_err(|_| ()),
+					}
 					_hidden_Chain::Para(id) => match id {
 						#(
-							_ if id == #parachain_ids => self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
+							_ if id == #parachain_ids => {
+								__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - with_state:));
+								self.#parachain_names.with_mut_state(exec).map_err(|_| ()),
+							}
 						)*
 						_ => Err(())
 					}
@@ -199,28 +213,28 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 			pub fn evolve(&mut self) -> Result<(), ()> {
 				{
-					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
+					__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - BlockBuilding:));
 					self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;
 					self.#relay_chain_name.import_block().map_err(|_| ()).map(|_| ())?;
 				}
 
 				{
 					#(
-						__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#parachain_names - BlockBuilding:));
+						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - BlockBuilding:));
 						self.#parachain_names.build_block().map_err(|_| ()).map(|_| ())?;
 						self.#parachain_names.import_block().map_err(|_| ()).map(|_| ())?;
 					)*
 				}
 
 				{
-					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
+					__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - BlockBuilding:));
 					self.#relay_chain_name.build_block().map_err(|_| ()).map(|_| ())?;
 					self.#relay_chain_name.import_block().map_err(|_| ()).map(|_| ())?;
 				}
 
 				{
 					#(
-						__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - Onboarding(#parachain_names):));
+						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - Onboarding(#parachain_names):));
 						let para = _hidden_FudgeParaChain {
 							id: _hidden_ParaId::from(#parachain_ids),
 							head: self.#parachain_names.head(),

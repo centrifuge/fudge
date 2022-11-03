@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 /*
 mod parachain;
-mod relay_chain;
  */
+mod relay_chain;
 mod stand_alone;
 mod utils;
