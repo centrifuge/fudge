@@ -142,7 +142,7 @@ impl<Block> DiskDb<Block> {
 	///       path,
 	///       blocks_pruning: BlocksPruning::All,
 	///       trie_cache: None,
-	///       state_pruning: None,
+	///       state_pruning: Some(PruningMode::ArchiveAll),
 	///       database_type: DiskDatabaseType::RocksDb {cache_size: 1024},
 	///       canonicalization_delay: 4096,
 	///       _phantom: Default::default()
@@ -156,7 +156,7 @@ impl<Block> DiskDb<Block> {
 			path,
 			blocks_pruning: BlocksPruning::All,
 			trie_cache: None,
-			state_pruning: None,
+			state_pruning: Some(PruningMode::ArchiveAll),
 			database_type: DiskDatabaseType::RocksDb {
 				cache_size: ROCKS_DB_CACHE_SIZE,
 			},
