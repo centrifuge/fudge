@@ -10,18 +10,20 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::{error::Error, sync::Arc};
+use std::{error::Error, marker::PhantomData, sync::Arc};
 
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, BlockBackend,
-	BlockOf, HeaderBackend, UsageProvider,
+	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, Backend,
+	BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_consensus::BlockImport;
-use sc_executor::RuntimeVersionOf;
-use sc_service::{ClientConfig, LocalCallExecutor, TaskManager};
+#[cfg(feature = "runtime-benchmarks")]
+use sc_executor::sp_wasm_interface::HostFunctions;
+use sc_executor::{RuntimeVersionOf, WasmExecutor};
+use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
-use sp_api::{ApiExt, CallApiAt, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::CodeExecutor;
 use sp_keystore::SyncCryptoStorePtr;
@@ -86,6 +88,7 @@ pub trait ClientProvider<Block: BlockT> {
 		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
 		+ BlockBuilderApi<Block>
 		+ TaggedTransactionQueue<Block>;
+	type Backend: 'static + BackendT<Block>;
 	type Client: 'static
 		+ ProvideRuntimeApi<Block, Api = Self::Api>
 		+ BlockOf
@@ -99,7 +102,6 @@ pub trait ClientProvider<Block: BlockT> {
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
-	type Backend: 'static + BackendT<Block>;
 	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
 
 	fn provide(
@@ -111,4 +113,66 @@ pub trait ClientProvider<Block: BlockT> {
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()>;
+}
+
+pub struct DefaultClient<Block, RtApi, Exec>(PhantomData<(Block, RtApi, Exec)>);
+
+impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
+	pub fn new() -> Self {
+		Self(Default::default())
+	}
+}
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+/// HostFunctions that do not include benchmarking specific host functions
+pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
+#[cfg(feature = "runtime-benchmarks")]
+/// Host functions that include benchmarking specific functionalities
+pub type TWasmExecutor = sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+	sp_io::SubstrateHostFunctions,
+	frame_benchmarking::benchmarking::HostFunctions,
+>;
+
+impl<Block, RtApi, Exec> ClientProvider<Block> for DefaultClient<Block, RtApi, Exec>
+where
+	Block: BlockT,
+	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send + Sync + 'static,
+	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
+		TaggedTransactionQueue<Block>
+			+ BlockBuilderApi<Block>
+			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+	Exec: CodeExecutor + RuntimeVersionOf,
+{
+	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;
+	type Backend = TFullBackend<Block>;
+	type Client = TFullClient<Block, RtApi, Exec>;
+	type Exec = Exec;
+
+	fn provide(
+		&self,
+		config: ClientConfig<Block>,
+		genesis: Box<dyn BuildStorage>,
+		execution_strategies: ExecutionStrategies,
+		keystore: Option<SyncCryptoStorePtr>,
+		backend: Arc<Self::Backend>,
+		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+	) -> Result<Arc<Self::Client>, ()> {
+		TFullClient::new(
+			backend.clone(),
+			exec,
+			&(*genesis),
+			None,
+			None,
+			sc_client_api::execution_extensions::ExecutionExtensions::new(
+				execution_strategies,
+				keystore,
+				sc_offchain::OffchainDb::factory_from_backend(&*backend),
+			),
+			None,
+			None,
+			config,
+		)
+		.map_err(|_| ())
+		.map(|client| Arc::new(client))
+	}
 }

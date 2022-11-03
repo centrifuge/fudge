@@ -14,7 +14,7 @@
 //! Builders will expect something that implements this trait in
 //! order to retrieve a `client` and a `backend`.
 
-use std::{marker::PhantomData, str::FromStr, sync::Arc};
+use std::{marker::PhantomData, sync::Arc};
 
 use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
@@ -23,7 +23,7 @@ use sc_client_api::{
 	UsageProvider,
 };
 use sc_consensus::BlockImport;
-use sc_executor::RuntimeVersionOf;
+use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
 use sc_service::{
 	ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend, TFullClient,
 	TaskManager,
@@ -38,8 +38,8 @@ use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use tokio::runtime::Handle;
 
 use crate::{
-	provider::{BackendProvider, ClientProvider},
-	Initiator,
+	provider::{BackendProvider, ClientProvider, DefaultClient, TWasmExecutor},
+	Initiator, MemDb,
 };
 
 /// A struct that holds configuration
@@ -48,6 +48,52 @@ pub struct PoolConfig {
 	is_validator: bool,
 	options: Options,
 	revalidation: RevalidationType,
+}
+
+pub fn default_with<Block, RtApi, BP>(
+	handle: Handle,
+	backend: BP,
+) -> Init<Block, DefaultClient<Block, RtApi, TWasmExecutor>, BP>
+where
+	BP: BackendProvider<Block, Backend = TFullBackend<Block>>,
+	Block: BlockT,
+	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>
+		+ Send
+		+ Sync
+		+ 'static,
+	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
+		TaggedTransactionQueue<Block>
+			+ BlockBuilderApi<Block>
+			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+{
+	Init::new(
+		backend,
+		DefaultClient::<Block, RtApi, TWasmExecutor>::new(),
+		WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		handle,
+	)
+}
+
+pub fn default<Block, RtApi>(
+	handle: Handle,
+) -> Init<Block, DefaultClient<Block, RtApi, TWasmExecutor>, MemDb<Block>>
+where
+	Block: BlockT,
+	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>
+		+ Send
+		+ Sync
+		+ 'static,
+	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
+		TaggedTransactionQueue<Block>
+			+ BlockBuilderApi<Block>
+			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+{
+	Init::new(
+		MemDb::new(),
+		DefaultClient::<Block, RtApi, TWasmExecutor>::new(),
+		WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		handle,
+	)
 }
 
 /// A structure that provides all necessary
@@ -72,13 +118,11 @@ where
 	client_config: ClientConfig<Block>,
 	/// Optional ExecutionStrategies that can be appended
 	execution_strategies: ExecutionStrategies,
-	//_phantom: PhantomData<(Block)>,
 }
 
 impl<Block, CP, BP> Init<Block, CP, BP>
 where
 	Block: BlockT,
-	Block::Hash: FromStr,
 	CP: ClientProvider<Block>,
 	BP: BackendProvider<Block, Backend = CP::Backend>,
 	CP::Backend: Backend<Block> + 'static,
@@ -132,7 +176,6 @@ where
 				revalidation: RevalidationType::Full,
 			},
 			execution_strategies: ExecutionStrategies::default(),
-			//_phantom: Default::default(),
 		}
 	}
 
@@ -175,7 +218,6 @@ where
 impl<Block, CP, BP> Initiator<Block> for Init<Block, CP, BP>
 where
 	Block: BlockT,
-	Block::Hash: FromStr,
 	CP: ClientProvider<Block>,
 	BP: BackendProvider<Block, Backend = CP::Backend>,
 	CP::Backend: Backend<Block> + 'static,
@@ -320,7 +362,6 @@ impl<Block, RtApi, Exec> FromConfiguration<Block, RtApi, Exec> {
 impl<Block, RtApi, Exec> Initiator<Block> for FromConfiguration<Block, RtApi, Exec>
 where
 	Block: BlockT,
-	Block::Hash: FromStr,
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send + Sync + 'static,
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>

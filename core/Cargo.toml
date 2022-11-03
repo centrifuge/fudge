@@ -82,3 +82,9 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 tracing-subscriber = "0.2"
 pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 fudge-test-runtime = {path = "./src/tests/test-parachain", default-features = true}
+
+[features]
+default = []
+runtime-benchmarks = [
+    'frame-benchmarking/runtime-benchmarks'
+]
