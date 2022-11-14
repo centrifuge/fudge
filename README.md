@@ -92,3 +92,8 @@ env.evolve()
 ```
 
 
+### Additional Requirements
+To build you'll also need `protoc` installed from protobuf.
+
+Should be available in `asdf` if using `asdf`, or from the protobuf release page: https://github.com/protocolbuffers/protobuf/releases
+(i.e: https://github.com/protocolbuffers/protobuf/releases/download/v3.20.2/protoc-3.20.2-osx-x86_64.zip)
