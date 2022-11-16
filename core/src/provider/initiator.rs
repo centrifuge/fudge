@@ -30,6 +30,7 @@ use sc_service::{
 };
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{ApiExt, BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_blockchain::{Error as BlockChainError, HeaderMetadata};
 use sp_core::traits::CodeExecutor;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::{traits::BlockIdTo, BuildStorage};
@@ -222,6 +223,7 @@ where
 	CP::Backend: Backend<Block> + 'static,
 	CP::Client: 'static
 		+ ProvideRuntimeApi<Block, Api = CP::Api>
+		+ HeaderMetadata<Block, Error = BlockChainError>
 		+ BlockOf
 		+ BlockBackend<Block>
 		+ BlockIdTo<Block>
