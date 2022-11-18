@@ -57,7 +57,7 @@ impl<Block> MemDb<Block> {
 	/// `with_*` method of the struct.
 	pub fn new() -> Self {
 		Self {
-			blocks_pruning: BlocksPruning::All,
+			blocks_pruning: BlocksPruning::KeepAll,
 			trie_cache: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
 			require_create_flag: true,
@@ -154,7 +154,7 @@ impl<Block> DiskDb<Block> {
 	pub fn new(path: PathBuf) -> Self {
 		Self {
 			path,
-			blocks_pruning: BlocksPruning::All,
+			blocks_pruning: BlocksPruning::KeepAll,
 			trie_cache: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
 			database_type: DiskDatabaseType::RocksDb {
