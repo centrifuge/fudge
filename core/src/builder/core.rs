@@ -167,12 +167,12 @@ where
 		at: Option<BlockId<Block>>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
-		let (state, at) = if let Some(req_at) = at {
-			(self.backend.state_at(req_at), req_at)
-		} else {
-			let at = BlockId::Hash(self.client.info().best_hash);
-			(self.backend.state_at(at.clone()), at)
+		let hash = match at {
+			Some(BlockId::Hash(req_at)) => req_at,
+			_ => self.client.info().best_hash,
 		};
+		let state = self.backend.state_at(&hash);
+		let at = sp_api::BlockId::Hash(hash);
 
 		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
 
