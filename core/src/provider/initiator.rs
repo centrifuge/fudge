@@ -289,6 +289,9 @@ where
 			self.pool_config.revalidation,
 			task_manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
+			// client.info().best_hash,
+			client.usage_info().chain.best_hash,
+			client.usage_info().chain.finalized_hash,
 		));
 
 		Ok((client, backend, pool, self.exec, task_manager))
@@ -406,6 +409,8 @@ where
 			self.pool_config.revalidation,
 			task_manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
+			client.usage_info().chain.best_hash,
+			client.usage_info().chain.finalized_hash,
 		));
 
 		(self.keystore_receiver)(keystore_container);
