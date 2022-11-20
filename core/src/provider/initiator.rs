@@ -20,7 +20,7 @@ use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
 	execution_extensions::ExecutionStrategies, AuxStore, Backend, BlockBackend, BlockOf,
-	UsageProvider,
+	TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
@@ -139,6 +139,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
+	for<'r> &'r CP::Client: BlockImport<Block, Transaction = TransactionFor<CP::Backend, Block>>,
 {
 	/// Creates a new `Init` instance with some sane defaults:
 	///
@@ -233,6 +234,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
+	for<'r> &'r CP::Client: BlockImport<Block, Transaction = TransactionFor<CP::Backend, Block>>,
 {
 	type Api = CP::Api;
 	type Backend = CP::Backend;

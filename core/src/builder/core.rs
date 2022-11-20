@@ -86,6 +86,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	/// Create a new Builder with provided backend and client.
@@ -356,16 +357,15 @@ where
 	/// Import a block, that has been previosuly build
 	pub fn import_block(
 		&mut self,
-		params: BlockImportParams<Block, C::Transaction>,
+		params: BlockImportParams<Block, TransactionFor<B, Block>>,
 	) -> Result<(), ()> {
 		let prev_hash = self.latest_block();
-
-		// TODO: This works but is pretty dirty and unsafe. I am not sure, why the BlockImport needs a mut client
-		//       Check if I can put the client into a Mutex
-		let client = self.client.as_ref() as *const C as *mut C;
-		let client = unsafe { &mut *(client) };
-		let ret = match futures::executor::block_on(client.import_block(params, Default::default()))
-			.unwrap()
+		let ret = match futures::executor::block_on(
+			self.client
+				.as_ref()
+				.import_block(params, Default::default()),
+		)
+		.unwrap()
 		{
 			ImportResult::Imported(_) => Ok(()),
 			ImportResult::AlreadyInChain => Err(()),

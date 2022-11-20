@@ -13,7 +13,8 @@
 use codec::Encode;
 use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, TransactionFor,
+	UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -110,6 +111,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	pub fn new<I, F>(initiator: I, setup: F) -> Self
