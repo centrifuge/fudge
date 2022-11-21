@@ -15,7 +15,7 @@ use std::{error::Error, marker::PhantomData, sync::Arc};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
 	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, Backend,
-	BlockBackend, BlockOf, HeaderBackend, UsageProvider,
+	BlockBackend, BlockOf, HeaderBackend, TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
 #[cfg(feature = "runtime-benchmarks")]
@@ -38,7 +38,11 @@ pub mod externalities;
 pub mod initiator;
 pub mod state;
 
-pub trait Initiator<Block: BlockT> {
+pub trait Initiator<Block: BlockT>
+where
+	for<'r> &'r Self::Client:
+		BlockImport<Block, Transaction = TransactionFor<Self::Backend, Block>>,
+{
 	type Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
 		+ BlockBuilderApi<Block>

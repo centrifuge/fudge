@@ -10,22 +10,20 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+//! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
+//!
+//! Generally only this dependency is needed in order to use FUDGE.
+//! Developers who want to use the more raw apis and types are
+//! referred to the fudge-core repository.
+
 pub use fudge_companion::companion;
-use fudge_core::provider::TWasmExecutor;
 pub use fudge_core::{
 	digest, inherent,
 	provider::{
-		backend::{DiskDatabaseType, DiskDb, MemDb},
-		initiator::{FromConfiguration, Init, PoolConfig},
-		state::StateProvider,
-		BackendProvider, ClientProvider, DefaultClient, Initiator,
+		backend, initiator, state, BackendProvider, ClientProvider, DefaultClient, Initiator,
+		TWasmExecutor,
 	},
 };
-///! FUDGE - FUlly Decoupled Generic Environment for Substrate-based Chains
-///!
-///! Generally only this dependency is needed in order to use FUDGE.
-///! Developers who want to use the more raw apis and types are
-///! referred to the fudge-core repository.
 use sc_service::{TFullBackend, TFullClient};
 
 pub type ParachainBuilder<Block, RtApi, CIDP, DP> = fudge_core::ParachainBuilder<
