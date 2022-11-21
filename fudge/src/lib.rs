@@ -18,6 +18,7 @@
 
 pub use fudge_companion::companion;
 pub use fudge_core::{
+	builder::{relay_chain::InherentBuilder, PoolState},
 	digest, inherent,
 	provider::{
 		backend, initiator, state, BackendProvider, ClientProvider, DefaultClient, Initiator,
