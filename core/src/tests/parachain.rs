@@ -30,12 +30,14 @@ use tokio::runtime::Handle;
 ///! Test for the ParachainBuilder
 use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
 use crate::{
-	builder::relay_chain::{types::Heads, InherentBuilder},
+	builder::{
+		parachain::{FudgeParaChain, ParachainBuilder},
+		relay_chain::{types::Heads, InherentBuilder, RelaychainBuilder},
+	},
 	inherent::{
 		FudgeDummyInherentRelayParachain, FudgeInherentParaParachain, FudgeInherentTimestamp,
 	},
-	provider::TWasmExecutor,
-	FudgeParaChain, ParachainBuilder, RelaychainBuilder, StateProvider,
+	provider::{state::StateProvider, TWasmExecutor},
 };
 
 fn default_para_builder(

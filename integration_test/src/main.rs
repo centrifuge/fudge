@@ -19,8 +19,9 @@ use fudge::{
 		FudgeInherentTimestamp,
 	},
 	initiator::{default, default_with, FromConfiguration, Init, PoolConfig},
+	primitives::{Chain, FudgeParaBuild, FudgeParaChain, ParaId, PoolState},
 	state::StateProvider,
-	InherentBuilder, ParachainBuilder, PoolState, RelaychainBuilder, StandaloneBuilder,
+	InherentBuilder, ParachainBuilder, RelaychainBuilder, StandaloneBuilder,
 };
 use fudge_test_runtime::{Block as PBlock, RuntimeApi as PRtApi};
 use polkadot_core_primitives::{Block as RBlock, Header as RHeader};

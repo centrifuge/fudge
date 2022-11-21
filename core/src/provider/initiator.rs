@@ -37,9 +37,8 @@ use sp_storage::Storage;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use tokio::runtime::Handle;
 
-use crate::{
-	provider::{BackendProvider, ClientProvider, DefaultClient, TWasmExecutor},
-	Initiator, MemDb,
+use crate::provider::{
+	backend::MemDb, BackendProvider, ClientProvider, DefaultClient, Initiator, TWasmExecutor,
 };
 
 /// A struct that holds configuration

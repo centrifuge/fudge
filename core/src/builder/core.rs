@@ -35,7 +35,7 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
-use crate::{provider::externalities::ExternalitiesProvider, StoragePair};
+use crate::{provider::externalities::ExternalitiesProvider, types::StoragePair};
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 pub enum Operation {
@@ -44,7 +44,7 @@ pub enum Operation {
 }
 
 #[derive(Clone)]
-pub struct TransitionCache {
+struct TransitionCache {
 	auxilliary: Vec<StoragePair>,
 }
 

@@ -23,10 +23,13 @@ use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
 use crate::{
+	builder::{
+		parachain::FudgeParaChain,
+		relay_chain::{types as RelayChainTypes, RelaychainBuilder},
+	},
 	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
 	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
-	provider::TWasmExecutor,
-	FudgeParaChain, RelayChainTypes, RelaychainBuilder, StateProvider,
+	provider::{state::StateProvider, TWasmExecutor},
 };
 
 fn cidp_and_dp(

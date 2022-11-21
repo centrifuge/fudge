@@ -24,10 +24,10 @@ use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
 use crate::{
+	builder::stand_alone::StandAloneBuilder,
 	digest::{DigestCreator, DigestProvider, FudgeBabeDigest},
 	inherent::{FudgeDummyInherentRelayParachain, FudgeInherentTimestamp},
-	provider::TWasmExecutor,
-	DiskDb, StandAloneBuilder, StateProvider,
+	provider::{backend::DiskDb, state::StateProvider, TWasmExecutor},
 };
 
 fn cidp_and_dp(
