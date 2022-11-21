@@ -10,12 +10,14 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+#[allow(unused)]
 use fudge::{
 	digest::DigestCreator,
 	inherent::{
 		CreateInherentDataProviders, FudgeDummyInherentRelayParachain, FudgeInherentParaParachain,
 		FudgeInherentTimestamp,
 	},
+	provider::{default, default_with, FromConfiguration},
 	ParachainBuilder, RelaychainBuilder,
 };
 use fudge_test_runtime::{Block as PBlock, RuntimeApi as PRtApi};

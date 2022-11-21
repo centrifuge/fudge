@@ -425,7 +425,7 @@ where
 			inherents,
 			digest,
 			Duration::from_secs(60),
-			6_000_000,
+			usize::MAX,
 		);
 		self.next = Some((block.clone(), proof));
 
