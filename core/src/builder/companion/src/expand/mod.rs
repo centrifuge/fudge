@@ -222,9 +222,12 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 				{
 					#(
-						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - BlockBuilding:));
-						self.#parachain_names.build_block().map_err(|_| ()).map(|_| ())?;
-						self.#parachain_names.import_block().map_err(|_| ()).map(|_| ())?;
+						{
+
+							__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#parachain_names - BlockBuilding:));
+							self.#parachain_names.build_block().map_err(|_| ()).map(|_| ())?;
+							self.#parachain_names.import_block().map_err(|_| ()).map(|_| ())?;
+						}
 					)*
 				}
 
