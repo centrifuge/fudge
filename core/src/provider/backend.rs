@@ -80,10 +80,24 @@ impl<Block> MemDb<Block> {
 		self
 	}
 
+	/// Overwrites current trie cache to NONE. The newly set trie cache size will be used
+	/// when a backend is created via `BackendProvider::provide(&self)`
+	pub fn no_trie_cache(&mut self) -> &mut Self {
+		self.trie_cache = None;
+		self
+	}
+
 	/// Overwrites current state pruning mode. The newly set `PruningMode` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
 	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self {
 		self.state_pruning = Some(pruning);
+		self
+	}
+
+	/// Overwrites current state pruning mode to NONE. The newly set `PruningMode` will be used
+	/// when a backend is created via `BackendProvider::provide(&self)`
+	pub fn no_state_pruning(&mut self) -> &mut Self {
+		self.state_pruning = None;
 		self
 	}
 
@@ -179,10 +193,24 @@ impl<Block> DiskDb<Block> {
 		self
 	}
 
+	/// Overwrites current trie cache to NONE. The newly set trie cache size will be used
+	/// when a backend is created via `BackendProvider::provide(&self)`
+	pub fn no_trie_cache(&mut self) -> &mut Self {
+		self.trie_cache = None;
+		self
+	}
+
 	/// Overwrites current state pruning mode. The newly set `PruningMode` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
 	pub fn with_state_pruning(&mut self, pruning: PruningMode) -> &mut Self {
 		self.state_pruning = Some(pruning);
+		self
+	}
+
+	/// Overwrites current state pruning mode to NONE. The newly set `PruningMode` will be used
+	/// when a backend is created via `BackendProvider::provide(&self)`
+	pub fn no_state_pruning(&mut self) -> &mut Self {
+		self.state_pruning = None;
 		self
 	}
 
