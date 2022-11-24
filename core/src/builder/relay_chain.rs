@@ -185,7 +185,7 @@ where
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
 		let parent = self.client.info().best_hash;
-		let (chnl_sndr, _chnl_rcvr) = metered::channel(25);
+		let (chnl_sndr, chnl_rcvr) = metered::channel(64);
 		let dummy_handler = Handle::new(chnl_sndr);
 		let relay_interface = RelayChainInProcessInterface::new(
 			self.client.clone(),
@@ -424,6 +424,7 @@ where
 			})
 			.unwrap();
 
+		println!("Building proposal");
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.builder.handle(),
 			inherents,
@@ -431,6 +432,7 @@ where
 			Duration::from_secs(60),
 			usize::MAX,
 		);
+		println!("Proposal built");
 		self.next = Some((block.clone(), proof));
 
 		Ok(block)

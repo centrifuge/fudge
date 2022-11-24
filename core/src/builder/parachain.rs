@@ -207,6 +207,7 @@ where
 			})
 			.unwrap();
 
+		println!("Builing parachain proposal");
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.builder.handle(),
 			inherents,
