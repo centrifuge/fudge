@@ -2346,6 +2346,7 @@ dependencies = [
  "polkadot-runtime",
  "polkadot-runtime-parachains",
  "polkadot-service",
+ "prioritized-metered-channel",
  "sc-basic-authorship",
  "sc-block-builder",
  "sc-client-api",
