@@ -207,13 +207,12 @@ where
 			})
 			.unwrap();
 
-		println!("Builing parachain proposal");
 		let Proposal { block, proof, .. } = self.builder.build_block(
 			self.builder.handle(),
 			inherents,
 			digest,
 			Duration::from_secs(60),
-			usize::MAX,
+			6_000_000,
 		);
 		self.next = Some((block, proof));
 

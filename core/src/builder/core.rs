@@ -261,7 +261,6 @@ where
 		Ok(())
 	}
 
-	// is this the breaking change....?
 	fn mutate_normal<R>(
 		&self,
 		op: &mut B::BlockImportOperation,
@@ -286,9 +285,7 @@ where
 			.map_err(|_| "Updating transaction index not possible.")
 			.unwrap();
 
-		println!("Getting body from backend w/ at--blockid");
 		let body = chain_backend.body(at).expect("State is available. qed.");
-		println!("Have body");
 		let indexed_body = chain_backend
 			.block_indexed_body(at)
 			.expect("State is available. qed.");
@@ -355,12 +352,8 @@ where
 			.flatten()
 			.expect("State is available. qed");
 		let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
-		println!("inherents len: {}, limit: {}", inherents.len(), limit);
-		let proposal_tmp =
-			futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit)));
-		let proposal = proposal_tmp.expect("Proposal failure");
-		println!("Proposal built");
-		proposal
+		futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit)))
+			.expect("Proposal failure")
 	}
 
 	/// Import a block, that has been previosuly build
