@@ -1,4 +1,4 @@
-#![feature(associated_type_bounds, type_name_of_val)]
+#![feature(associated_type_bounds)]
 // TODO: Remove before release
 #![allow(dead_code)]
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).

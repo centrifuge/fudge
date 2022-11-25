@@ -205,9 +205,7 @@ async fn parachain_creates_correct_inherents() {
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
-	println!("Building Parachain block");
 	builder.build_block().unwrap();
-	println!("Parachain Block Built");
 	builder.import_block().unwrap();
 
 	let num_after_one = builder

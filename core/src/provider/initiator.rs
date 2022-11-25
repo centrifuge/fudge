@@ -289,7 +289,6 @@ where
 			self.pool_config.revalidation,
 			task_manager.spawn_essential_handle(),
 			client.usage_info().chain.best_number,
-			// client.info().best_hash,
 			client.usage_info().chain.best_hash,
 			client.usage_info().chain.finalized_hash,
 		));

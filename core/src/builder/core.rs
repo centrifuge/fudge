@@ -170,6 +170,9 @@ where
 	) -> Result<R, String> {
 		let hash = match at {
 			Some(BlockId::Hash(req_at)) => req_at,
+			Some(BlockId::Number(req_at)) => {
+				self.backend.blockchain().hash(req_at).unwrap().unwrap()
+			}
 			_ => self.client.info().best_hash,
 		};
 		let state = self.backend.state_at(&hash);
