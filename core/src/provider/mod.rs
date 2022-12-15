@@ -127,11 +127,12 @@ impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
 	}
 }
 
-#[cfg(not(feature = "runtime-benchmarks"))]
 /// HostFunctions that do not include benchmarking specific host functions
+#[cfg(not(feature = "runtime-benchmarks"))]
 pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
-#[cfg(feature = "runtime-benchmarks")]
+
 /// Host functions that include benchmarking specific functionalities
+#[cfg(feature = "runtime-benchmarks")]
 pub type TWasmExecutor = sc_executor::sp_wasm_interface::ExtendedHostFunctions<
 	sp_io::SubstrateHostFunctions,
 	frame_benchmarking::benchmarking::HostFunctions,
