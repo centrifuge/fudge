@@ -18,8 +18,6 @@ use sc_client_api::{
 	BlockBackend, BlockOf, HeaderBackend, TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
-#[cfg(feature = "runtime-benchmarks")]
-use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
 use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
