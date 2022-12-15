@@ -133,9 +133,11 @@ pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
 
 /// Host functions that include benchmarking specific functionalities
 #[cfg(feature = "runtime-benchmarks")]
-pub type TWasmExecutor = sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-	sp_io::SubstrateHostFunctions,
-	frame_benchmarking::benchmarking::HostFunctions,
+pub type TWasmExecutor = WasmExecutor<
+	sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+		sp_io::SubstrateHostFunctions,
+		frame_benchmarking::benchmarking::HostFunctions,
+	>,
 >;
 
 impl<Block, RtApi, Exec> ClientProvider<Block> for DefaultClient<Block, RtApi, Exec>
