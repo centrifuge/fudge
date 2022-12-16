@@ -16,6 +16,7 @@ use polkadot_core_primitives::Block as PBlock;
 use polkadot_parachain::primitives::{Id, ValidationCodeHash};
 use polkadot_primitives::{runtime_api::ParachainHost, v2::OccupiedCoreAssumption};
 use polkadot_runtime_parachains::{paras, ParaLifecycle};
+use polkadot_service::Handle;
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
 	TransactionFor, UsageProvider,
@@ -184,11 +185,13 @@ where
 {
 	pub async fn parachain_inherent(&self) -> Option<ParachainInherentData> {
 		let parent = self.client.info().best_hash;
+		let (chnl_sndr, _chnl_rcvr) = metered::channel(64);
+		let dummy_handler = Handle::new(chnl_sndr);
 		let relay_interface = RelayChainInProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
 			Arc::new(NoNetwork {}),
-			None,
+			dummy_handler,
 		);
 		let api = self.client.runtime_api();
 		let persisted_validation_data = api
@@ -426,7 +429,7 @@ where
 			inherents,
 			digest,
 			Duration::from_secs(60),
-			usize::MAX,
+			6_000_000,
 		);
 		self.next = Some((block.clone(), proof));
 

@@ -9,6 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
+
 use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
@@ -167,12 +168,15 @@ where
 		at: Option<BlockId<Block>>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
-		let (state, at) = if let Some(req_at) = at {
-			(self.backend.state_at(req_at), req_at)
-		} else {
-			let at = BlockId::Hash(self.client.info().best_hash);
-			(self.backend.state_at(at.clone()), at)
+		let hash = match at {
+			Some(BlockId::Hash(req_at)) => req_at,
+			Some(BlockId::Number(req_at)) => {
+				self.backend.blockchain().hash(req_at).unwrap().unwrap()
+			}
+			_ => self.client.info().best_hash,
 		};
+		let state = self.backend.state_at(&hash);
+		let at = sp_api::BlockId::Hash(hash);
 
 		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
 
@@ -351,7 +355,8 @@ where
 			.flatten()
 			.expect("State is available. qed");
 		let proposer = futures::executor::block_on(factory.init(&header)).unwrap();
-		futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit))).unwrap()
+		futures::executor::block_on(proposer.propose(inherents, digest, time, Some(limit)))
+			.expect("Proposal failure")
 	}
 
 	/// Import a block, that has been previosuly build
