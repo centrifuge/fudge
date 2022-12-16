@@ -18,8 +18,6 @@ use sc_client_api::{
 	BlockBackend, BlockOf, HeaderBackend, TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
-#[cfg(feature = "runtime-benchmarks")]
-use sc_executor::sp_wasm_interface::HostFunctions;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
 use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
@@ -127,14 +125,17 @@ impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
 	}
 }
 
-#[cfg(not(feature = "runtime-benchmarks"))]
 /// HostFunctions that do not include benchmarking specific host functions
+#[cfg(not(feature = "runtime-benchmarks"))]
 pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
-#[cfg(feature = "runtime-benchmarks")]
+
 /// Host functions that include benchmarking specific functionalities
-pub type TWasmExecutor = sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-	sp_io::SubstrateHostFunctions,
-	frame_benchmarking::benchmarking::HostFunctions,
+#[cfg(feature = "runtime-benchmarks")]
+pub type TWasmExecutor = WasmExecutor<
+	sc_executor::sp_wasm_interface::ExtendedHostFunctions<
+		sp_io::SubstrateHostFunctions,
+		frame_benchmarking::benchmarking::HostFunctions,
+	>,
 >;
 
 impl<Block, RtApi, Exec> ClientProvider<Block> for DefaultClient<Block, RtApi, Exec>

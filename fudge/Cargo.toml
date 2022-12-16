@@ -13,3 +13,6 @@ polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = 
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+
+[features]
+runtime-benchmarks = ["fudge-core/runtime-benchmarks"]

@@ -60,6 +60,7 @@ node-primitives = { git = "https://github.com/paritytech/substrate", branch = "p
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", optional = true }
 
 # Polkadot dependencies
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.32" }
