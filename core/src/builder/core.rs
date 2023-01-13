@@ -168,15 +168,15 @@ where
 		at: Option<BlockId<Block>>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, String> {
-		let hash = match at {
+		let block = match at {
 			Some(BlockId::Hash(req_at)) => req_at,
 			Some(BlockId::Number(req_at)) => {
 				self.backend.blockchain().hash(req_at).unwrap().unwrap()
 			}
 			_ => self.client.info().best_hash,
 		};
-		let state = self.backend.state_at(&hash);
-		let at = sp_api::BlockId::Hash(hash);
+		let state = self.backend.state_at(block);
+		let at = sp_api::BlockId::Hash(block);
 
 		let state = state.map_err(|_| "State at INSERT_AT_HERE not available".to_string())?;
 
@@ -186,7 +186,7 @@ where
 					.backend
 					.begin_operation()
 					.map_err(|_| "Unable to start state-operation on backend".to_string())?;
-				self.backend.begin_state_operation(&mut op, at).unwrap();
+				self.backend.begin_state_operation(&mut op, block).unwrap();
 
 				let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 				let r = ext.execute_with(exec);
@@ -288,12 +288,19 @@ where
 			.map_err(|_| "Updating transaction index not possible.")
 			.unwrap();
 
-		let body = chain_backend.body(at).expect("State is available. qed.");
+		let block = match at {
+			BlockId::Hash(req_at) => req_at,
+			BlockId::Number(req_at) => {
+				self.backend.blockchain().hash(req_at).unwrap().unwrap()
+			}
+		};
+
+		let body = chain_backend.body(block).expect("State is available. qed.");
 		let indexed_body = chain_backend
-			.block_indexed_body(at)
+			.block_indexed_body(block)
 			.expect("State is available. qed.");
 		let justifications = chain_backend
-			.justifications(at)
+			.justifications(block)
 			.expect("State is available. qed.");
 
 		op.set_block_data(
