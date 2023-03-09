@@ -19,7 +19,7 @@ use sc_client_api::{
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
-use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
+use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager, GenesisBlockBuilder};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -157,22 +157,30 @@ where
 		&self,
 		config: ClientConfig<Block>,
 		genesis: Box<dyn BuildStorage>,
-		execution_strategies: ExecutionStrategies,
-		keystore: Option<SyncCryptoStorePtr>,
+		_execution_strategies: ExecutionStrategies,
+		_keystore: Option<SyncCryptoStorePtr>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()> {
+
+		//GenesisBlockBuilder
+		//new(
+		// 		build_genesis_storage: &dyn BuildStorage,
+		// 		commit_genesis_state: bool,
+		// 		backend: Arc<B>,
+		// 		executor: E,
+
 		TFullClient::new(
 			backend.clone(),
-			exec,
-			&(*genesis),
+			exec.clone(),
+			GenesisBlockBuilder::new(
+				&*genesis,
+				false,
+				backend,
+				exec,
+			).map_err(|_| ())?,
 			None,
 			None,
-			sc_client_api::execution_extensions::ExecutionExtensions::new(
-				execution_strategies,
-				keystore,
-				sc_offchain::OffchainDb::factory_from_backend(&*backend),
-			),
 			None,
 			None,
 			config,
