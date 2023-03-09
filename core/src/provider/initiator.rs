@@ -19,10 +19,9 @@ use std::{marker::PhantomData, sync::Arc};
 use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::ExecutionStrategies, AuxStore, Backend, BlockBackend, BlockOf,
-	TransactionFor, UsageProvider,
+	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
+	AuxStore, Backend, BlockBackend, BlockOf, TransactionFor, UsageProvider,
 };
-use sc_client_api::execution_extensions::ExecutionExtensions;
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
 use sc_service::{

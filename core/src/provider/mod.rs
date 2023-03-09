@@ -19,7 +19,9 @@ use sc_client_api::{
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
-use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager, GenesisBlockBuilder};
+use sc_service::{
+	ClientConfig, GenesisBlockBuilder, LocalCallExecutor, TFullBackend, TFullClient, TaskManager,
+};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
@@ -162,23 +164,10 @@ where
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()> {
-
-		//GenesisBlockBuilder
-		//new(
-		// 		build_genesis_storage: &dyn BuildStorage,
-		// 		commit_genesis_state: bool,
-		// 		backend: Arc<B>,
-		// 		executor: E,
-
 		TFullClient::new(
 			backend.clone(),
 			exec.clone(),
-			GenesisBlockBuilder::new(
-				&*genesis,
-				false,
-				backend,
-				exec,
-			).map_err(|_| ())?,
+			GenesisBlockBuilder::new(&*genesis, false, backend, exec).map_err(|_| ())?,
 			None,
 			None,
 			None,

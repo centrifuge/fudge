@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "core",
-    "core/src/builder/companion",
-    "core/src/tests/test-parachain",
-    "fudge",
-    "integration_test"
+  "core",
+  "core/src/builder/companion",
+  "core/src/tests/test-parachain",
+  "fudge",
+  "integration_test",
 ]

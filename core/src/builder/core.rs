@@ -273,9 +273,7 @@ where
 		let chain_backend = self.backend.blockchain();
 		let block = match at {
 			BlockId::Hash(req_at) => req_at,
-			BlockId::Number(req_at) => {
-				self.backend.blockchain().hash(req_at).unwrap().unwrap()
-			}
+			BlockId::Number(req_at) => self.backend.blockchain().hash(req_at).unwrap().unwrap(),
 		};
 		let mut header = chain_backend
 			.header(block)
@@ -293,8 +291,6 @@ where
 		op.update_transaction_index(tx_index)
 			.map_err(|_| "Updating transaction index not possible.")
 			.unwrap();
-
-
 
 		let body = chain_backend.body(block).expect("State is available. qed.");
 		let indexed_body = chain_backend
