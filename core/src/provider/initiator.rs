@@ -22,6 +22,7 @@ use sc_client_api::{
 	execution_extensions::ExecutionStrategies, AuxStore, Backend, BlockBackend, BlockOf,
 	TransactionFor, UsageProvider,
 };
+use sc_client_api::execution_extensions::ExecutionExtensions;
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
 use sc_service::{
@@ -263,8 +264,10 @@ where
 			self.exec.clone(),
 			Box::new(task_manager.spawn_handle()),
 			self.client_config.clone(),
+			ExecutionExtensions::default(),
 		)
 		.unwrap();
+
 		let client = self
 			.client_provider
 			.provide(
