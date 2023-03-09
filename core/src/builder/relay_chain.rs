@@ -402,7 +402,7 @@ where
 		Ok(())
 	}
 
-	pub fn build_block(&mut self) -> Result<Block, ()> {
+	pub async fn build_block(&mut self) -> Result<Block, ()> {
 		assert!(self.next.is_none());
 
 		let provider = self
@@ -416,7 +416,7 @@ where
 			.unwrap();
 
 		let parent = self.builder.latest_header();
-		let inherents = provider.create_inherent_data().unwrap();
+		let inherents = provider.create_inherent_data().await.unwrap();
 		let digest = self
 			.with_state(|| {
 				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))

@@ -28,7 +28,7 @@ impl Inherent {
 
 #[async_trait::async_trait]
 impl InherentDataProvider for Inherent {
-	fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
+	async fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
 		inherent_data.put_data(INHERENT_IDENTIFIER, &self.0)
 	}
 
@@ -47,7 +47,7 @@ Implementation of mock from cumulus
 
 #[async_trait::async_trait]
 impl InherentDataProvider for MockValidationDataInherentDataProvider {
-	fn provide_inherent_data(
+	async fn provide_inherent_data(
 		&self,
 		inherent_data: &mut InherentData,
 	) -> Result<(), sp_inherents::Error> {
