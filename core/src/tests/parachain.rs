@@ -19,7 +19,6 @@ use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use sc_service::{TFullBackend, TFullClient};
-use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
