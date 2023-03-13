@@ -47,7 +47,7 @@ Implementation of mock from cumulus
 
 #[async_trait::async_trait]
 impl InherentDataProvider for MockValidationDataInherentDataProvider {
-	async fn provide_inherent_data(
+	fn provide_inherent_data(
 		&self,
 		inherent_data: &mut InherentData,
 	) -> Result<(), sp_inherents::Error> {
