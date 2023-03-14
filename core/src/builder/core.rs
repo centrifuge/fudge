@@ -145,16 +145,20 @@ where
 	pub fn commit_storage_changes(
 		&mut self,
 		changes: StorageChanges<B::State, Block>,
+		at: BlockId::Hash,
 	) -> Result<(), ()> {
-		let at = BlockId::Hash(self.client.info().best_hash);
 		let mut op = self.backend.begin_operation().unwrap();
+
 		self.backend.begin_state_operation(&mut op, at).unwrap();
+
 		let info = self.client.info();
+
 		if info.best_hash == info.finalized_hash {
 			self.backend
 				.revert(NumberFor::<Block>::one(), true)
 				.unwrap();
 		}
+
 		self.mutate_normal(&mut op, changes, at).unwrap();
 		self.backend.commit_operation(op).unwrap();
 
