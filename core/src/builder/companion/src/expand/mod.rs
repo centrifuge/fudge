@@ -17,67 +17,13 @@ use syn::Result as SynResult;
 
 use crate::parse::{parachain, CompanionDef};
 
-fn get_fudge_crate() -> SynResult<TokenStream> {
-	let found_crate = crate_name("fudge").map_err(|_| {
-		syn::Error::new(
-			Span::call_site(),
-			"Crate fudge must be present for companion macro.",
-		)
-	})?;
-
-	let ts = match found_crate {
-		FoundCrate::Itself => quote!(crate),
-		FoundCrate::Name(name) => {
-			let ident = Ident::new(&name, Span::call_site());
-			quote!( #ident )
-		}
-	};
-
-	Ok(ts)
-}
-
-fn get_codec_crate() -> SynResult<TokenStream> {
-	let found_crate = crate_name("parity-scale-codec").map_err(|_| {
-		syn::Error::new(
-			Span::call_site(),
-			"Crate codec must be present for companion macro.",
-		)
-	})?;
-
-	let ts = match found_crate {
-		FoundCrate::Itself => quote!(crate),
-		FoundCrate::Name(name) => {
-			let ident = Ident::new(&name, Span::call_site());
-			quote!( #ident )
-		}
-	};
-
-	Ok(ts)
-}
-
-fn get_tracing_crate() -> SynResult<TokenStream> {
-	let found_crate = crate_name("sp-tracing").map_err(|_| {
-		syn::Error::new(
-			Span::call_site(),
-			"Crate sp-tracing must be present for companion macro.",
-		)
-	})?;
-
-	let ts = match found_crate {
-		FoundCrate::Itself => quote!(crate),
-		FoundCrate::Name(name) => {
-			let ident = Ident::new(&name, Span::call_site());
-			quote!( #ident )
-		}
-	};
-
-	Ok(ts)
-}
-
 pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
-	let fudge_crate = get_fudge_crate()?;
-	let tracing_crate = get_tracing_crate()?;
-	let codec_crate = get_codec_crate()?;
+	let fudge_crate = get_crate_with_name("fudge")?;
+	let fudge_core_crate = get_crate_with_name("fudge-core")?;
+	let tracing_crate = get_crate_with_name("sp-tracing")?;
+	let codec_crate = get_crate_with_name("parity-scale-codec")?;
+	let sp_std_crate = get_crate_with_name("sp-std")?;
+
 	let vis = def.vis.to_token_stream();
 	let name = def.companion_name.to_token_stream();
 	let parachains = parachain::helper::parachains(&def);
@@ -111,9 +57,12 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 		.collect();
 
 	let ts = quote! {
+		use #fudge_core_crate::builder::parachain::FudgeCollator;
 		use #fudge_crate::primitives::{Chain as _hidden_Chain, ParaId as _hidden_ParaId, FudgeParaChain as _hidden_FudgeParaChain};
 		use #codec_crate::Decode as __hidden_Decode;
 		use #tracing_crate as __hidden_tracing;
+		use #sp_std_crate::sync::{Arc, Mutex};
+
 		#vis struct #name {
 			#relay_vis #relay_chain_name: #relay_chain,
 
@@ -140,7 +89,10 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 						head: companion.#parachain_names.head(),
 						code: companion.#parachain_names.code(),
 					};
-					companion.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
+
+					let collator = companion.#parachain_names.collator();
+
+					companion.#relay_chain_name.onboard_para(para, Box::new(collator)).map_err(|_| ()).map(|_| ())?;
 
 				)*
 
@@ -226,12 +178,34 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 							head: self.#parachain_names.head(),
 							code: self.#parachain_names.code(),
 						};
-						self.#relay_chain_name.onboard_para(para).map_err(|_| ()).map(|_| ())?;
+
+						let collator = self.#parachain_names.collator();
+
+						self.#relay_chain_name.onboard_para(para, Box::new(collator)).map_err(|_| ()).map(|_| ())?;
 					)*
 				}
 
 				Ok(())
 			}
+		}
+	};
+
+	Ok(ts)
+}
+
+fn get_crate_with_name(name: &str) -> SynResult<TokenStream> {
+	let found_crate = crate_name(name).map_err(|_| {
+		syn::Error::new(
+			Span::call_site(),
+			format!("Crate {} must be present for companion macro.", name),
+		)
+	})?;
+
+	let ts = match found_crate {
+		FoundCrate::Itself => quote!(crate),
+		FoundCrate::Name(name) => {
+			let ident = Ident::new(&name, Span::call_site());
+			quote!( #ident )
 		}
 	};
 

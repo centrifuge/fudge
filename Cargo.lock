@@ -3086,6 +3086,7 @@ name = "integration_test"
 version = "0.1.0"
 dependencies = [
  "fudge",
+ "fudge-core",
  "fudge-test-runtime",
  "parity-scale-codec",
  "polkadot-core-primitives",
@@ -3093,6 +3094,7 @@ dependencies = [
  "sp-authorship",
  "sp-consensus-babe",
  "sp-inherents",
+ "sp-std",
  "sp-tracing",
 ]
 
