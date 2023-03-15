@@ -324,8 +324,8 @@ async fn parachain_creates_correct_inherents() {
 	assert_ne!(builder.head(), start_head);
 }
 
-#[test]
-fn xcm_is_transported() {
+#[tokio::test]
+async fn xcm_is_transported() {
 	super::utils::init_logs();
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 
@@ -379,13 +379,14 @@ fn xcm_is_transported() {
 		},
 	);
 
-	let mut builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
+	let builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
 
 	let para = FudgeParaChain {
 		id: para_id,
 		head: builder.head(),
 		code: builder.code(),
 	};
+
 	relay_builder
 		.onboard_para(para, Box::new(builder.collator()))
 		.unwrap();

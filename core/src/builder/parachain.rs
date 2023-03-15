@@ -99,6 +99,20 @@ where
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: CollectCollationInfo<Block>,
 {
+	pub fn new(
+		client: Arc<C>,
+		backend: Arc<B>,
+		next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
+		next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+	) -> Self {
+		Self{
+			client,
+			backend,
+			next_block,
+			next_import,
+		}
+	}
+
 	fn fetch_collation_info(
 		&self,
 		block_hash: Block::Hash,
@@ -285,12 +299,12 @@ where
 	}
 
 	pub fn collator(&self) -> FudgeCollator<Block, C, B> {
-		FudgeCollator {
-			client: self.client(),
-			backend: self.backend(),
-			next_block: self.next_block.clone(),
-			next_import: self.next_import.clone(),
-		}
+		FudgeCollator::new(
+			self.client(),
+			self.backend(),
+			self.next_block.clone(),
+			self.next_import.clone(),
+		)
 	}
 
 	pub fn client(&self) -> Arc<C> {
