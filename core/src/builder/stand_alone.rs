@@ -16,7 +16,7 @@ use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullClient, TaskManager};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
@@ -205,6 +205,10 @@ where
 
 	pub fn imports(&self) -> Vec<(Block, StorageProof)> {
 		self.imports.clone()
+	}
+
+	pub fn commit_storage_changes(&mut self, changes: StorageChanges<B::State, Block>, at: BlockId<Block>) -> Result<(), ()> {
+		self.builder.commit_storage_changes(changes, at)
 	}
 
 	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {

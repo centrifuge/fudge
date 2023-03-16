@@ -12,6 +12,7 @@
 
 use frame_benchmarking::account;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
+use sc_client_api::Backend;
 use sc_executor::{WasmExecutionMethod, WasmExecutor as TestExec};
 use sc_service::{PruningMode, TFullBackend, TFullClient, TaskManager};
 use sp_api::BlockId;
@@ -19,6 +20,7 @@ use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{AccountId32, CryptoTypeId, KeyTypeId, MultiAddress, Storage};
+use sp_runtime::traits::HashFor;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -28,6 +30,7 @@ use crate::{
 	provider::{DbOpen, EnvProvider},
 	StandAloneBuilder,
 };
+use crate::provider::ExternalitiesProvider;
 
 const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 const CRYPTO_TYPE: CryptoTypeId = CryptoTypeId(*b"test");
@@ -339,6 +342,166 @@ async fn opening_state_from_db_path_works() {
 	);
 	assert!(events_at_20_after
 		.iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
+
+	// Clean up after the test
+
+	remove_dir_all(&static_path).unwrap();
+}
+
+#[tokio::test]
+async fn commit_storage_changes_works() {
+	use std::fs::{create_dir_all, remove_dir_all};
+
+	super::utils::init_logs();
+
+	// We need some temp folder here for testing
+	let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+	path.push("src");
+	path.push("tests");
+	path.push("test_dbs");
+	path.push("test_opening_database");
+	let static_path = path;
+	if static_path.is_dir() {
+		// Clean up before the test, in case there where failures in between
+		remove_dir_all(&static_path).unwrap();
+	}
+	create_dir_all(&static_path).unwrap();
+
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::from_db(
+			DbOpen::SparseConfig {
+				path: static_path.clone(),
+				state_pruning: PruningMode::ArchiveAll,
+			},
+		);
+	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
+		balances: vec![
+			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
+		],
+	}
+	.build_storage()
+	.unwrap();
+	storage.top.insert(
+		sp_storage::well_known_keys::CODE.to_vec(),
+		CODE.unwrap().to_vec(),
+	);
+	provider.insert_storage(storage);
+	let (client, backend) = provider.init_default(
+		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		Box::new(manager.spawn_handle()),
+	);
+	let client = Arc::new(client);
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
+
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, uncles, slot, relay_para_inherent))
+				}
+			}
+		},
+	);
+
+	let dp = Box::new(move |parent, inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &parent, &inherents).await?;
+
+		Ok(digest)
+	});
+
+	let mut builder = StandAloneBuilder::<
+		TestBlock,
+		TestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+	>::new(&manager, backend, client.clone(), cidp(client), dp);
+
+	for _ in 0..20 {
+		builder.build_block().unwrap();
+		builder.import_block().unwrap();
+	}
+
+	let events_at_20_before = builder
+		.with_state_at( BlockId::Number(20), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
+
+	assert!(!events_at_20_before
+		.into_iter()
+		.map(|record| record.event.clone())
+		.collect::<Vec<_>>()
+		.contains(&polkadot_runtime::Event::Balances(
+			pallet_balances::Event::<Runtime>::Transfer {
+				from: AccountId32::new([0u8; 32]),
+				to: account::<AccountId32>("test", 0, 0),
+				amount: 1_000_000_000_000u128
+			}
+		)));
+
+	let state = builder.backend().state_at(BlockId::Number(20)).unwrap();
+	let mut ext = ExternalitiesProvider::<HashFor<TestBlock>, <TFullBackend<TestBlock> as sc_client_api::Backend<TestBlock>>::State>::new(&state);
+	let (_, changes) = ext.execute_with_mut(||{
+		polkadot_runtime::Balances::transfer(
+			polkadot_runtime::Origin::signed(AccountId32::new([0u8; 32])),
+			MultiAddress::Id(account("test", 0, 0)),
+			1_000_000_000_000u128,
+		).unwrap();
+
+		()
+	});
+
+	builder.commit_storage_changes(
+		changes,
+		BlockId::Number(20),
+	).unwrap();
+
+	let events_at_20_after = builder
+		.with_state_at( BlockId::Number(20), || {
+			frame_system::Pallet::<Runtime>::events()
+		})
+		.unwrap();
+
+	assert!(events_at_20_after
+		.into_iter()
 		.map(|record| record.event.clone())
 		.collect::<Vec<_>>()
 		.contains(&polkadot_runtime::Event::Balances(

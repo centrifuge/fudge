@@ -163,7 +163,7 @@ where
 	pub fn commit_storage_changes(
 		&mut self,
 		changes: StorageChanges<B::State, Block>,
-		at: BlockId::Hash,
+		at: BlockId<Block>,
 	) -> Result<(), ()> {
 		let mut op = self.backend.begin_operation().unwrap();
 
