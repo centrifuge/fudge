@@ -275,11 +275,14 @@ async fn parachain_creates_correct_inherents() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
+
+	let collator = builder.collator();
+
 	relay_builder
-		.onboard_para(para, Box::new(builder.collator()))
+		.onboard_para(para, Box::new(collator))
 		.unwrap();
 
 	let para_head = relay_builder
@@ -287,8 +290,8 @@ async fn parachain_creates_correct_inherents() {
 			polkadot_runtime_parachains::paras::Pallet::<RRuntime>::para_head(para_id).unwrap()
 		})
 		.unwrap();
-	let start_head = builder.head();
-	assert_eq!(builder.head(), para_head);
+	let start_head = builder.head().unwrap();
+	assert_eq!(builder.head().unwrap(), para_head);
 
 	relay_builder.build_block().unwrap();
 	// We need to do this as cumulus does check for increasing block nums and starting
@@ -320,8 +323,8 @@ async fn parachain_creates_correct_inherents() {
 			polkadot_runtime_parachains::paras::Pallet::<RRuntime>::para_head(para_id).unwrap()
 		})
 		.unwrap();
-	assert_eq!(builder.head(), para_head);
-	assert_ne!(builder.head(), start_head);
+	assert_eq!(builder.head().unwrap(), para_head);
+	assert_ne!(builder.head().unwrap(), start_head);
 }
 
 #[tokio::test]
@@ -383,8 +386,8 @@ async fn xcm_is_transported() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
 
 	relay_builder
