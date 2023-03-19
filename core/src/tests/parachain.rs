@@ -160,16 +160,6 @@ fn default_relay_builder(
 	TWasmExecutor,
 	impl CreateInherentDataProviders<RTestBlock, ()>,
 	(),
-<<<<<<< HEAD
-	impl DigestCreator<RTestBlock>,
-	RRuntime,
-> {
-	let mut state = StateProvider::new(RCODE.expect("Wasm is build. Qed."));
-	state.insert_storage(
-		polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
-			.build_storage()
-			.unwrap(),
-=======
 	Box<dyn DigestCreator + Send + Sync>,
 	Runtime,
 	TFullBackend<RTestBlock>,
@@ -195,7 +185,6 @@ where
 	let (client, backend) = provider.init_default(
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
 		Box::new(manager.spawn_handle()),
->>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 	);
 	state.insert_storage(genesis);
 
@@ -216,17 +205,21 @@ async fn parachain_creates_correct_inherents() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
+
+	let collator = builder.collator();
+
 	relay_builder
-		.onboard_para(para, Box::new(builder.collator()))
+		.onboard_para(para, Box::new(collator))
 		.unwrap();
 
 	let para_head = relay_builder
 		.with_state(|| Heads::try_get(para_id).unwrap())
 		.unwrap();
-	assert_eq!(builder.head(), para_head);
+	let start_head = builder.head().unwrap();
+	assert_eq!(builder.head().unwrap(), para_head);
 
 	relay_builder.build_block().unwrap();
 
@@ -252,7 +245,8 @@ async fn parachain_creates_correct_inherents() {
 	let para_head = relay_builder
 		.with_state(|| Heads::try_get(para_id).unwrap())
 		.unwrap();
-	assert_eq!(builder.head(), para_head);
+	assert_eq!(builder.head().unwrap(), para_head);
+	assert_ne!(builder.head().unwrap(), start_head);
 }
 
 #[tokio::test]
@@ -314,8 +308,8 @@ async fn xcm_is_transported() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
 
 	relay_builder

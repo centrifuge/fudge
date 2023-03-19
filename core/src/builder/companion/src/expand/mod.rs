@@ -86,8 +86,8 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 				#(
 					let para = _hidden_FudgeParaChain {
 						id: _hidden_ParaId::from(#parachain_ids),
-						head: companion.#parachain_names.head(),
-						code: companion.#parachain_names.code(),
+						head: companion.#parachain_names.head().map_err(|_| ())?,
+						code: companion.#parachain_names.code().map_err(|_| ())?,
 					};
 
 					let collator = companion.#parachain_names.collator();
@@ -110,16 +110,18 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 			pub fn append_extrinsic(&mut self, chain: _hidden_Chain, xt: Vec<u8>) -> Result<(), ()> {
 				match chain {
 					_hidden_Chain::Relay => {
-						self.#relay_chain_name.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?)
-							.map(|_|())
-							.map_err(|_|())
+						self.#relay_chain_name.append_extrinsic(
+							__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?
+						).map_err(|_|())?;
+						Ok(())
 					},
 					_hidden_Chain::Para(id) => match id {
 						#(
 							_ if id == #parachain_ids => {
-								self.#parachain_names.append_extrinsic(__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?)
-									.map(|_|())
-									.map_err(|_|())
+								self.#parachain_names.append_extrinsic(
+									__hidden_Decode::decode(&mut xt.as_slice()).map_err(|_|())?
+								).map_err(|_|())?;
+								Ok(())
 							},
 						)*
 						_ => return Err(()),
@@ -192,8 +194,8 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 						__hidden_tracing::enter_span!(sp_tracing::Level::INFO, std::stringify!(#relay_chain_name - Onboarding(#parachain_names):));
 						let para = _hidden_FudgeParaChain {
 							id: _hidden_ParaId::from(#parachain_ids),
-							head: self.#parachain_names.head(),
-							code: self.#parachain_names.code(),
+							head: self.#parachain_names.head().map_err(|_| ())?,
+							code: self.#parachain_names.code().map_err(|_| ())?,
 						};
 
 						let collator = self.#parachain_names.collator();
