@@ -12,7 +12,8 @@
 
 /// The logging target.
 // TODO: Make this more adaptable for giving a parachain a name
-const LOG_TARGET: &str = "fudge-parachain";
+const DEFAULT_COLLATOR_LOG_TARGET: &str = "fudge-collator";
+const DEFAULT_PARACHAIN_BUILDER_LOG_TARGET: &str = "fudge-parachain";
 
 use codec::{Decode, Encode};
 use cumulus_primitives_core::{
@@ -42,10 +43,11 @@ use sp_std::{
 	time::Duration,
 };
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use thiserror::Error;
 
 use crate::{
 	builder::{
-		core::{Builder, Operation},
+		core::{Builder, InnerError, Operation},
 		relay_chain::{CollationBuilder, CollationJudgement},
 	},
 	digest::DigestCreator,
@@ -53,6 +55,42 @@ use crate::{
 	types::StoragePair,
 	PoolState,
 };
+
+#[derive(Error, Debug)]
+pub enum Error<Block: sp_api::BlockT> {
+	#[error("core builder error: {0}")]
+	CoreBuilder(InnerError),
+
+	#[error("couldn't retrieve API version at {1}: {0}")]
+	APIVersionRetrieval(InnerError, BlockId<Block>),
+
+	#[error("API version not found at {0}")]
+	APIVersionNotFound(BlockId<Block>),
+
+	#[error("couldn't collect collation info before V2: {0}")]
+	CollationInfoCollectionBeforeV2(InnerError),
+
+	#[error("couldn't collect collation info: {0}")]
+	CollationInfoCollection(InnerError),
+
+	#[error("couldn't create inherent data providers: {0}")]
+	InherentDataProvidersCreation(InnerError),
+
+	#[error("couldn't create inherent data: {0}")]
+	InherentDataCreation(InnerError),
+
+	#[error("couldn't create digest")]
+	DigestCreation,
+
+	#[error("couldn't lock next block: {0}")]
+	NextBlockLocking(InnerError),
+
+	#[error("next block not found")]
+	NextBlockNotFound,
+
+	#[error("couldn't lock next import: {0}")]
+	NextImportLocking(InnerError),
+}
 
 pub struct FudgeParaBuild {
 	pub parent_head: HeadData,
@@ -73,7 +111,7 @@ pub struct FudgeCollator<Block, C, B> {
 	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
 }
 
-impl<Block, C, B> CollationBuilder for FudgeCollator<Block, C, B>
+impl<Block, C, B> CollationBuilder<Error<Block>> for FudgeCollator<Block, C, B>
 where
 	Block: BlockT,
 	B: BackendT<Block>,
@@ -84,7 +122,7 @@ where
 		self.collation(validation_data)
 	}
 
-	fn judge(&self, judgement: CollationJudgement) {
+	fn judge(&self, judgement: CollationJudgement) -> Result<(), Error<Block>> {
 		match judgement {
 			CollationJudgement::Approved => self.approve(),
 			CollationJudgement::Rejected => self.reject(),
@@ -105,7 +143,7 @@ where
 		next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
 		next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
 	) -> Self {
-		Self{
+		Self {
 			client,
 			backend,
 			next_block,
@@ -117,29 +155,58 @@ where
 		&self,
 		block_hash: Block::Hash,
 		header: &Block::Header,
-	) -> Result<Option<CollationInfo>, sp_api::ApiError> {
+	) -> Result<Option<CollationInfo>, Error<Block>> {
 		let runtime_api = self.client.runtime_api();
 		let block_id = BlockId::Hash(block_hash);
 
-		let api_version =
-			match runtime_api.api_version::<dyn CollectCollationInfo<Block>>(&block_id)? {
-				Some(version) => version,
-				None => {
-					tracing::error!(
-						target: LOG_TARGET,
-						"Could not fetch `CollectCollationInfo` runtime api version."
-					);
-					return Ok(None);
-				}
-			};
+		let api_version = runtime_api
+			.api_version::<dyn CollectCollationInfo<Block>>(&block_id)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_COLLATOR_LOG_TARGET,
+					error = ?e,
+					"Could not get API version at {}.",
+					block_id,
+				);
+
+				Error::APIVersionRetrieval(e.into(), block_id)
+			})?
+			.ok_or({
+				tracing::error!(
+					target = DEFAULT_COLLATOR_LOG_TARGET,
+					"API version at {} not found.",
+					block_id,
+				);
+
+				Error::APIVersionNotFound(block_id)
+			})?;
 
 		let collation_info = if api_version < 2 {
 			#[allow(deprecated)]
 			runtime_api
-				.collect_collation_info_before_version_2(&block_id)?
+				.collect_collation_info_before_version_2(&block_id)
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_COLLATOR_LOG_TARGET,
+						error = ?e,
+						"Could not collect collation info before version 2.",
+					);
+
+					Error::CollationInfoCollectionBeforeV2(e.into())
+				})?
 				.into_latest(header.encode().into())
 		} else {
-			runtime_api.collect_collation_info(&block_id, header)?
+			runtime_api
+				.collect_collation_info(&block_id, header)
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_COLLATOR_LOG_TARGET,
+						error = ?e,
+						"Could not collect collation info.",
+					);
+
+					Error::CollationInfoCollection(e.into())
+				})?
 		};
 
 		Ok(Some(collation_info))
@@ -160,10 +227,11 @@ where
 				Ok(x) => x,
 				Err(e) => {
 					tracing::error!(
-						target: LOG_TARGET,
+						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not decode the head data."
 					);
+
 					return None;
 				}
 			};
@@ -174,7 +242,12 @@ where
 			{
 				Ok(proof) => proof,
 				Err(e) => {
-					tracing::error!(target: "cumulus-collator", "Failed to compact proof: {:?}", e);
+					tracing::error!(
+						target: DEFAULT_COLLATOR_LOG_TARGET,
+						error = ?e,
+						"Could not compact proof.",
+					);
+
 					return None;
 				}
 			};
@@ -191,7 +264,7 @@ where
 				.fetch_collation_info(block_hash, b.header())
 				.map_err(|e| {
 					tracing::error!(
-						target: LOG_TARGET,
+						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Failed to collect collation info.",
 					)
@@ -213,16 +286,64 @@ where
 		}
 	}
 
-	pub fn approve(&self) {
-		let mut locked_next = self.next_block.lock().expect("Locking must work");
-		let build = locked_next.take().expect("Only approve when build is some");
-		let mut locked_import = self.next_import.lock().expect("Locking must work");
+	pub fn approve(&self) -> Result<(), Error<Block>> {
+		let build = self
+			.next_block
+			.lock()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_COLLATOR_LOG_TARGET,
+					error = ?e,
+					"Could not lock next block.",
+				);
+
+				Error::NextBlockLocking(e.into())
+			})?
+			.take()
+			.ok_or({
+				tracing::error!(
+					target = DEFAULT_COLLATOR_LOG_TARGET,
+					"Next block not found.",
+				);
+
+				Error::NextBlockNotFound
+			})?;
+
+		let mut locked_import = self.next_import.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_COLLATOR_LOG_TARGET,
+				error = ?e,
+				"Could not lock next import.",
+			);
+
+			Error::NextImportLocking(e.into())
+		})?;
+
 		*locked_import = Some(build);
+		Ok(())
 	}
 
-	pub fn reject(&self) {
-		let mut locked = self.next_block.lock().expect("Locking must work");
-		let _build = locked.take().expect("Only reject when build is some");
+	pub fn reject(&self) -> Result<(), Error<Block>> {
+		let mut locked = self.next_block.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_COLLATOR_LOG_TARGET,
+				error = ?e,
+				"Could not lock next block.",
+			);
+
+			Error::NextBlockLocking(e.into())
+		})?;
+
+		let _build = locked.take().ok_or({
+			tracing::error!(
+				target = DEFAULT_COLLATOR_LOG_TARGET,
+				"Next block not found.",
+			);
+
+			Error::NextBlockNotFound
+		})?;
+
+		Ok(())
 	}
 }
 
@@ -315,21 +436,32 @@ where
 		self.builder.backend()
 	}
 
-	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, ()> {
-		self.builder.append_extrinsic(xt)
+	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, Error<Block>> {
+		self.builder
+			.append_extrinsic(xt)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	pub fn append_extrinsics(
 		&mut self,
 		xts: Vec<Block::Extrinsic>,
-	) -> Result<Vec<Block::Hash>, ()> {
+	) -> Result<Vec<Block::Hash>, Error<Block>> {
 		xts.into_iter().fold(Ok(Vec::new()), |hashes, xt| {
-			if let Ok(mut hashes) = hashes {
-				hashes.push(self.builder.append_extrinsic(xt)?);
-				Ok(hashes)
-			} else {
-				Err(())
-			}
+			let mut hashes = hashes?;
+
+			let block_hash = self.builder.append_extrinsic(xt).map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not append extrinsic."
+				);
+
+				Error::CoreBuilder(e.into())
+			})?;
+
+			hashes.push(block_hash);
+
+			Ok(hashes)
 		})
 	}
 
@@ -347,63 +479,121 @@ where
 		self.builder.pool_state()
 	}
 
-	pub fn build_block(&mut self) -> Result<(), ()> {
-		let provider = self
-			.with_state(|| {
+	pub fn build_block(&mut self) -> Result<(), Error<Block>> {
+		let provider =
+			self.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
 					self.builder.latest_block(),
 					ExtraArgs::extra(),
 				))
-				.unwrap()
-			})
-			.unwrap();
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create inherent data providers."
+					);
 
-		let parent = self.builder.latest_header();
-		let inherents = provider.create_inherent_data().unwrap();
-		let digest = self
-			.with_state(|| {
-				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
-					.unwrap()
-			})
-			.unwrap();
+					Error::InherentDataProvidersCreation(e.as_ref().into())
+				})
+			})??;
 
-		let Proposal { block, proof, .. } = self.builder.build_block(
-			self.handle.clone(),
-			inherents,
-			digest,
-			Duration::from_secs(60), // TODO: This should be configurable, best via an public config on the builder
-			6_000_000, // TODO: This should be configurable, best via an public config on the builder
-		);
+		// TODO(cdamian): Do we want to wrap core errors in cases like this one?
+		let parent = self
+			.builder
+			.latest_header()
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
+		let inherents = provider.create_inherent_data().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not create inherent data."
+			);
+
+			Error::InherentDataCreation(e.into())
+		})?;
+
+		let digest = self.with_state(|| {
+			futures::executor::block_on(self.dp.create_digest(parent, inherents.clone())).map_err(
+				|e| {
+					tracing::error!(
+						target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+						"Could not create digest."
+					);
+
+					Error::DigestCreation
+				},
+			)
+		})??;
+
+		let Proposal { block, proof, .. } = self
+			.builder
+			.build_block(
+				self.handle.clone(),
+				inherents,
+				digest,
+				Duration::from_secs(60), // TODO: This should be configurable, best via an public config on the builder
+				6_000_000, // TODO: This should be configurable, best via an public config on the builder
+			)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not create inherent data."
+				);
+
+				Error::CoreBuilder(e.into())
+			})?;
 
 		// As collation info needs latest state in db we import without finalizing here already.
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::Own, header);
 		params.body = Some(body);
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(false));
-		self.builder.import_block(params).unwrap();
+
+		self.import_block_with_params(params)?;
 
 		let locked = self.next_block.clone();
-		let mut locked = locked.lock().expect(
-			"ESSENTIAL: If this is poisoned or still locked, the builder is currently bricked.",
-		);
+		let mut locked = locked.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not lock next block.",
+			);
+
+			Error::NextBlockLocking(e.into())
+		})?;
+
 		*locked = Some((block, proof));
 
 		Ok(())
 	}
 
-	pub fn head(&self) -> HeadData {
-		HeadData(self.builder.latest_header().encode())
+	pub fn head(&self) -> Result<HeadData, Error<Block>> {
+		self.builder
+			.latest_header()
+			.map(|header| HeadData(header.encode()))
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
-	pub fn code(&self) -> ValidationCode {
-		ValidationCode(self.builder.latest_code())
+	pub fn code(&self) -> Result<ValidationCode, Error<Block>> {
+		self.builder
+			.latest_code()
+			.map_err(|e| Error::CoreBuilder(e.into()))
+			.map(|latest_code| ValidationCode(latest_code))
 	}
 
-	pub fn import_block(&mut self) -> Result<(), ()> {
+	pub fn import_block(&mut self) -> Result<(), Error<Block>> {
 		let locked = self.next_import.clone();
-		let mut locked = locked.lock().expect(
-			"ESSENTIAL: If this is poisoned or still locked, the builder is currently bricked.",
-		);
+		let mut locked = locked.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not lock next import.",
+			);
+
+			Error::NextImportLocking(e.into())
+		})?;
 
 		if let Some((block, proof)) = &*locked {
 			let (header, body) = block.clone().deconstruct();
@@ -413,13 +603,17 @@ where
 			params.import_existing = true;
 			params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
-			self.builder.import_block(params).unwrap();
+			self.import_block_with_params(params)?;
+
 			self.imports.push((block.clone(), proof.clone()));
 
 			*locked = None;
 			Ok(())
 		} else {
-			tracing::warn!(target: LOG_TARGET, "No import for parachain available.");
+			tracing::warn!(
+				target: DEFAULT_COLLATOR_LOG_TARGET,
+				"No import for parachain available.",
+			);
 			Ok(())
 		}
 	}
@@ -428,23 +622,54 @@ where
 		self.imports.clone()
 	}
 
-	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, None, exec)
+	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, Error<Block>> {
+		self.builder
+			.with_state(Operation::DryRun, None, exec)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not execute operation with state."
+				);
+
+				Error::CoreBuilder(e.into())
+			})
 	}
 
 	pub fn with_state_at<R>(
 		&self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, Some(at), exec)
+	) -> Result<R, Error<Block>> {
+		self.builder
+			.with_state(Operation::DryRun, Some(at), exec)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not execute operation with state at {}",
+					at
+				);
+
+				Error::CoreBuilder(e.into())
+			})
 	}
 
-	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, String> {
+	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, Error<Block>> {
 		// TODO: still check this
 		// assert!(self.next_block.is_none());
 
-		self.builder.with_state(Operation::Commit, None, exec)
+		self.builder
+			.with_state(Operation::Commit, None, exec)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not execute operation with mutable state",
+				);
+
+				Error::CoreBuilder(e.into())
+			})
 	}
 
 	/// Mutating past states not supported yet...
@@ -452,10 +677,36 @@ where
 		&mut self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
+	) -> Result<R, Error<Block>> {
 		// TODO: still check this
 		// assert!(self.next_block.is_none());
 
-		self.builder.with_state(Operation::Commit, Some(at), exec)
+		self.builder
+			.with_state(Operation::Commit, Some(at), exec)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not execute operation with mutable state at {}",
+					at
+				);
+
+				Error::CoreBuilder(e.into())
+			})
+	}
+
+	fn import_block_with_params(
+		&mut self,
+		params: BlockImportParams<Block, <C as BlockImport<Block>>::Transaction>,
+	) -> Result<(), Error<Block>> {
+		self.builder.import_block(params).map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not import block."
+			);
+
+			Error::CoreBuilder(e.into())
+		})
 	}
 }

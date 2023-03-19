@@ -11,7 +11,10 @@
 // GNU General Public License for more details.
 
 // TODO: Make this more adaptable for giving a parachain a name
-const LOG_TARGET: &str = "fudge-relaychain";
+const DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET: &str = "fudge-relaychain";
+
+use std::fmt::Debug;
+
 use bitvec::vec::BitVec;
 use codec::{Decode, Encode};
 use cumulus_primitives_core::PersistedValidationData;
@@ -49,11 +52,12 @@ use sp_runtime::{
 };
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use thiserror::Error;
 use types::*;
 
 use crate::{
 	builder::{
-		core::{Builder, Operation},
+		core::{Builder, InnerError, Operation},
 		parachain::FudgeParaChain,
 	},
 	digest::DigestCreator,
@@ -61,6 +65,45 @@ use crate::{
 	types::StoragePair,
 	PoolState,
 };
+
+#[derive(Error, Debug)]
+pub enum Error<Block: sp_api::BlockT> {
+	#[error("core builder error: {0}")]
+	CoreBuilder(InnerError),
+
+	#[error("couldn't mutate parachain")]
+	ParachainMutate,
+
+	#[error("couldn't mutate para lifecycles")]
+	ParaLifecyclesMutate,
+
+	#[error("couldn't retrieve persisted validation data {0}")]
+	PersistedValidationDataRetrieval(InnerError),
+
+	#[error("persisted validation data not found")]
+	PersistedValidationDataNotFound,
+
+	#[error("couldn't retrieve validation code hash {0}")]
+	ValidationCodeHashRetrieval(InnerError),
+
+	#[error("validation code hash not found")]
+	ValidationCodeHashNotFound,
+
+	#[error("couldn't create inherent data providers: {0}")]
+	InherentDataProvidersCreation(InnerError),
+
+	#[error("couldn't create inherent data: {0}")]
+	InherentDataCreation(InnerError),
+
+	#[error("couldn't create digest")]
+	DigestCreation,
+
+	#[error("couldn't decode candidate pending availability: {0}")]
+	CandidatePendingAvailabilityDecode(InnerError),
+
+	#[error("parachain not onboarded}")]
+	ParachainNotOnboarded,
+}
 
 /// Recreating private storage types for easier handling storage access
 pub mod types {
@@ -217,20 +260,20 @@ pub enum CollationJudgement {
 	Rejected,
 }
 
-pub trait CollationBuilder {
+pub trait CollationBuilder<JudgeError> {
 	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation>;
 
-	fn judge(&self, judgement: CollationJudgement);
+	fn judge(&self, judgement: CollationJudgement) -> Result<(), JudgeError>;
 }
 
 #[cfg(test)]
-impl CollationBuilder for () {
+impl CollationBuilder<()> for () {
 	fn collation(&self, _validation_data: PersistedValidationData) -> Option<Collation> {
 		None
 	}
 
-	fn judge(&self, _judgement: CollationJudgement) {
-		// Nothing
+	fn judge(&self, _judgement: CollationJudgement) -> Result<(), ()> {
+		Ok(())
 	}
 }
 
@@ -322,7 +365,7 @@ pub struct RelaychainBuilder<
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
-	parachains: Vec<(Id, Box<dyn CollationBuilder>)>,
+	parachains: Vec<(Id, Box<dyn CollationBuilder<Error<Block>>>)>,
 	collations: Vec<(Id, Collation, Block::Header)>,
 	handle: SpawnTaskHandle,
 	_phantom: PhantomData<(ExtraArgs, Runtime)>,
@@ -382,21 +425,27 @@ where
 		self.builder.backend()
 	}
 
-	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, ()> {
-		self.builder.append_extrinsic(xt)
+	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, Error<Block>> {
+		self.builder
+			.append_extrinsic(xt)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	pub fn append_extrinsics(
 		&mut self,
 		xts: Vec<Block::Extrinsic>,
-	) -> Result<Vec<Block::Hash>, ()> {
+	) -> Result<Vec<Block::Hash>, Error<Block>> {
 		xts.into_iter().fold(Ok(Vec::new()), |hashes, xt| {
-			if let Ok(mut hashes) = hashes {
-				hashes.push(self.builder.append_extrinsic(xt)?);
-				Ok(hashes)
-			} else {
-				Err(())
-			}
+			let mut hashes = hashes?;
+
+			let block_hash = self
+				.builder
+				.append_extrinsic(xt)
+				.map_err(|e| Error::CoreBuilder(e.into()))?;
+
+			hashes.push(block_hash);
+
+			Ok(hashes)
 		})
 	}
 
@@ -425,10 +474,10 @@ where
 	pub fn onboard_para(
 		&mut self,
 		para: FudgeParaChain,
-		collator: Box<dyn CollationBuilder>,
-	) -> Result<(), ()> {
+		collator: Box<dyn CollationBuilder<Error<Block>>>,
+	) -> Result<(), Error<Block>> {
 		let FudgeParaChain { id, head, code } = para;
-		self.with_mut_state(|| {
+		self.with_mut_state(|| -> Result<(), Error<Block>> {
 			let current_block = frame_system::Pallet::<Runtime>::block_number();
 			let code_hash = code.hash();
 
@@ -439,7 +488,14 @@ where
 				}
 				Ok(())
 			})
-			.unwrap();
+			.map_err(|_| {
+				tracing::error!(
+					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+					"Could not mutate parachains."
+				);
+
+				Error::ParachainMutate
+			})?;
 
 			let curr_code_hash = if let Some(curr_code_hash) = CurrentCodeHash::get(&id) {
 				PastCodeHash::<Runtime>::insert(&(id, current_block), curr_code_hash);
@@ -467,53 +523,93 @@ where
 
 				Ok(())
 			})
-			.unwrap();
+			.map_err(|_| {
+				tracing::error!(
+					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+					"Could not mutate para lifecycles."
+				);
+
+				Error::ParaLifecyclesMutate
+			})?;
 
 			Heads::insert(&id, head);
-		})
-		.unwrap();
+
+			Ok(())
+		})?;
 
 		self.parachains.push((id, collator));
 
 		Ok(())
 	}
 
-	pub fn build_block(&mut self) -> Result<Block, ()> {
+	pub fn build_block(&mut self) -> Result<Block, Error<Block>> {
 		assert!(self.next.is_none());
 
-		let provider = self
-			.with_state(|| {
+		let provider =
+			self.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
 					self.builder.latest_block(),
 					ExtraArgs::extra(),
 				))
-				.unwrap()
-			})
-			.unwrap();
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create inherent data providers."
+					);
 
-		let parent = self.builder.latest_header();
-		let inherents = provider.create_inherent_data().unwrap();
-		let digest = self
-			.with_state(|| {
-				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
-					.unwrap()
-			})
-			.unwrap();
+					Error::InherentDataProvidersCreation(e.as_ref().into())
+				})
+			})??;
 
-		let Proposal { block, proof, .. } = self.builder.build_block(
-			self.handle.clone(),
-			inherents,
-			digest,
-			Duration::from_secs(60),
-			6_000_000,
-		);
+		let parent = self
+			.builder
+			.latest_header()
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
+		let inherents = provider.create_inherent_data().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not create inherent data."
+			);
+
+			Error::InherentDataProvidersCreation(e.into())
+		})?;
+
+		let digest = self.with_state(|| {
+			futures::executor::block_on(self.dp.create_digest(parent, inherents.clone())).map_err(
+				|e| {
+					tracing::error!(
+						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create digest."
+					);
+
+					Error::DigestCreation
+				},
+			)
+		})??;
+
+		let Proposal { block, proof, .. } = self
+			.builder
+			.build_block(
+				self.handle.clone(),
+				inherents,
+				digest,
+				Duration::from_secs(60),
+				6_000_000,
+			)
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
 		self.next = Some((block.clone(), proof));
 
 		Ok(block)
 	}
 
-	pub fn import_block(&mut self) -> Result<(), ()> {
-		let (block, proof) = self.next.take().unwrap();
+	pub fn import_block(&mut self) -> Result<(), Error<Block>> {
+		let (block, proof) = self.next.take().ok_or({});
+
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 		params.body = Some(body);
@@ -527,21 +623,19 @@ where
 		Ok(())
 	}
 
-	fn collect_collations(&mut self, parent_head: Block::Header) {
+	fn collect_collations(&mut self, parent_head: Block::Header) -> Result<(), Error<Block>> {
 		let client = self.client();
 		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
 		for (id, para) in self.parachains.iter() {
-			let pvd = self
-				.with_state(|| {
-					persisted_validation_data(
-						&mut rt_api,
-						parent,
-						*id,
-						OccupiedCoreAssumption::TimedOut,
-					)
-				})
-				.unwrap();
+			let pvd = self.with_state(|| {
+				persisted_validation_data(
+					&mut rt_api,
+					parent,
+					*id,
+					OccupiedCoreAssumption::TimedOut,
+				)
+			})??;
 
 			if let Some(collation) = para.collation(pvd) {
 				// Only collect collations when they are not already collected
@@ -550,9 +644,11 @@ where
 				}
 			}
 		}
+
+		Ok(())
 	}
 
-	fn force_enact_collations(&mut self) -> Result<(), ()> {
+	fn force_enact_collations(&mut self) -> Result<(), Error<Block>> {
 		let client = self.client();
 		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
@@ -562,18 +658,11 @@ where
 		for (collation_index, (id, collation, generation_parent)) in
 			collations.into_iter().enumerate()
 		{
-			let pvd = self
-				.with_state(|| {
-					persisted_validation_data(
-						&mut rt_api,
-						parent,
-						id,
-						OccupiedCoreAssumption::TimedOut,
-					)
-				})
-				.unwrap();
+			let pvd = self.with_state(|| {
+				persisted_validation_data(&mut rt_api, parent, id, OccupiedCoreAssumption::TimedOut)
+			})??;
 
-			self.with_mut_state(|| {
+			self.with_mut_state(|| -> Result<(), Error<Block>> {
 				let commitments = CandidateCommitments {
 					upward_messages: collation.upward_messages,
 					horizontal_messages: collation.horizontal_messages,
@@ -604,7 +693,7 @@ where
 							parent,
 							id,
 							OccupiedCoreAssumption::TimedOut,
-						),
+						)?,
 					},
 				};
 
@@ -630,27 +719,56 @@ where
 
 				PendingAvailability::<Runtime>::insert(
 					id,
-					cpa.using_encoded(|scale| {
-						CandidatePendingAvailability::decode(&mut scale.as_ref())
-							.expect("Same layout. qed.")
-					}),
+					cpa.using_encoded(
+						|scale| -> Result<CandidatePendingAvailability<_, _>, Error<Block>> {
+							let res = CandidatePendingAvailability::decode(&mut scale.as_ref())
+								.map_err(|e| {
+									tracing::error!(
+										target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+										error = ?e,
+										"Couldn't decode candidate pending availability",
+									);
+
+									Error::CandidatePendingAvailabilityDecode(e.into())
+								})?;
+
+							Ok(res)
+						},
+					)?,
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
 				polkadot_runtime_parachains::runtime_api_impl::v2::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
-				.unwrap();
-			})
-			.map_err(|_| ())?;
+				.ok_or({
+					tracing::error!(
+						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+						"Persisted validation data not found",
+					);
+
+					Error::PersistedValidationDataNotFound
+				})?;
+
+				Ok(())
+			})?;
 
 			let index = self
 				.parachains
 				.iter()
 				.position(|(in_id, _)| *in_id == id)
-				.expect("Parachain is onbaorded. qed");
+				.ok_or({
+					tracing::error!(
+						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+						"Parachain not onboarded",
+					);
+
+					Error::ParachainNotOnboarded
+				})?;
 			let (_, collator) = self.parachains.get(index).expect("Index is existing. qed");
-			collator.judge(CollationJudgement::Approved);
+
+			collator.judge(CollationJudgement::Approved)?;
+
 			self.collations.remove(collation_index);
 		}
 
@@ -661,22 +779,28 @@ where
 		self.imports.clone()
 	}
 
-	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, None, exec)
+	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, Error<Block>> {
+		self.builder
+			.with_state(Operation::DryRun, None, exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	pub fn with_state_at<R>(
 		&self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, Some(at), exec)
+	) -> Result<R, Error<Block>> {
+		self.builder
+			.with_state(Operation::DryRun, Some(at), exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
-	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, String> {
+	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, Error<Block>> {
 		assert!(self.next.is_none());
 
-		self.builder.with_state(Operation::Commit, None, exec)
+		self.builder
+			.with_state(Operation::Commit, None, exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	/// Mutating past states not supported yet...
@@ -684,30 +808,48 @@ where
 		&mut self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
+	) -> Result<R, Error<Block>> {
 		assert!(self.next.is_none());
 
-		self.builder.with_state(Operation::Commit, Some(at), exec)
+		self.builder
+			.with_state(Operation::Commit, Some(at), exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 }
 
-// TODO: Make this error instead
 fn persisted_validation_data<'a, RtApi, Block>(
 	rt_api: &mut ApiRef<'a, RtApi>,
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
-) -> PersistedValidationData
+) -> Result<PersistedValidationData, Error<Block>>
 where
 	Block: BlockT,
 	RtApi: ParachainHost<Block> + ApiExt<Block>,
 {
-	rt_api.execute_in_transaction(|api| {
-		let pvd = api
-			.persisted_validation_data(&BlockId::Hash(parent), id, assumption)
-			.unwrap()
-			.unwrap();
+	//TODO(cdamian): Do we really need to execute_in_transaction? If so, why? =D
+	let res = rt_api.execute_in_transaction(|api| {
+		let pvd = api.persisted_validation_data(&BlockId::Hash(parent), id, assumption);
+
 		TransactionOutcome::Commit(pvd)
+	});
+
+	res.map_err(|e| {
+		tracing::error!(
+			target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+			error = ?e,
+			"Could get persisted validation data",
+		);
+
+		Error::PersistedValidationDataRetrieval(e.into())
+	})?
+	.ok_or({
+		tracing::error!(
+			target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+			"Persisted validation data not found",
+		);
+
+		Error::PersistedValidationDataNotFound
 	})
 }
 
@@ -716,13 +858,28 @@ fn validation_code_hash<'a, RtApi, Block>(
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
-) -> ValidationCodeHash
+) -> Result<ValidationCodeHash, Error<Block>>
 where
 	Block: BlockT,
 	RtApi: ParachainHost<Block>,
 {
 	rt_api
 		.validation_code_hash(&BlockId::Hash(parent), id, assumption)
-		.unwrap()
-		.unwrap()
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could get validation code hash.",
+			);
+
+			Error::ValidationCodeHashRetrieval(e.into())
+		})?
+		.ok_or({
+			tracing::error!(
+				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+				"Validation code hash not found",
+			);
+
+			Error::ValidationCodeHashNotFound
+		})
 }

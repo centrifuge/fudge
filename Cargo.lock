@@ -2397,6 +2397,7 @@ dependencies = [
  "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",
