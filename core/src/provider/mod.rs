@@ -19,15 +19,14 @@ use sc_client_api::{
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
-use sc_service::{ClientConfig, LocalCallExecutor, TFullBackend, TFullClient, TaskManager};
+use sc_service::{
+	ClientConfig, GenesisBlockBuilder, LocalCallExecutor, TFullBackend, TFullClient, TaskManager,
+};
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::CodeExecutor;
-use sp_runtime::{
-	traits::{Block as BlockT, BlockIdTo},
-	BuildStorage,
-};
+use sp_runtime::traits::{Block as BlockT, BlockIdTo};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
 pub mod backend;
@@ -108,7 +107,7 @@ pub trait ClientProvider<Block: BlockT> {
 	fn provide(
 		&self,
 		config: ClientConfig<Block>,
-		genesis: Box<dyn BuildStorage>,
+		genesis_block_builder: GenesisBlockBuilder<Block, Self::Backend, Self::Exec>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()>;
@@ -153,14 +152,14 @@ where
 	fn provide(
 		&self,
 		config: ClientConfig<Block>,
-		genesis: Box<dyn BuildStorage>,
+		genesis_block_builder: GenesisBlockBuilder<Block, Self::Backend, Self::Exec>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()> {
 		TFullClient::new(
 			backend.clone(),
 			exec,
-			&(*genesis),
+			genesis_block_builder,
 			None,
 			None,
 			None,
