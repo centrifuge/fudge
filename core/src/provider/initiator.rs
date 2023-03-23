@@ -25,8 +25,8 @@ use sc_client_api::{
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
 use sc_service::{
-	ClientConfig, Configuration, KeystoreContainer, LocalCallExecutor, TFullBackend, TFullClient,
-	TaskManager,
+	ClientConfig, Configuration, GenesisBlockBuilder, KeystoreContainer, LocalCallExecutor,
+	TFullBackend, TFullClient, TaskManager,
 };
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{ApiExt, BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
@@ -184,8 +184,7 @@ where
 		self
 	}
 
-	/// Overwrites the used genesis that will be used when initiating the
-	/// structs for a core builder.
+	/// Overwrites the `GenesisBlockBuilder` with a new one that contains the provided genesis.
 	pub fn with_genesis(&mut self, genesis: Box<dyn BuildStorage>) -> &mut Self {
 		self.genesis = genesis;
 		self
@@ -257,11 +256,14 @@ where
 			self.execution_extensions,
 		)
 		.unwrap();
+		let genesis_block_builder =
+			GenesisBlockBuilder::new(&(*self.genesis), true, backend.clone(), self.exec.clone())
+				.unwrap();
 		let client = self
 			.client_provider
 			.provide(
 				self.client_config,
-				self.genesis,
+				genesis_block_builder,
 				backend.clone(),
 				call_executor,
 			)

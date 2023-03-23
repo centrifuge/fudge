@@ -45,10 +45,7 @@ fn cidp_and_dp(
 	let cidp = move |clone_client: Arc<TFullClient<TestBlock, TestRtApi, TWasmExecutor>>| {
 		move |parent: H256, ()| {
 			let client = clone_client.clone();
-			let parent_header = client
-				.header(&BlockId::Hash(parent.clone()))
-				.unwrap()
-				.unwrap();
+			let parent_header = client.header(parent).unwrap().unwrap();
 
 			async move {
 				let uncles =
