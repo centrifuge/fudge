@@ -19,7 +19,7 @@ use std::{marker::PhantomData, sync::Arc};
 use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::ExecutionStrategies, AuxStore, Backend, BlockBackend, BlockOf,
+	execution_extensions::ExecutionExtensions, AuxStore, Backend, BlockBackend, BlockOf,
 	TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
@@ -32,7 +32,6 @@ use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{ApiExt, BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata};
 use sp_core::traits::CodeExecutor;
-use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::{traits::BlockIdTo, BuildStorage};
 use sp_storage::Storage;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -112,12 +111,9 @@ where
 	handle: Handle,
 	exec: CP::Exec,
 	pool_config: PoolConfig,
-	/// Optional keystore that can be appended
-	keystore: Option<SyncCryptoStorePtr>,
 	/// Optional ClientConfig that can be appended
 	client_config: ClientConfig<Block>,
-	/// Optional ExecutionStrategies that can be appended
-	execution_strategies: ExecutionStrategies,
+	execution_extensions: ExecutionExtensions<Block>,
 }
 
 impl<Block, CP, BP> Init<Block, CP, BP>
@@ -145,18 +141,18 @@ where
 	///
 	/// ```ignore
 	/// Self {
-	/// 	backend,
-	/// 	genesis: None,
-	/// 	handle: TaskManager::new(handle, None).unwrap(),
+	/// 	backend_provider,
+	/// 	client_provider,
+	/// 	genesis: Box::new(Storage::default()),
+	/// 	handle: handle,
 	/// 	exec,
-	/// 	keystore: None,
-	/// 	client_config: None,
+	/// 	client_config: ClientConfig::default(),
 	/// 	pool_config: PoolConfig {
 	/// 		is_validator: true,
 	/// 		options: Options::default(),
 	/// 		revalidation: RevalidationType::Full,
 	/// 	},
-	/// 	execution_strategies: None,
+	/// 	execution_extensions: ExecutionExtensions::default(),
 	/// }
 	/// ```
 	///
@@ -168,21 +164,23 @@ where
 			genesis: Box::new(Storage::default()),
 			handle,
 			exec,
-			keystore: None,
 			client_config: ClientConfig::default(),
 			pool_config: PoolConfig {
 				is_validator: true,
 				options: Options::default(),
 				revalidation: RevalidationType::Full,
 			},
-			execution_strategies: ExecutionStrategies::default(),
+			execution_extensions: ExecutionExtensions::default(),
 		}
 	}
 
-	/// Overwrites the used `ExecutionStrategies` that will be used when initiating the
+	/// Overwrites the used `ExecutionExtensions` that will be used when initiating the
 	/// structs for a core builder.
-	pub fn with_exec_strategies(&mut self, execution_strategies: ExecutionStrategies) -> &mut Self {
-		self.execution_strategies = execution_strategies;
+	pub fn with_exec_extensions(
+		&mut self,
+		execution_extensions: ExecutionExtensions<Block>,
+	) -> &mut Self {
+		self.execution_extensions = execution_extensions;
 		self
 	}
 
@@ -197,13 +195,6 @@ where
 	/// structs for a core builder.
 	pub fn with_config(&mut self, config: ClientConfig<Block>) -> &mut Self {
 		self.client_config = config;
-		self
-	}
-
-	/// Overwrites the used keystore pointer that will be used when initiating the
-	/// structs for a core builder.
-	pub fn with_keystore(&mut self, keystore: SyncCryptoStorePtr) -> &mut Self {
-		self.keystore = Some(keystore);
 		self
 	}
 
@@ -263,6 +254,7 @@ where
 			self.exec.clone(),
 			Box::new(task_manager.spawn_handle()),
 			self.client_config.clone(),
+			self.execution_extensions,
 		)
 		.unwrap();
 		let client = self
@@ -270,8 +262,6 @@ where
 			.provide(
 				self.client_config,
 				self.genesis,
-				self.execution_strategies,
-				self.keystore,
 				backend.clone(),
 				call_executor,
 			)

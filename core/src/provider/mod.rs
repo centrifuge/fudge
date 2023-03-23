@@ -14,8 +14,8 @@ use std::{error::Error, marker::PhantomData, sync::Arc};
 
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::ExecutionStrategies, AuxStore, Backend as BackendT, Backend,
-	BlockBackend, BlockOf, HeaderBackend, TransactionFor, UsageProvider,
+	AuxStore, Backend as BackendT, Backend, BlockBackend, BlockOf, HeaderBackend, TransactionFor,
+	UsageProvider,
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
@@ -24,7 +24,6 @@ use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::CodeExecutor;
-use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::{
 	traits::{Block as BlockT, BlockIdTo},
 	BuildStorage,
@@ -110,8 +109,6 @@ pub trait ClientProvider<Block: BlockT> {
 		&self,
 		config: ClientConfig<Block>,
 		genesis: Box<dyn BuildStorage>,
-		execution_strategies: ExecutionStrategies,
-		keystore: Option<SyncCryptoStorePtr>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()>;
@@ -157,8 +154,6 @@ where
 		&self,
 		config: ClientConfig<Block>,
 		genesis: Box<dyn BuildStorage>,
-		execution_strategies: ExecutionStrategies,
-		keystore: Option<SyncCryptoStorePtr>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 	) -> Result<Arc<Self::Client>, ()> {
@@ -168,11 +163,6 @@ where
 			&(*genesis),
 			None,
 			None,
-			sc_client_api::execution_extensions::ExecutionExtensions::new(
-				execution_strategies,
-				keystore,
-				sc_offchain::OffchainDb::factory_from_backend(&*backend),
-			),
 			None,
 			None,
 			config,
