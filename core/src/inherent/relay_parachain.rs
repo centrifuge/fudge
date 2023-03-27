@@ -30,7 +30,7 @@ impl<HDR: Header> DummyInherent<HDR> {
 
 #[async_trait::async_trait]
 impl<HDR: Header> InherentDataProvider for DummyInherent<HDR> {
-	fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
+	async fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
 		let inherent = ParachainsInherentData::<HDR> {
 			bitfields: vec![],
 			backed_candidates: vec![],
@@ -79,7 +79,7 @@ where
 	HDR: Header,
 	Client: Sync + Send,
 {
-	fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
+	async fn provide_inherent_data(&self, inherent_data: &mut InherentData) -> Result<(), Error> {
 		// TODO: - From `FudgeParaBuild` -> Generate new backed_candidates
 		//       - From `BackedCandidate` -> Generate new bitfields
 

@@ -135,7 +135,7 @@ impl CurrTimeProvider {
 
 #[async_trait::async_trait]
 impl sp_inherents::InherentDataProvider for CurrTimeProvider {
-	fn provide_inherent_data(
+	async fn provide_inherent_data(
 		&self,
 		inherent_data: &mut InherentData,
 	) -> Result<(), sp_inherents::Error> {

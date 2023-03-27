@@ -182,7 +182,7 @@ where
 			.unwrap();
 
 		let parent = self.builder.latest_header();
-		let inherents = provider.create_inherent_data().unwrap();
+		let inherents = futures::executor::block_on(provider.create_inherent_data()).unwrap();
 		let digest = self
 			.with_state(|| {
 				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
