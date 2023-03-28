@@ -126,7 +126,7 @@ where
 	pub fn latest_header(&self) -> Block::Header {
 		self.backend
 			.blockchain()
-			.header(BlockId::Hash(self.latest_block()))
+			.header(self.latest_block())
 			.ok()
 			.flatten()
 			.expect("State is available. qed")
@@ -271,8 +271,11 @@ where
 		at: BlockId<Block>,
 	) -> Result<(), String> {
 		let chain_backend = self.backend.blockchain();
+
+		let block_hash = chain_backend.block_hash_from_id(&at).unwrap().unwrap();
+
 		let mut header = chain_backend
-			.header(at)
+			.header(block_hash)
 			.ok()
 			.flatten()
 			.expect("State is available. qed");
@@ -290,9 +293,7 @@ where
 
 		let block = match at {
 			BlockId::Hash(req_at) => req_at,
-			BlockId::Number(req_at) => {
-				self.backend.blockchain().hash(req_at).unwrap().unwrap()
-			}
+			BlockId::Number(req_at) => self.backend.blockchain().hash(req_at).unwrap().unwrap(),
 		};
 
 		let body = chain_backend.body(block).expect("State is available. qed.");
@@ -357,7 +358,7 @@ where
 		let header = self
 			.backend
 			.blockchain()
-			.header(BlockId::Hash(self.latest_block()))
+			.header(self.latest_block())
 			.ok()
 			.flatten()
 			.expect("State is available. qed");

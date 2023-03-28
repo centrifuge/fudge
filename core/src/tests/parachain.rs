@@ -19,7 +19,6 @@ use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use sc_service::{TFullBackend, TFullClient};
-use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
@@ -66,6 +65,7 @@ fn default_para_builder(
 	state.insert_storage(genesis);
 
 	let mut init = crate::provider::initiator::default(handle);
+
 	init.with_genesis(Box::new(state));
 
 	// Init timestamp instance_id
@@ -121,10 +121,7 @@ fn cidp_and_dp_relay(
 	let cidp = move |clone_client: Arc<TFullClient<RTestBlock, RTestRtApi, TWasmExecutor>>| {
 		move |parent: H256, ()| {
 			let client = clone_client.clone();
-			let parent_header = client
-				.header(&BlockId::Hash(parent.clone()))
-				.unwrap()
-				.unwrap();
+			let parent_header = client.header(parent).unwrap().unwrap();
 
 			async move {
 				let uncles =
