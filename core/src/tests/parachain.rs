@@ -201,7 +201,55 @@ async fn parachain_creates_correct_inherents() {
 	let mut relay_builder = default_relay_builder(Handle::current(), Storage::default());
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
-	let mut builder = default_para_builder(Handle::current(), Storage::default(), inherent_builder);
+
+	// Init timestamp instance_id
+	let instance_id_para =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+
+	let cidp = Box::new(move |_| {
+		move |_parent: H256, ()| {
+			let inherent_builder_clone = inherent_builder.clone();
+			async move {
+				let timestamp = FudgeInherentTimestamp::get_instance(instance_id_para)
+					.expect("Instance is initialized. qed");
+
+				let slot =
+					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						timestamp.current_time(),
+						SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+					);
+				let inherent = inherent_builder_clone.parachain_inherent().await.unwrap();
+				let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
+				Ok((timestamp, slot, relay_para_inherent))
+			}
+		}
+	});
+	let dp = Box::new(
+		|clone_client: Arc<
+			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent, inherents| {
+				let client = clone_client.clone();
+
+				async move {
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
+					let aura = FudgeAuraDigest::<
+						PTestBlock,
+						TFullClient<
+							PTestBlock,
+							PTestRtApi,
+							TestExec<sp_io::SubstrateHostFunctions>,
+						>,
+					>::new(slot_duration);
+
+					let digest = aura.build_digest(&parent, &inherents).await?;
+					Ok(digest)
+				}
+			}
+		},
+	);
+
+	let mut builder = generate_default_setup_parachain(&manager, Storage::default(), cidp, dp);
 
 	let para = FudgeParaChain {
 		id: para_id,
@@ -288,6 +336,7 @@ async fn xcm_is_transported() {
 				let client = clone_client.clone();
 
 				async move {
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
 					let aura = FudgeAuraDigest::<
 						PTestBlock,
 						TFullClient<
@@ -295,7 +344,7 @@ async fn xcm_is_transported() {
 							PTestRtApi,
 							TestExec<sp_io::SubstrateHostFunctions>,
 						>,
-					>::new(&*client);
+					>::new(slot_duration);
 
 					let digest = aura.build_digest(&parent, &inherents).await?;
 					Ok(digest)

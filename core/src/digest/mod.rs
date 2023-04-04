@@ -17,14 +17,33 @@ use sp_runtime::Digest;
 mod aura;
 mod babe;
 use sp_runtime::traits::Block;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("couldn't retrieve timestamp inherent data: {0}")]
+	TimestampInherentDataRetrieval(sp_inherents::Error),
+
+	#[error("timestamp inherent data not found")]
+	TimestampInherentDataNotFound,
+
+	#[error("couldn't retrieve babe inherent data: {0}")]
+	BabeInherentDataRetrieval(sp_inherents::Error),
+
+	#[error("babe inherent data not found")]
+	BabeInherentDataNotFound,
+}
 
 #[async_trait::async_trait]
 pub trait DigestCreator<B>
 where
 	B: Block,
 {
-	async fn create_digest(&self, parent: B::Header, inherents: InherentData)
-		-> Result<Digest, ()>;
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, Error>;
 }
 
 #[async_trait::async_trait]
@@ -33,14 +52,14 @@ pub trait DigestProvider<B: Block> {
 		&self,
 		parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<Digest, ()>;
+	) -> Result<Digest, Error>;
 
 	async fn append_digest(
 		&self,
 		digest: &mut Digest,
 		parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<(), ()>;
+	) -> Result<(), Error>;
 }
 
 #[async_trait::async_trait]
@@ -48,13 +67,13 @@ impl<F, Fut, B> DigestCreator<B> for F
 where
 	B: Block,
 	F: Fn(B::Header, InherentData) -> Fut + Sync + Send,
-	Fut: std::future::Future<Output = Result<Digest, ()>> + Send + 'static,
+	Fut: std::future::Future<Output = Result<Digest, Error>> + Send + 'static,
 {
 	async fn create_digest(
 		&self,
 		parent: B::Header,
 		inherents: InherentData,
-	) -> Result<Digest, ()> {
+	) -> Result<Digest, Error> {
 		(*self)(parent, inherents).await
 	}
 }
@@ -68,7 +87,7 @@ where
 		&self,
 		parent: B::Header,
 		inherents: InherentData,
-	) -> Result<Digest, ()> {
+	) -> Result<Digest, Error> {
 		(**self).create_digest(parent, inherents).await
 	}
 }

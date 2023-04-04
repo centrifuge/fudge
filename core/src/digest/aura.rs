@@ -22,7 +22,9 @@ use sp_runtime::{traits::Block, Digest as SPDigest, DigestItem};
 use sp_std::marker::PhantomData;
 use sp_timestamp::TimestampInherentData;
 
-use crate::digest::DigestProvider;
+use crate::digest::{DigestProvider, Error};
+
+const DEFAULT_DIGEST_AURA_LOG_TARGET: &str = "fudge-digest-aura";
 
 pub struct Digest<B, C> {
 	slot_duration: SlotDuration,
@@ -35,10 +37,7 @@ where
 	C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
 	C::Api: AuraApi<B, AuthorityId>,
 {
-	pub fn new(client: &C) -> Self {
-		let slot_duration = sc_consensus_aura::slot_duration(client)
-			.expect("slot_duration is always present; qed.");
-
+	pub fn new(slot_duration: SlotDuration) -> Self {
 		Self {
 			slot_duration,
 			_phantom: Default::default(),
@@ -50,11 +49,26 @@ impl<B, C> Digest<B, C>
 where
 	B: Block,
 {
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, ()> {
+	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let timestamp = inherents
 			.timestamp_inherent_data()
-			.map_err(|_| ())?
-			.expect("Timestamp is always present; qed");
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
+					error = ?e,
+					"Couldn't retrieve timestamp inherent data."
+				);
+
+				Error::TimestampInherentDataRetrieval(e)
+			})?
+			.ok_or({
+				tracing::error!(
+					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
+					"Timestamp inherent data not found."
+				);
+
+				Error::TimestampInherentDataNotFound
+			})?;
 
 		// we always calculate the new slot number based on the current time-stamp and the slot
 		// duration.
@@ -76,7 +90,7 @@ where
 		&self,
 		_parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<SPDigest, ()> {
+	) -> Result<SPDigest, Error> {
 		Ok(SPDigest {
 			logs: vec![self.digest(inherents)?],
 		})
@@ -87,7 +101,7 @@ where
 		digest: &mut SPDigest,
 		_parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<(), ()> {
+	) -> Result<(), Error> {
 		digest.push(self.digest(inherents)?);
 		Ok(())
 	}
