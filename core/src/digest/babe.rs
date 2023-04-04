@@ -20,7 +20,9 @@ use sp_inherents::InherentData;
 use sp_runtime::{traits::Block as BlockT, Digest as SPDigest, DigestItem};
 use sp_std::marker::PhantomData;
 
-use crate::digest::DigestProvider;
+use crate::digest::{DigestProvider, Error};
+
+const DEFAULT_DIGEST_BABE_LOG_TARGET: &str = "fudge-digest-babe";
 
 pub struct Digest<B> {
 	_phantom: PhantomData<B>,
@@ -33,11 +35,26 @@ impl<B> Digest<B> {
 		}
 	}
 
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, ()> {
+	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let slot = inherents
 			.babe_inherent_data()
-			.map_err(|_| ())?
-			.ok_or_else(|| ())?;
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
+					error = ?e,
+					"Couldn't retrieve babe inherent data."
+				);
+
+				Error::BabeInherentDataRetrieval(e)
+			})?
+			.ok_or({
+				tracing::error!(
+					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
+					"Babe inherent data not found."
+				);
+
+				Error::BabeInherentDataNotFound
+			})?;
 
 		let predigest = PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
 			authority_index: 0,
@@ -57,7 +74,7 @@ where
 		&self,
 		_parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<SPDigest, ()> {
+	) -> Result<SPDigest, Error> {
 		Ok(SPDigest {
 			logs: vec![self.digest(inherents)?],
 		})
@@ -68,7 +85,7 @@ where
 		digest: &mut SPDigest,
 		_parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<(), ()> {
+	) -> Result<(), Error> {
 		digest.push(self.digest(inherents)?);
 		Ok(())
 	}

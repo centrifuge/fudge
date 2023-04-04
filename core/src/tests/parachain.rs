@@ -255,6 +255,7 @@ async fn parachain_creates_correct_inherents() {
 				let client = clone_client.clone();
 
 				async move {
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
 					let aura = FudgeAuraDigest::<
 						PTestBlock,
 						TFullClient<
@@ -262,7 +263,7 @@ async fn parachain_creates_correct_inherents() {
 							PTestRtApi,
 							TestExec<sp_io::SubstrateHostFunctions>,
 						>,
-					>::new(&*client);
+					>::new(slot_duration);
 
 					let digest = aura.build_digest(&parent, &inherents).await?;
 					Ok(digest)
@@ -366,6 +367,7 @@ async fn xcm_is_transported() {
 				let client = clone_client.clone();
 
 				async move {
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
 					let aura = FudgeAuraDigest::<
 						PTestBlock,
 						TFullClient<
@@ -373,7 +375,7 @@ async fn xcm_is_transported() {
 							PTestRtApi,
 							TestExec<sp_io::SubstrateHostFunctions>,
 						>,
-					>::new(&*client);
+					>::new(slot_duration);
 
 					let digest = aura.build_digest(&parent, &inherents).await?;
 					Ok(digest)
