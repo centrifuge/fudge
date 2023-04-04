@@ -919,8 +919,8 @@ where
 	}
 }
 
-fn persisted_validation_data<'a, RtApi, Block>(
-	rt_api: &mut ApiRef<'a, RtApi>,
+fn persisted_validation_data<RtApi, Block>(
+	rt_api: &mut ApiRef<RtApi>,
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
@@ -955,8 +955,8 @@ where
 	})
 }
 
-fn validation_code_hash<'a, RtApi, Block>(
-	rt_api: &mut ApiRef<'a, RtApi>,
+fn validation_code_hash<RtApi, Block>(
+	rt_api: &mut ApiRef<RtApi>,
 	parent: Block::Hash,
 	id: Id,
 	assumption: OccupiedCoreAssumption,
