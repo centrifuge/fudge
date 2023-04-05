@@ -1,6 +1,3 @@
-pub use aura::Digest as FudgeAuraDigest;
-pub use babe::Digest as FudgeBabeDigest;
-use sp_inherents::InherentData;
 // Copyright 2021 Centrifuge Foundation (centrifuge.io).
 //
 // This file is part of the FUDGE project.
@@ -12,12 +9,14 @@ use sp_inherents::InherentData;
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use sp_runtime::Digest;
+pub use aura::Digest as FudgeAuraDigest;
+pub use babe::Digest as FudgeBabeDigest;
+use sp_inherents::InherentData;
+use sp_runtime::{traits::Block, Digest, DigestItem};
+use thiserror::Error;
 
 mod aura;
 mod babe;
-use sp_runtime::traits::Block;
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -39,42 +38,38 @@ pub trait DigestCreator<B>
 where
 	B: Block,
 {
-	async fn create_digest(
-		&self,
-		parent: B::Header,
-		inherents: InherentData,
-	) -> Result<Digest, Error>;
+	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error>;
 }
 
 #[async_trait::async_trait]
 pub trait DigestProvider<B: Block> {
-	async fn build_digest(
-		&self,
-		parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<Digest, Error>;
+	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error>;
+
+	async fn build_digest(&self, inherents: &InherentData) -> Result<Digest, Error> {
+		Ok(Digest {
+			logs: vec![self.digest(inherents)?],
+		})
+	}
 
 	async fn append_digest(
 		&self,
 		digest: &mut Digest,
-		parent: &B::Header,
 		inherents: &InherentData,
-	) -> Result<(), Error>;
+	) -> Result<(), Error> {
+		digest.push(self.digest(inherents)?);
+		Ok(())
+	}
 }
 
 #[async_trait::async_trait]
 impl<F, Fut, B> DigestCreator<B> for F
 where
 	B: Block,
-	F: Fn(B::Header, InherentData) -> Fut + Sync + Send,
+	F: Fn(InherentData) -> Fut + Sync + Send,
 	Fut: std::future::Future<Output = Result<Digest, Error>> + Send + 'static,
 {
-	async fn create_digest(
-		&self,
-		parent: B::Header,
-		inherents: InherentData,
-	) -> Result<Digest, Error> {
-		(*self)(parent, inherents).await
+	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error> {
+		(*self)(inherents).await
 	}
 }
 
@@ -83,11 +78,7 @@ impl<B> DigestCreator<B> for Box<dyn DigestCreator<B> + Send + Sync>
 where
 	B: Block,
 {
-	async fn create_digest(
-		&self,
-		parent: B::Header,
-		inherents: InherentData,
-	) -> Result<Digest, Error> {
-		(**self).create_digest(parent, inherents).await
+	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error> {
+		(**self).create_digest(inherents).await
 	}
 }

@@ -17,7 +17,7 @@ use sp_consensus_babe::{
 	BABE_ENGINE_ID,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block as BlockT, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block as BlockT, DigestItem};
 use sp_std::marker::PhantomData;
 
 use crate::digest::{DigestProvider, Error};
@@ -34,7 +34,13 @@ impl<B> Digest<B> {
 			_phantom: Default::default(),
 		}
 	}
+}
 
+#[async_trait::async_trait]
+impl<B> DigestProvider<B> for Digest<B>
+where
+	B: BlockT,
+{
 	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let slot = inherents
 			.babe_inherent_data()
@@ -62,31 +68,5 @@ impl<B> Digest<B> {
 		});
 
 		Ok(DigestItem::PreRuntime(BABE_ENGINE_ID, predigest.encode()))
-	}
-}
-
-#[async_trait::async_trait]
-impl<B> DigestProvider<B> for Digest<B>
-where
-	B: BlockT,
-{
-	async fn build_digest(
-		&self,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<SPDigest, Error> {
-		Ok(SPDigest {
-			logs: vec![self.digest(inherents)?],
-		})
-	}
-
-	async fn append_digest(
-		&self,
-		digest: &mut SPDigest,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<(), Error> {
-		digest.push(self.digest(inherents)?);
-		Ok(())
 	}
 }

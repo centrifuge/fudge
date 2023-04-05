@@ -10,15 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use sc_client_api::{AuxStore, UsageProvider};
-use sp_api::ProvideRuntimeApi;
 use sp_consensus_aura::{
-	digests::CompatibleDigestItem,
-	sr25519::{AuthorityId, AuthoritySignature},
-	AuraApi, Slot, SlotDuration,
+	digests::CompatibleDigestItem, sr25519::AuthoritySignature, Slot, SlotDuration,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block, DigestItem};
 use sp_std::marker::PhantomData;
 use sp_timestamp::TimestampInherentData;
 
@@ -26,16 +22,14 @@ use crate::digest::{DigestProvider, Error};
 
 const DEFAULT_DIGEST_AURA_LOG_TARGET: &str = "fudge-digest-aura";
 
-pub struct Digest<B, C> {
+pub struct Digest<B> {
 	slot_duration: SlotDuration,
-	_phantom: PhantomData<(B, C)>,
+	_phantom: PhantomData<B>,
 }
 
-impl<B, C> Digest<B, C>
+impl<B> Digest<B>
 where
 	B: Block,
-	C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
-	C::Api: AuraApi<B, AuthorityId>,
 {
 	pub fn new(slot_duration: SlotDuration) -> Self {
 		Self {
@@ -45,7 +39,8 @@ where
 	}
 }
 
-impl<B, C> Digest<B, C>
+#[async_trait::async_trait]
+impl<B> DigestProvider<B> for Digest<B>
 where
 	B: Block,
 {
@@ -77,32 +72,5 @@ where
 				Slot::from_timestamp(timestamp, self.slot_duration),
 			),
 		)
-	}
-}
-
-#[async_trait::async_trait]
-impl<B, C> DigestProvider<B> for Digest<B, C>
-where
-	B: Block,
-	C: std::marker::Sync,
-{
-	async fn build_digest(
-		&self,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<SPDigest, Error> {
-		Ok(SPDigest {
-			logs: vec![self.digest(inherents)?],
-		})
-	}
-
-	async fn append_digest(
-		&self,
-		digest: &mut SPDigest,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<(), Error> {
-		digest.push(self.digest(inherents)?);
-		Ok(())
 	}
 }
