@@ -125,6 +125,52 @@ async fn mutating_genesis_works() {
 	}
 	.build_storage()
 	.unwrap();
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
+
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, uncles, slot, relay_para_inherent))
+				}
+			}
+		},
+	);
+
+	let dp = Box::new(move |inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &inherents).await?;
+
+		Ok(digest)
+	});
+
+	let mut builder = generate_default_setup_stand_alone(&manager, storage, cidp, dp);
 
 	let mut builder = default_builder(Handle::current(), genesis);
 	let (send_data_pre, recv_data_pre) = builder
@@ -183,8 +229,44 @@ async fn opening_state_from_db_path_works() {
 	}
 	.build_storage()
 	.unwrap();
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
 
-	let mut builder = default_builder_disk(Handle::current(), static_path.clone(), genesis);
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, uncles, slot, relay_para_inherent))
+				}
+			}
+		},
+	);
+
+	let dp = Box::new(move |inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &inherents).await?;
+
+		Ok(digest)
+	});
+
+	let mut builder = StandAloneBuilder::<
+		TestBlock,
+		TestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+	>::new(&manager, backend, client.clone(), cidp(client), dp);
 
 	for _ in 0..20 {
 		builder.build_block().unwrap();
@@ -281,7 +363,50 @@ async fn build_relay_block_works() {
 	// install global collector configured based on RUST_LOG env var.
 	super::utils::init_logs();
 
-	let mut builder = default_builder(Handle::current(), Storage::default());
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
+
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, slot, uncles, relay_para_inherent))
+				}
+			}
+		},
+	);
+	let dp = Box::new(move |inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &inherents).await?;
+
+		Ok(digest)
+	});
+	let mut builder = generate_default_setup_stand_alone(&manager, Storage::default(), cidp, dp);
 
 	let num_before = builder
 		.with_state(|| frame_system::Pallet::<Runtime>::block_number())
@@ -314,7 +439,51 @@ async fn build_relay_block_works() {
 async fn build_relay_block_works_and_mut_is_build_upon() {
 	super::utils::init_logs();
 
-	let genesis = pallet_balances::GenesisConfig::<Runtime> {
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
+
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, slot, uncles, relay_para_inherent))
+				}
+			}
+		},
+	);
+	let dp = Box::new(move |inherents| async move {
+		let mut digest = sp_runtime::Digest::default();
+
+		let babe = FudgeBabeDigest::<TestBlock>::new();
+		babe.append_digest(&mut digest, &inherents).await?;
+
+		Ok(digest)
+	});
+
+	let storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
 			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),

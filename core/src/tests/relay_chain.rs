@@ -60,14 +60,13 @@ fn cidp_and_dp(
 				let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 				Ok((timestamp, slot, relay_para_inherent))
 			}
-		}
-	};
-
-	let dp = move |parent, inherents| async move {
+		},
+	);
+	let dp = Box::new(move |inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &parent, &inherents).await?;
+		babe.append_digest(&mut digest, &inherents).await?;
 
 		Ok(digest)
 	};
@@ -86,11 +85,6 @@ fn default_relay_builder(
 	(),
 	impl DigestCreator<TestBlock>,
 	Runtime,
-<<<<<<< HEAD
-> {
-	let mut state = StateProvider::new(CODE.expect("Wasm is build. Qed."));
-	state.insert_storage(genesis);
-=======
 	TFullBackend<TestBlock>,
 	TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 >
@@ -105,7 +99,6 @@ where
 			CODE.unwrap(),
 		);
 	provider.insert_storage(storage);
->>>>>>> 137d035 (Working PoC. Needs clean-up. A LOT)
 
 	let mut init = crate::provider::initiator::default(handle);
 	init.with_genesis(Box::new(state));

@@ -509,11 +509,6 @@ where
 				})
 			})??;
 
-		let parent = self
-			.builder
-			.latest_header()
-			.map_err(|e| Error::CoreBuilder(e.into()))?;
-
 		let inherents = provider.create_inherent_data().map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
@@ -525,16 +520,14 @@ where
 		})?;
 
 		let digest = self.with_state(|| {
-			futures::executor::block_on(self.dp.create_digest(parent, inherents.clone())).map_err(
-				|_| {
-					tracing::error!(
-						target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-						"Could not create digest."
-					);
+			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|_| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					"Could not create digest."
+				);
 
-					Error::DigestCreation
-				},
-			)
+				Error::DigestCreation
+			})
 		})??;
 
 		let Proposal { block, proof, .. } = self

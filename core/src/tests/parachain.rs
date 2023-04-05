@@ -190,8 +190,42 @@ where
 
 	let mut init = crate::provider::initiator::default(handle);
 	init.with_genesis(Box::new(state));
+				async move {
+					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+						&*client, parent,
+					)?;
 
-	RelaychainBuilder::new(init, cidp_and_dp_relay)
+					let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
+						.expect("Instance is initialized. qed");
+
+					let slot =
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+							timestamp.current_time(),
+							SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+						);
+
+					let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
+					Ok((timestamp, slot, uncles, relay_para_inherent))
+				}
+			}
+		},
+	);
+
+	let dp = Box::new(move |inherents| async move {
+		let babe = FudgeBabeDigest::<RTestBlock>::new();
+		let digest = babe.build_digest(&inherents).await?;
+		Ok(digest)
+	});
+
+	RelaychainBuilder::<
+		RTestBlock,
+		RTestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+		Runtime,
+	>::new(manager, backend, client, Box::new(cidp(clone_client)), dp)
 }
 
 #[tokio::test]
@@ -228,21 +262,14 @@ async fn parachain_creates_correct_inherents() {
 		|clone_client: Arc<
 			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
-			move |parent, inherents| {
+			move |inherents| {
 				let client = clone_client.clone();
 
 				async move {
 					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
-					let aura = FudgeAuraDigest::<
-						PTestBlock,
-						TFullClient<
-							PTestBlock,
-							PTestRtApi,
-							TestExec<sp_io::SubstrateHostFunctions>,
-						>,
-					>::new(slot_duration);
+					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&parent, &inherents).await?;
+					let digest = aura.build_digest(&inherents).await?;
 					Ok(digest)
 				}
 			}
@@ -332,21 +359,14 @@ async fn xcm_is_transported() {
 		|clone_client: Arc<
 			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
-			move |parent, inherents| {
+			move |inherents| {
 				let client = clone_client.clone();
 
 				async move {
 					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
-					let aura = FudgeAuraDigest::<
-						PTestBlock,
-						TFullClient<
-							PTestBlock,
-							PTestRtApi,
-							TestExec<sp_io::SubstrateHostFunctions>,
-						>,
-					>::new(slot_duration);
+					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&parent, &inherents).await?;
+					let digest = aura.build_digest(&inherents).await?;
 					Ok(digest)
 				}
 			}
