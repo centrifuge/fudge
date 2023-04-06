@@ -88,7 +88,8 @@ async fn onboarding_parachain_works() {
 	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	// Init timestamp instance_id
 	let instance_id =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
 	let cidp = Box::new(
 		move |clone_client: Arc<

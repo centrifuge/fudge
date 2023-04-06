@@ -165,7 +165,8 @@ where
 	let clone_client = client.clone();
 	// Init timestamp instance_id
 	let instance_id =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -227,7 +228,8 @@ async fn parachain_creates_correct_inherents() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
@@ -332,7 +334,8 @@ async fn xcm_is_transported() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
