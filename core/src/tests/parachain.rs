@@ -186,10 +186,26 @@ where
 		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
 		Box::new(manager.spawn_handle()),
 	);
-	state.insert_storage(genesis);
+	let client = Arc::new(client);
+	let clone_client = client.clone();
+	// Init timestamp instance_id
+	let instance_id =
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
-	let mut init = crate::provider::initiator::default(handle);
-	init.with_genesis(Box::new(state));
+	let cidp = Box::new(
+		|clone_client: Arc<
+			TFullClient<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
+				let mut init = crate::provider::initiator::default(handle);
+				init.with_genesis(Box::new(state));
 				async move {
 					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
 						&*client, parent,
@@ -238,7 +254,8 @@ async fn parachain_creates_correct_inherents() {
 
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
@@ -335,7 +352,8 @@ async fn xcm_is_transported() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
