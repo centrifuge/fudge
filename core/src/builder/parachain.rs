@@ -48,7 +48,7 @@ use thiserror::Error;
 
 use crate::{
 	builder::{
-		core::{Builder, InnerError, Operation},
+		core::{Builder, Operation},
 		relay_chain::{CollationBuilder, CollationJudgement},
 		PoolState,
 	},
@@ -62,37 +62,37 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error<Block: sp_api::BlockT> {
 	#[error("core builder error: {0}")]
-	CoreBuilder(InnerError),
+	CoreBuilder(Box<dyn std::error::Error>),
 
 	#[error("couldn't retrieve API version at {1}: {0}")]
-	APIVersionRetrieval(InnerError, BlockId<Block>),
+	APIVersionRetrieval(Box<dyn std::error::Error>, BlockId<Block>),
 
 	#[error("API version not found at {0}")]
 	APIVersionNotFound(BlockId<Block>),
 
 	#[error("couldn't collect collation info before V2: {0}")]
-	CollationInfoCollectionBeforeV2(InnerError),
+	CollationInfoCollectionBeforeV2(Box<dyn std::error::Error>),
 
 	#[error("couldn't collect collation info: {0}")]
-	CollationInfoCollection(InnerError),
+	CollationInfoCollection(Box<dyn std::error::Error>),
 
 	#[error("couldn't create inherent data providers: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
 	#[error("couldn't create inherent data: {0}")]
-	InherentDataCreation(InnerError),
+	InherentDataCreation(Box<dyn std::error::Error>),
 
 	#[error("couldn't create digest")]
 	DigestCreation,
 
 	#[error("couldn't lock next block: {0}")]
-	NextBlockLocking(InnerError),
+	NextBlockLocking(Box<dyn std::error::Error>),
 
 	#[error("next block not found")]
 	NextBlockNotFound,
 
 	#[error("couldn't lock next import: {0}")]
-	NextImportLocking(InnerError),
+	NextImportLocking(Box<dyn std::error::Error>),
 }
 
 pub struct FudgeParaBuild {
@@ -300,7 +300,7 @@ where
 					"Could not lock next block.",
 				);
 
-				Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
+				Error::<Block>::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 			})?
 			.take()
 			.ok_or({
@@ -319,7 +319,7 @@ where
 				"Could not lock next import.",
 			);
 
-			Error::<Block>::NextImportLocking(InnerError::from(e.to_string()))
+			Error::<Block>::NextImportLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		*locked_import = Some(build);
@@ -334,7 +334,7 @@ where
 				"Could not lock next block.",
 			);
 
-			Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
+			Error::<Block>::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		let _build = locked.take().ok_or({
@@ -565,7 +565,7 @@ where
 				"Could not lock next block.",
 			);
 
-			Error::NextBlockLocking(InnerError::from(e.to_string()))
+			Error::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		*locked = Some((block, proof));
@@ -596,7 +596,7 @@ where
 				"Could not lock next import.",
 			);
 
-			Error::NextImportLocking(InnerError::from(e.to_string()))
+			Error::NextImportLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		if let Some((block, proof)) = &*locked {

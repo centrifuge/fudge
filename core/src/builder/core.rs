@@ -44,18 +44,16 @@ use crate::{
 
 const DEFAULT_BUILDER_LOG_TARGET: &str = "fudge-builder";
 
-pub type InnerError = Box<dyn std::error::Error>;
-
 #[derive(Error, Debug)]
 pub enum Error<Block: sp_api::BlockT> {
 	#[error("couldn't retrieve latest header: {0}")]
-	LatestHeaderRetrieval(InnerError),
+	LatestHeaderRetrieval(Box<dyn std::error::Error>),
 
 	#[error("latest header not found")]
 	LatestHeaderNotFound,
 
 	#[error("couldn't retrieve header at {0}: {1}")]
-	HeaderRetrieval(BlockId<Block>, InnerError),
+	HeaderRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("header not found at {0}")]
 	HeaderNotFound(BlockId<Block>),
@@ -64,58 +62,58 @@ pub enum Error<Block: sp_api::BlockT> {
 	LatestCodeNotFound,
 
 	#[error("couldn't retrieve state at {0}: {1}")]
-	StateRetrieval(BlockId<Block>, InnerError),
+	StateRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("couldn't retrieve block indexed body at {0}: {1}")]
-	BlockIndexedBodyRetrieval(BlockId<Block>, InnerError),
+	BlockIndexedBodyRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("couldn't retrieve justifications at {0}: {1}")]
-	JustificationsRetrieval(BlockId<Block>, InnerError),
+	JustificationsRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("couldn't begin backend operation: {0}")]
-	BackendBeginOperation(InnerError),
+	BackendBeginOperation(Box<dyn std::error::Error>),
 
 	#[error("couldn't begin state operation: {0}")]
-	BackendBeginStateOperation(InnerError),
+	BackendBeginStateOperation(Box<dyn std::error::Error>),
 
 	#[error("couldn't revert backend operation: {0}")]
-	BackendRevert(InnerError),
+	BackendRevert(Box<dyn std::error::Error>),
 
 	#[error("couldn't commit backend operation: {0}")]
-	BackendCommit(InnerError),
+	BackendCommit(Box<dyn std::error::Error>),
 
 	#[error("couldn't retrieve state at {0}: {1}")]
-	StateNotAvailable(BlockId<Block>, InnerError),
+	StateNotAvailable(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("couldn't retrieve block number at {0}: {1}")]
-	BlockNumberRetrieval(BlockId<Block>, InnerError),
+	BlockNumberRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
 
 	#[error("block number not found at {0}")]
 	BlockNumberNotFound(BlockId<Block>),
 
 	#[error("couldn't update storage: {0}")]
-	StorageUpdate(InnerError),
+	StorageUpdate(Box<dyn std::error::Error>),
 
 	#[error("couldn't update DB storage: {0}")]
-	DBStorageUpdate(InnerError),
+	DBStorageUpdate(Box<dyn std::error::Error>),
 
 	#[error("couldn't update transaction index: {0}")]
-	TransactionIndexUpdate(InnerError),
+	TransactionIndexUpdate(Box<dyn std::error::Error>),
 
 	#[error("couldn't set block data: {0}")]
-	BlockDataSet(InnerError),
+	BlockDataSet(Box<dyn std::error::Error>),
 
 	#[error("couldn't submit extrinsic: {0}")]
-	ExtrinsicSubmission(InnerError),
+	ExtrinsicSubmission(Box<dyn std::error::Error>),
 
 	#[error("couldn't initialize factory: {0}")]
-	FactoryInitialization(InnerError),
+	FactoryInitialization(Box<dyn std::error::Error>),
 
 	#[error("couldn't propose block: {0}")]
-	BlockProposal(InnerError),
+	BlockProposal(Box<dyn std::error::Error>),
 
 	#[error("couldn't import block: {0}")]
-	BlockImporting(InnerError),
+	BlockImporting(Box<dyn std::error::Error>),
 }
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
