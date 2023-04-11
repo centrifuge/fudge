@@ -57,7 +57,7 @@ use types::*;
 
 use crate::{
 	builder::{
-		core::{Builder, InnerError, Operation},
+		core::{Builder, Operation},
 		parachain::FudgeParaChain,
 	},
 	digest::DigestCreator,
@@ -69,10 +69,10 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("core builder error: {0}")]
-	CoreBuilder(InnerError),
+	CoreBuilder(Box<dyn std::error::Error>),
 
 	#[error("parachain judge error: {0}")]
-	ParachainJudgeError(InnerError),
+	ParachainJudgeError(Box<dyn std::error::Error>),
 
 	#[error("couldn't mutate parachain")]
 	ParachainMutate,
@@ -81,28 +81,28 @@ pub enum Error {
 	ParaLifecyclesMutate,
 
 	#[error("couldn't retrieve persisted validation data {0}")]
-	PersistedValidationDataRetrieval(InnerError),
+	PersistedValidationDataRetrieval(Box<dyn std::error::Error>),
 
 	#[error("persisted validation data not found")]
 	PersistedValidationDataNotFound,
 
 	#[error("couldn't retrieve validation code hash {0}")]
-	ValidationCodeHashRetrieval(InnerError),
+	ValidationCodeHashRetrieval(Box<dyn std::error::Error>),
 
 	#[error("validation code hash not found")]
 	ValidationCodeHashNotFound,
 
 	#[error("couldn't create inherent data providers: {0}")]
-	InherentDataProvidersCreation(InnerError),
+	InherentDataProvidersCreation(Box<dyn std::error::Error>),
 
 	#[error("couldn't create inherent data: {0}")]
-	InherentDataCreation(InnerError),
+	InherentDataCreation(Box<dyn std::error::Error>),
 
 	#[error("couldn't create digest")]
 	DigestCreation,
 
 	#[error("couldn't decode candidate pending availability: {0}")]
-	CandidatePendingAvailabilityDecode(InnerError),
+	CandidatePendingAvailabilityDecode(Box<dyn std::error::Error>),
 
 	#[error("parachain not onboarded")]
 	ParachainNotOnboarded,

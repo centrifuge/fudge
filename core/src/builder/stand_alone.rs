@@ -33,7 +33,7 @@ use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
 
 use crate::{
-	builder::core::{Builder, InnerError, Operation},
+	builder::core::{Builder, Operation},
 	digest::DigestCreator,
 	inherent::ArgsProvider,
 	types::StoragePair,
@@ -43,13 +43,13 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("core builder error: {0}")]
-	CoreBuilder(InnerError),
+	CoreBuilder(Box<dyn std::error::Error>),
 
 	#[error("couldn't create inherent data providers: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
 	#[error("couldn't create inherent data: {0}")]
-	InherentDataCreation(InnerError),
+	InherentDataCreation(Box<dyn std::error::Error>),
 
 	#[error("couldn't create digest")]
 	DigestCreation,
