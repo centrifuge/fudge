@@ -42,16 +42,16 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("core builder error: {0}")]
+	#[error("core builder: {0}")]
 	CoreBuilder(Box<dyn std::error::Error>),
 
-	#[error("couldn't create inherent data providers: {0}")]
+	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
-	#[error("couldn't create inherent data: {0}")]
+	#[error("inherent data creation: {0}")]
 	InherentDataCreation(Box<dyn std::error::Error>),
 
-	#[error("couldn't create digest")]
+	#[error("digest creation error")]
 	DigestCreation,
 
 	#[error("next block not found")]

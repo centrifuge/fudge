@@ -92,18 +92,23 @@ where
 	let mut provider =
 		EnvProvider::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			PCODE.unwrap(),
-		);
+		)
+		.unwrap();
+
 	pallet_aura::GenesisConfig::<PRuntime> {
 		authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
 	}
 	.assimilate_storage(&mut storage)
 	.unwrap();
-	provider.insert_storage(storage);
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 
 	ParachainBuilder::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
@@ -151,16 +156,21 @@ where
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			RCODE.unwrap(),
-		);
+		)
+		.unwrap();
+
 	polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
 		.assimilate_storage(&mut storage)
 		.unwrap();
-	provider.insert_storage(storage);
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 	// Init timestamp instance_id

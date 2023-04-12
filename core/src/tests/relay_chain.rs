@@ -60,13 +60,17 @@ where
 	let mut provider =
 		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			CODE.unwrap(),
-		);
-	provider.insert_storage(storage);
+		)
+		.unwrap();
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 

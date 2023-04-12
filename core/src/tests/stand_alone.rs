@@ -58,13 +58,17 @@ where
 	let mut provider =
 		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			CODE.unwrap(),
-		);
-	provider.insert_storage(storage);
+		)
+		.unwrap();
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 
@@ -196,7 +200,8 @@ async fn opening_state_from_db_path_works() {
 				path: static_path.clone(),
 				state_pruning: PruningMode::ArchiveAll,
 			},
-		);
+		)
+		.unwrap();
 	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
@@ -209,11 +214,13 @@ async fn opening_state_from_db_path_works() {
 		sp_storage::well_known_keys::CODE.to_vec(),
 		CODE.unwrap().to_vec(),
 	);
-	provider.insert_storage(storage);
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 	let cidp = Box::new(
 		move |clone_client: Arc<

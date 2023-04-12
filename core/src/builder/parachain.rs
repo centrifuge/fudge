@@ -58,37 +58,37 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum Error<Block: sp_api::BlockT> {
-	#[error("core builder error: {0}")]
+	#[error("core builder: {0}")]
 	CoreBuilder(Box<dyn std::error::Error>),
 
-	#[error("couldn't retrieve API version at {1}: {0}")]
+	#[error("API version retrieval at {1}: {0}")]
 	APIVersionRetrieval(Box<dyn std::error::Error>, BlockId<Block>),
 
 	#[error("API version not found at {0}")]
 	APIVersionNotFound(BlockId<Block>),
 
-	#[error("couldn't collect collation info before V2: {0}")]
+	#[error("collation info collection before V2: {0}")]
 	CollationInfoCollectionBeforeV2(Box<dyn std::error::Error>),
 
-	#[error("couldn't collect collation info: {0}")]
+	#[error("collation info collection: {0}")]
 	CollationInfoCollection(Box<dyn std::error::Error>),
 
-	#[error("couldn't create inherent data providers: {0}")]
+	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
-	#[error("couldn't create inherent data: {0}")]
+	#[error("inherent data creation: {0}")]
 	InherentDataCreation(Box<dyn std::error::Error>),
 
-	#[error("couldn't create digest")]
+	#[error("digest creation error")]
 	DigestCreation,
 
-	#[error("couldn't lock next block: {0}")]
+	#[error("next block locking: {0}")]
 	NextBlockLocking(Box<dyn std::error::Error>),
 
 	#[error("next block not found")]
 	NextBlockNotFound,
 
-	#[error("couldn't lock next import: {0}")]
+	#[error("next import locking: {0}")]
 	NextImportLocking(Box<dyn std::error::Error>),
 }
 

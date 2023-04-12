@@ -20,13 +20,13 @@ mod babe;
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("couldn't retrieve timestamp inherent data: {0}")]
+	#[error("timestamp inherent data retrieval: {0}")]
 	TimestampInherentDataRetrieval(sp_inherents::Error),
 
 	#[error("timestamp inherent data not found")]
 	TimestampInherentDataNotFound,
 
-	#[error("couldn't retrieve babe inherent data: {0}")]
+	#[error("babe inherent data retrieval: {0}")]
 	BabeInherentDataRetrieval(sp_inherents::Error),
 
 	#[error("babe inherent data not found")]
