@@ -10,12 +10,30 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::panic::{AssertUnwindSafe, UnwindSafe};
+use std::{
+	any::Any,
+	panic::{AssertUnwindSafe, UnwindSafe},
+};
 
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use sp_storage::StateVersion;
+use thiserror::Error;
+
+const DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET: &str = "fudge-externalities";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("storage transaction commit error")]
+	StorageTransactionCommit,
+
+	#[error("storage changes draining: {0}")]
+	StorageChangesDraining(Box<dyn std::error::Error>),
+
+	#[error("externalities set and run: {0:?}")]
+	ExternalitiesSetAndRun(Box<dyn Any + Send + 'static>),
+}
 
 pub struct ExternalitiesProvider<'a, H, B>
 where
@@ -156,7 +174,7 @@ where
 	pub fn execute_with_mut<R>(
 		&mut self,
 		execute: impl FnOnce() -> R,
-	) -> (R, StorageChanges<B::Transaction, H>) {
+	) -> Result<(R, StorageChanges<B::Transaction, H>), Error> {
 		let _parent_hash = self.overlay.storage_root(
 			self.backend,
 			&mut self.storage_transaction_cache,
@@ -166,10 +184,17 @@ where
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
 		let r = sp_externalities::set_and_run_with_externalities(&mut ext, execute);
-		// TODO: Handle unwrap
-		ext.storage_commit_transaction().unwrap();
 
-		(
+		ext.storage_commit_transaction().map_err(|_| {
+			tracing::error!(
+				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+				"Couldn't commit storage transaction."
+			);
+
+			Error::StorageTransactionCommit
+		})?;
+
+		Ok((
 			r,
 			self.overlay
 				.drain_storage_changes::<B, H>(
@@ -177,8 +202,16 @@ where
 					&mut self.storage_transaction_cache,
 					StateVersion::V0,
 				)
-				.unwrap(),
-		)
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+						error = ?e,
+						"Couldn't drain storage changes."
+					);
+
+					Error::StorageChangesDraining(Box::<dyn std::error::Error>::from(e))
+				})?,
+		))
 	}
 
 	/// Execute the given closure while `self` is set as externalities.
@@ -186,14 +219,19 @@ where
 	/// Returns the result of the given closure, if no panics occured.
 	/// Otherwise, returns `Err`.
 	#[allow(dead_code)]
-	pub fn execute_with_safe<R>(
-		&mut self,
-		f: impl FnOnce() -> R + UnwindSafe,
-	) -> Result<R, String> {
+	pub fn execute_with_safe<R>(&mut self, f: impl FnOnce() -> R + UnwindSafe) -> Result<R, Error> {
 		let mut ext = AssertUnwindSafe(self.ext());
 		std::panic::catch_unwind(move || {
 			sp_externalities::set_and_run_with_externalities(&mut *ext, f)
 		})
-		.map_err(|e| format!("Closure panicked: {:?}", e))
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Couldn't set and run externalities."
+			);
+
+			Error::ExternalitiesSetAndRun(e)
+		})
 	}
 }
