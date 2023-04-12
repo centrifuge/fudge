@@ -35,7 +35,6 @@ type RCidp = Box<
 		InherentDataProviders = (
 			FudgeInherentTimestamp,
 			sp_consensus_babe::inherents::InherentDataProvider,
-			sp_authorship::InherentDataProvider<RHeader>,
 			FudgeDummyInherentRelayParachain<RHeader>,
 		),
 	>,

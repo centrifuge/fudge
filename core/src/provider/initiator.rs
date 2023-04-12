@@ -270,6 +270,7 @@ where
 				genesis_block_builder,
 				backend.clone(),
 				call_executor,
+				Box::new(task_manager.spawn_handle()),
 			)
 			.unwrap();
 

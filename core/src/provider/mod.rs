@@ -25,7 +25,7 @@ use sc_service::{
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
-use sp_core::traits::CodeExecutor;
+use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 
@@ -110,6 +110,7 @@ pub trait ClientProvider<Block: BlockT> {
 		genesis_block_builder: GenesisBlockBuilder<Block, Self::Backend, Self::Exec>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+		spawn_handle: Box<dyn SpawnNamed>,
 	) -> Result<Arc<Self::Client>, ()>;
 }
 
@@ -155,10 +156,12 @@ where
 		genesis_block_builder: GenesisBlockBuilder<Block, Self::Backend, Self::Exec>,
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
+		spawn_handle: Box<dyn SpawnNamed>,
 	) -> Result<Arc<Self::Client>, ()> {
 		TFullClient::new(
 			backend.clone(),
 			exec,
+			spawn_handle,
 			genesis_block_builder,
 			None,
 			None,

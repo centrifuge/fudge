@@ -124,9 +124,6 @@ fn cidp_and_dp_relay(
 			let parent_header = client.header(parent).unwrap().unwrap();
 
 			async move {
-				let uncles =
-					sc_consensus_uncles::create_uncles_inherent_data_provider(&*client, parent)?;
-
 				let timestamp = FudgeInherentTimestamp::get_instance(instance_id)
 					.expect("Instance is initialized. qed");
 
@@ -137,7 +134,7 @@ fn cidp_and_dp_relay(
 					);
 
 				let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
-				Ok((timestamp, uncles, slot, relay_para_inherent))
+				Ok((timestamp, slot, relay_para_inherent))
 			}
 		}
 	};
