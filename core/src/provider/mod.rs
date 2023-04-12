@@ -26,93 +26,232 @@ use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::{CodeExecutor, SpawnNamed};
-use sp_runtime::traits::{Block as BlockT, BlockIdTo};
-use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use sp_keystore::SyncCryptoStorePtr;
+use sp_runtime::BuildStorage;
+use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
+use sp_storage::Storage;
+use thiserror::Error;
 
-pub mod backend;
-pub mod externalities;
-pub mod initiator;
-pub mod state;
+pub use crate::provider::state_provider::DbOpen;
+use crate::provider::{
+	state_provider::StateProvider,
+	Error::{StateProviderError, StorageBuilderError},
+};
 
-pub trait Initiator<Block: BlockT>
+mod externalities_provider;
+mod state_provider;
+
+const DEFAULT_ENV_PROVIDER_LOG_TARGET: &str = "fudge-env";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("full node parts creation: {0}")]
+	FullNodePartsCreation(Box<dyn std::error::Error>),
+
+	#[error("local call executor creation: {0}")]
+	LocalCallExecutorCreation(Box<dyn std::error::Error>),
+
+	#[error("substrate client creation: {0}")]
+	SubstrateClientCreation(Box<dyn std::error::Error>),
+
+	#[error("state provider: {0}")]
+	StateProviderError(Box<dyn std::error::Error>),
+
+	#[error("storage builder: {0}")]
+	StorageBuilderError(Box<dyn std::error::Error>),
+}
+
+pub struct EnvProvider<Block, RtApi, Exec>
 where
 	for<'r> &'r Self::Client:
 		BlockImport<Block, Transaction = TransactionFor<Self::Backend, Block>>,
 {
-	type Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
-		+ BlockBuilderApi<Block>
-		+ TaggedTransactionQueue<Block>;
-	type Client: 'static
-		+ ProvideRuntimeApi<Block, Api = Self::Api>
-		+ BlockOf
-		+ BlockBackend<Block>
-		+ BlockIdTo<Block>
-		+ Send
-		+ Sync
-		+ AuxStore
-		+ UsageProvider<Block>
-		+ HeaderBackend<Block>
-		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
-	type Backend: 'static + BackendT<Block>;
-	type Pool: 'static
-		+ TransactionPool<Block = Block, Hash = Block::Hash>
-		+ MaintainedTransactionPool;
-	type Executor: 'static + CodeExecutor + RuntimeVersionOf + Clone;
-	type Error: 'static + Error;
+	state: StateProvider<TFullBackend<Block>, Block>,
+	_phantom: PhantomData<(Block, RtApi, Exec)>,
+}
+
+impl<Block, RtApi, Exec> EnvProvider<Block, RtApi, Exec>
+where
+	Block: BlockT,
+	Block::Hash: FromStr,
+	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
+	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
+{
+	pub fn empty() -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::empty_default(None).map_err(|e| StateProviderError(e.into()))?,
+			_phantom: Default::default(),
+		})
+	}
+
+	pub fn with_code(code: &'static [u8]) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::empty_default(Some(code))
+				.map_err(|e| StateProviderError(e.into()))?,
+			_phantom: Default::default(),
+		})
+	}
+
+	pub fn from_spec(spec: &dyn BuildStorage) -> Result<Self, Error> {
+		let storage = spec
+			.build_storage()
+			.map_err(|e| StorageBuilderError(Box::<dyn std::error::Error>::from(e)))?;
+
+		Self::from_storage(storage)
+	}
+
+	pub fn from_config(
+		config: &Configuration,
+		exec: Exec,
+	) -> Result<
+		(
+			TFullClient<Block, RtApi, Exec>,
+			Arc<TFullBackend<Block>>,
+			KeystoreContainer,
+			TaskManager,
+		),
+		Error,
+	> {
+		sc_service::new_full_parts(config, None, exec).map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Couldn't get full node parts."
+			);
+
+			Error::FullNodePartsCreation(e.into())
+		})
+	}
+
+	pub fn from_storage(storage: Storage) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::from_storage(storage)
+				.map_err(|e| StateProviderError(e.into()))?,
+			_phantom: Default::default(),
+		})
+	}
+
+	pub fn from_db(open: DbOpen) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::from_db(open).map_err(|e| StateProviderError(e.into()))?,
+			_phantom: Default::default(),
+		})
+	}
+
+	pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Result<Self, Error> {
+		let mut state =
+			StateProvider::empty_default(Some(code)).map_err(|e| StateProviderError(e.into()))?;
+
+		state
+			.insert_storage(storage)
+			.map_err(|e| StateProviderError(e.into()))?;
+
+		Ok(Self {
+			state,
+			_phantom: Default::default(),
+		})
+	}
+
+	pub fn insert_storage(&mut self, storage: Storage) -> Result<&mut Self, Error> {
+		self.state
+			.insert_storage(storage)
+			.map_err(|e| StateProviderError(e.into()))?;
+		Ok(self)
+	}
+
+	pub fn init_default(
+		self,
+		exec: Exec,
+		handle: Box<dyn SpawnNamed>,
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
+		self.init(exec, handle, None, None)
+	}
+
+	pub fn init_with_config(
+		self,
+		exec: Exec,
+		handle: Box<dyn SpawnNamed>,
+		config: ClientConfig<Block>,
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
+		self.init(exec, handle, None, Some(config))
+	}
+
+	pub fn init_full(
+		self,
+		exec: Exec,
+		handle: Box<dyn SpawnNamed>,
+		keystore: SyncCryptoStorePtr,
+		config: ClientConfig<Block>,
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
+		self.init(exec, handle, Some(keystore), Some(config))
+	}
+
+	pub fn init_with_keystore(
+		self,
+		exec: Exec,
+		handle: Box<dyn SpawnNamed>,
+		keystore: SyncCryptoStorePtr,
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
+		self.init(exec, handle, Some(keystore), None)
+	}
 
 	fn init(
 		self,
-	) -> Result<
-		(
-			Arc<Self::Client>,
-			Arc<Self::Backend>,
-			Arc<Self::Pool>,
-			Self::Executor,
-			TaskManager,
-		),
-		Self::Error,
-	>;
-}
+		exec: Exec,
+		handle: Box<dyn SpawnNamed>,
+		keystore: Option<SyncCryptoStorePtr>,
+		config: Option<ClientConfig<Block>>,
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
+		let backend = self.state.backend();
+		let config = config.clone().unwrap_or(Self::client_config());
 
-pub trait BackendProvider<Block: BlockT> {
-	type Backend: 'static + BackendT<Block>;
+		let executor = sc_service::client::LocalCallExecutor::new(
+			backend.clone(),
+			exec,
+			handle,
+			config.clone(),
+		)
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Couldn't get full node parts."
+			);
+
+			Error::LocalCallExecutorCreation(e.into())
+		})?;
 
 	fn provide(&self) -> Result<Arc<Self::Backend>, sp_blockchain::Error>;
 }
+		// TODO: Client config pass?
+		let client = sc_service::client::Client::<
+			TFullBackend<Block>,
+			TFullCallExecutor<Block, Exec>,
+			Block,
+			RtApi,
+		>::new(
+			backend.clone(),
+			executor,
+			&self.state,
+			None,
+			None,
+			extensions,
+			None,
+			None,
+			config.clone(),
+		)
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Couldn't get full node parts."
+			);
 
-pub trait ClientProvider<Block: BlockT> {
-	type Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
-		+ BlockBuilderApi<Block>
-		+ TaggedTransactionQueue<Block>;
-	type Backend: 'static + BackendT<Block>;
-	type Client: 'static
-		+ ProvideRuntimeApi<Block, Api = Self::Api>
-		+ BlockOf
-		+ BlockBackend<Block>
-		+ BlockIdTo<Block>
-		+ Send
-		+ Sync
-		+ AuxStore
-		+ UsageProvider<Block>
-		+ HeaderBackend<Block>
-		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
-	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
+			Error::SubstrateClientCreation(e.into())
+		})?;
 
-	fn provide(
-		&self,
-		config: ClientConfig<Block>,
-		genesis_block_builder: GenesisBlockBuilder<Block, Self::Backend, Self::Exec>,
-		backend: Arc<Self::Backend>,
-		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
-		spawn_handle: Box<dyn SpawnNamed>,
-	) -> Result<Arc<Self::Client>, ()>;
-}
+		Ok((client, backend))
+	}
 
 pub struct DefaultClient<Block, RtApi, Exec>(PhantomData<(Block, RtApi, Exec)>);
 

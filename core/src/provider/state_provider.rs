@@ -20,6 +20,18 @@ use sp_database::MemDb;
 use sp_runtime::{traits::Block as BlockT, BuildStorage};
 use sp_std::{marker::PhantomData, sync::Arc};
 use sp_storage::Storage;
+use thiserror::Error;
+
+const DEFAULT_STATE_PROVIDER_LOG_TARGET: &str = "fudge-state";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("incompatible child info update")]
+	IncompatibleChildInfoUpdate,
+
+	#[error("DB backend creation: {0}")]
+	DBBackendCreation(Box<dyn std::error::Error>),
+}
 
 pub const CANONICALIZATION_DELAY: u64 = 4096;
 
@@ -34,16 +46,30 @@ where
 	Block: BlockT,
 	B: Backend<Block>,
 {
-	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
+	pub fn insert_storage(&mut self, storage: Storage) -> Result<&mut Self, Error> {
 		let Storage {
 			top,
 			children_default: _children_default,
 		} = storage;
 
 		self.pseudo_genesis.top.extend(top.into_iter());
-		// TODO: Not sure how to handle childrens here?
-		// self.pseudo_genesis.children_default.
-		self
+
+		for (k, other_map) in children_default.iter() {
+			let k = k.clone();
+			if let Some(map) = self.pseudo_genesis.children_default.get_mut(&k) {
+				map.data
+					.extend(other_map.data.iter().map(|(k, v)| (k.clone(), v.clone())));
+				if !map.child_info.try_update(&other_map.child_info) {
+					return Err(Error::IncompatibleChildInfoUpdate);
+				}
+			} else {
+				self.pseudo_genesis
+					.children_default
+					.insert(k, other_map.clone());
+			}
+		}
+
+		Ok(self)
 	}
 
 	pub fn backend(&self) -> Arc<B> {
@@ -55,57 +81,76 @@ impl<Block> StateProvider<sc_client_db::Backend<Block>, Block>
 where
 	Block: BlockT,
 {
-	/// Note: When using this option, it will only be
-	pub fn from_db(path: PathBuf) -> Self {
-		// TODO: Maybe allow to set these settings
-		let settings = DatabaseSettings {
-			trie_cache_maximum_size: None,
-			state_pruning: Some(PruningMode::ArchiveAll),
-			source: DatabaseSource::RocksDb {
-				path: path.clone(),
-				cache_size: 1024,
+	pub fn from_db(open: DbOpen) -> Result<Self, Error> {
+		let settings = match open {
+			DbOpen::FullConfig(settings) => settings,
+			DbOpen::SparseConfig {
+				path,
+				state_pruning,
+			} => DatabaseSettings {
+				trie_cache_maximum_size: None,
+				state_pruning: Some(state_pruning),
+				source: DatabaseSource::RocksDb {
+					path: path,
+					cache_size: 1024,
+				},
+				blocks_pruning: BlocksPruning::All,
+			},
+			DbOpen::Default(path) => DatabaseSettings {
+				trie_cache_maximum_size: None,
+				state_pruning: None,
+				source: DatabaseSource::RocksDb {
+					path: path,
+					cache_size: 1024,
+				},
+				blocks_pruning: BlocksPruning::All,
 			},
 			blocks_pruning: BlocksPruning::All,
 		};
 
 		let backend = Arc::new(
-			sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY)
-				.map_err(|_| ())
-				.unwrap(),
+			sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_STATE_PROVIDER_LOG_TARGET,
+					error = ?e,
+					"Couldn't create DB backend."
+				);
+
+				Error::DBBackendCreation(e.into())
+			})?,
 		);
 
-		Self {
+		Ok(Self {
 			backend,
 			pseudo_genesis: Storage::default(),
 			_phantom: Default::default(),
-		}
+		})
 	}
 
 	pub fn from_spec() -> Self {
 		todo!()
 	}
 
-	pub fn from_storage(storage: Storage) -> Self {
-		let mut provider = StateProvider::empty_default(None);
-		provider.insert_storage(storage);
-		provider
+	pub fn from_storage(storage: Storage) -> Result<Self, Error> {
+		let mut provider = StateProvider::empty_default(None)?;
+		provider.insert_storage(storage)?;
+		Ok(provider)
 	}
 
-	pub fn empty_default(code: Option<&[u8]>) -> Self {
-		// TODO: Handle unwrap
-		let mut provider = StateProvider::with_in_mem_db().unwrap();
+	pub fn empty_default(code: Option<&[u8]>) -> Result<Self, Error> {
+		let mut provider = StateProvider::with_in_mem_db()?;
 
 		let mut storage = Storage::default();
 		if let Some(code) = code {
 			storage.top.insert(CODE.to_vec(), code.to_vec());
 		}
 
-		provider.insert_storage(storage);
-		provider
+		provider.insert_storage(storage)?;
+
+		Ok(provider)
 	}
 
-	fn with_in_mem_db() -> Result<Self, ()> {
-		// TODO: Maybe allow to set these settings
+	fn with_in_mem_db() -> Result<Self, Error> {
 		let settings = DatabaseSettings {
 			trie_cache_maximum_size: None,
 			state_pruning: Some(PruningMode::ArchiveAll),
@@ -116,8 +161,17 @@ where
 			blocks_pruning: BlocksPruning::All,
 		};
 
-		let backend =
-			Arc::new(sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|_| ())?);
+		let backend = Arc::new(
+			sc_client_db::Backend::new(settings, CANONICALIZATION_DELAY).map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_STATE_PROVIDER_LOG_TARGET,
+					error = ?e,
+					"Couldn't create DB backend."
+				);
+
+				Error::DBBackendCreation(e.into())
+			})?,
+		);
 
 		Ok(Self {
 			backend,
