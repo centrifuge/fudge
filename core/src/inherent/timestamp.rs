@@ -32,10 +32,10 @@ const DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET: &str = "fudge-timestamp";
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("couldn't acquire instance lock: {0}")]
-	InstanceLock(Box<dyn std::error::Error>),
+	#[error("instance locking: {0}")]
+	InstanceLocking(Box<dyn std::error::Error>),
 
-	#[error("couldn't retrieve current time: {0}")]
+	#[error("current time retrieval: {0}")]
 	CurrentTimeRetrieval(SystemTimeError),
 
 	#[error("instance with ID {0:?} not found")]
@@ -74,10 +74,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't acquire instance lock",
+				" acquire instance lock",
 			);
 
-			Error::InstanceLock(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		let start = if let Some(start) = start {
@@ -90,7 +90,7 @@ impl CurrTimeProvider {
 					tracing::error!(
 						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 						error = ?e,
-						"Couldn't get current time",
+						" get current time",
 					);
 
 					Error::CurrentTimeRetrieval(e)
@@ -132,7 +132,7 @@ impl CurrTimeProvider {
 					tracing::error!(
 						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 						error = ?e,
-						"Couldn't get current time",
+						" get current time",
 					);
 
 					Error::CurrentTimeRetrieval(e)
@@ -146,10 +146,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't acquire instance lock",
+				" acquire instance lock",
 			);
 
-			Error::InstanceLock(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		locked_instances.insert(
@@ -171,10 +171,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't acquire instance lock",
+				" acquire instance lock",
 			);
 
-			Error::InstanceLock(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		locked_instances
@@ -196,10 +196,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't acquire instance lock",
+				" acquire instance lock",
 			);
 
-			Error::InstanceLock(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		let instance = instances.get_mut(&self.instance_id).ok_or({

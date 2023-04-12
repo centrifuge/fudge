@@ -82,13 +82,30 @@ fn default_builder(
 	TWasmExecutor,
 	impl CreateInherentDataProviders<TestBlock, ()>,
 	(),
-	impl DigestCreator<TestBlock>,
-> {
-	let mut state = StateProvider::new(CODE.expect("Wasm is build. Qed."));
-	state.insert_storage(genesis);
+	DP,
+	TFullBackend<TestBlock>,
+	TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+>
+where
+	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
+	DP: DigestCreator<TestBlock> + 'static,
+{
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
+			CODE.unwrap(),
+		)
+		.unwrap();
 
-	let mut init = crate::provider::initiator::default(handle);
-	init.with_genesis(Box::new(state));
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
+	let client = Arc::new(client);
+	let clone_client = client.clone();
 
 	StandAloneBuilder::new(init, cidp_and_dp)
 }
@@ -232,7 +249,8 @@ async fn opening_state_from_db_path_works() {
 				path: static_path.clone(),
 				state_pruning: PruningMode::ArchiveAll,
 			},
-		);
+		)
+		.unwrap();
 	let mut storage = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
 			(account("test", 0, 0), 10_000_000_000_000u128),
@@ -241,6 +259,29 @@ async fn opening_state_from_db_path_works() {
 	}
 	.build_storage()
 	.unwrap();
+	storage.top.insert(
+		sp_storage::well_known_keys::CODE.to_vec(),
+		CODE.unwrap().to_vec(),
+	);
+	provider.insert_storage(storage).unwrap();
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
+	let client = Arc::new(client);
+	let cidp = Box::new(
+		move |clone_client: Arc<
+			TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+		>| {
+			move |parent: H256, ()| {
+				let client = clone_client.clone();
+				let parent_header = client
+					.header(&BlockId::Hash(parent.clone()))
+					.unwrap()
+					.unwrap();
+
 				async move {
 					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
 						&*client, parent,

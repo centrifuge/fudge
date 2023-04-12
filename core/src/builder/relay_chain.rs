@@ -71,52 +71,52 @@ use crate::{
 
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("core builder error: {0}")]
+	#[error("core builder: {0}")]
 	CoreBuilder(Box<dyn std::error::Error>),
 
 	#[error("parachain judge error: {0}")]
 	ParachainJudgeError(Box<dyn std::error::Error>),
 
-	#[error("couldn't mutate parachain")]
-	ParachainMutate,
+	#[error("parachain mutation error")]
+	ParachainMutation,
 
-	#[error("couldn't mutate para lifecycles")]
-	ParaLifecyclesMutate,
+	#[error("para lifecycles mutation")]
+	ParaLifecyclesMutation,
 
-	#[error("couldn't retrieve persisted validation data {0}")]
+	#[error("persisted validation data retrieval: {0}")]
 	PersistedValidationDataRetrieval(Box<dyn std::error::Error>),
 
 	#[error("persisted validation data not found")]
 	PersistedValidationDataNotFound,
 
-	#[error("couldn't retrieve validation code hash {0}")]
+	#[error("validation code hash retrieval: {0}")]
 	ValidationCodeHashRetrieval(Box<dyn std::error::Error>),
 
 	#[error("validation code hash not found")]
 	ValidationCodeHashNotFound,
 
-	#[error("couldn't create inherent data providers: {0}")]
+	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error>),
 
-	#[error("couldn't create inherent data: {0}")]
+	#[error("inherent data creation: {0}")]
 	InherentDataCreation(Box<dyn std::error::Error>),
 
-	#[error("couldn't create digest")]
+	#[error("digest creation error")]
 	DigestCreation,
 
-	#[error("couldn't decode candidate pending availability: {0}")]
-	CandidatePendingAvailabilityDecode(Box<dyn std::error::Error>),
+	#[error("candidate pending availability decoding: {0}")]
+	CandidatePendingAvailabilityDecoding(Box<dyn std::error::Error>),
 
 	#[error("parachain not onboarded")]
 	ParachainNotOnboarded,
 
-	#[error("couldn't create parachain core index")]
+	#[error("parachain core index creation")]
 	ParachainCoreIndexCreation,
 
 	#[error("parachain not found")]
 	ParachainNotFound,
 
-	#[error("couldn't create parachain inherent data")]
+	#[error("parachain inherent data creation")]
 	ParachainInherentDataCreation,
 
 	#[error("next block not found")]
@@ -550,7 +550,7 @@ where
 					"Could not mutate parachains."
 				);
 
-				Error::ParachainMutate
+				Error::ParachainMutation
 			})?;
 
 			let curr_code_hash = if let Some(curr_code_hash) = CurrentCodeHash::get(&id) {
@@ -585,7 +585,7 @@ where
 					"Could not mutate para lifecycles."
 				);
 
-				Error::ParaLifecyclesMutate
+				Error::ParaLifecyclesMutation
 			})?;
 
 			Heads::insert(&id, head);
@@ -808,7 +808,7 @@ where
 										"Couldn't decode candidate pending availability",
 									);
 
-									Error::CandidatePendingAvailabilityDecode(e.into())
+									Error::CandidatePendingAvailabilityDecoding(e.into())
 								})?;
 
 							Ok(res)

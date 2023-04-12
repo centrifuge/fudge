@@ -32,12 +32,65 @@ use crate::{
 	provider::{state::StateProvider, TWasmExecutor},
 };
 
-fn cidp_and_dp(
-	client: Arc<TFullClient<TestBlock, TestRtApi, TWasmExecutor>>,
-) -> (
-	impl CreateInherentDataProviders<TestBlock, ()>,
-	impl DigestCreator<TestBlock>,
-) {
+fn generate_default_setup_relay_chain<CIDP, DP, Runtime>(
+	manager: &TaskManager,
+	storage: Storage,
+	cidp: Box<
+		dyn FnOnce(
+			Arc<TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>>,
+		) -> CIDP,
+	>,
+	dp: DP,
+) -> RelaychainBuilder<
+	TestBlock,
+	TestRtApi,
+	TestExec<sp_io::SubstrateHostFunctions>,
+	CIDP,
+	(),
+	DP,
+	Runtime,
+	TFullBackend<TestBlock>,
+	TFullClient<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
+>
+where
+	CIDP: CreateInherentDataProviders<TestBlock, ()> + 'static,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
+	DP: DigestCreator<TestBlock> + 'static,
+{
+	let mut provider =
+		EnvProvider::<TestBlock, TestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
+			CODE.unwrap(),
+		)
+		.unwrap();
+
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
+	let client = Arc::new(client);
+	let clone_client = client.clone();
+
+	RelaychainBuilder::<
+		TestBlock,
+		TestRtApi,
+		TestExec<sp_io::SubstrateHostFunctions>,
+		_,
+		_,
+		_,
+		Runtime,
+	>::new(manager, backend, client, cidp(clone_client), dp)
+}
+
+#[tokio::test]
+async fn onboarding_parachain_works() {
+	super::utils::init_logs();
+
+	let manager = TaskManager::new(Handle::current(), None).unwrap();
 	// Init timestamp instance_id
 	let instance_id =
 		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
