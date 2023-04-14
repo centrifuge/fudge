@@ -113,7 +113,7 @@ where
 				tracing::error!(
 					target = DEFAULT_STATE_PROVIDER_LOG_TARGET,
 					error = ?e,
-					"Couldn't create DB backend."
+					"Could not create DB backend."
 				);
 
 				Error::DBBackendCreation(e.into())
@@ -166,7 +166,7 @@ where
 				tracing::error!(
 					target = DEFAULT_STATE_PROVIDER_LOG_TARGET,
 					error = ?e,
-					"Couldn't create DB backend."
+					"Could not create DB backend."
 				);
 
 				Error::DBBackendCreation(e.into())

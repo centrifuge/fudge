@@ -43,22 +43,24 @@ mod state_provider;
 
 const DEFAULT_ENV_PROVIDER_LOG_TARGET: &str = "fudge-env";
 
+type InnerError = Box<dyn std::error::Error>;
+
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("full node parts creation: {0}")]
-	FullNodePartsCreation(Box<dyn std::error::Error>),
+	FullNodePartsCreation(InnerError),
 
 	#[error("local call executor creation: {0}")]
-	LocalCallExecutorCreation(Box<dyn std::error::Error>),
+	LocalCallExecutorCreation(InnerError),
 
 	#[error("substrate client creation: {0}")]
-	SubstrateClientCreation(Box<dyn std::error::Error>),
+	SubstrateClientCreation(InnerError),
 
 	#[error("state provider: {0}")]
-	StateProviderError(Box<dyn std::error::Error>),
+	StateProviderError(InnerError),
 
 	#[error("storage builder: {0}")]
-	StorageBuilderError(Box<dyn std::error::Error>),
+	StorageBuilderError(InnerError),
 }
 
 pub struct EnvProvider<Block, RtApi, Exec>
@@ -116,7 +118,7 @@ where
 			tracing::error!(
 				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't get full node parts."
+				"Could not create full node parts."
 			);
 
 			Error::FullNodePartsCreation(e.into())
@@ -215,7 +217,7 @@ where
 			tracing::error!(
 				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't get full node parts."
+				"Could not create local call executor."
 			);
 
 			Error::LocalCallExecutorCreation(e.into())
@@ -244,7 +246,7 @@ where
 			tracing::error!(
 				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't get full node parts."
+				"Could not create substrate client."
 			);
 
 			Error::SubstrateClientCreation(e.into())

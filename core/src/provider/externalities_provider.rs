@@ -188,7 +188,7 @@ where
 		ext.storage_commit_transaction().map_err(|_| {
 			tracing::error!(
 				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
-				"Couldn't commit storage transaction."
+				"Could not commit storage transaction."
 			);
 
 			Error::StorageTransactionCommit
@@ -206,7 +206,7 @@ where
 					tracing::error!(
 						target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
 						error = ?e,
-						"Couldn't drain storage changes."
+						"Could not drain storage changes."
 					);
 
 					Error::StorageChangesDraining(Box::<dyn std::error::Error>::from(e))
@@ -228,7 +228,7 @@ where
 			tracing::error!(
 				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't set and run externalities."
+				"Could not set and run externalities."
 			);
 
 			Error::ExternalitiesSetAndRun(e)

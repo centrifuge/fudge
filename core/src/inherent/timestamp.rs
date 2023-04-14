@@ -12,8 +12,6 @@
 
 //! Inherent data providers that should only be used within FUDGE
 
-use std::time::SystemTimeError;
-
 use sp_core::sp_std::sync::Arc;
 use sp_inherents::{InherentData, InherentIdentifier};
 use sp_runtime::SaturatedConversion;
@@ -30,13 +28,15 @@ use thiserror::Error;
 
 const DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET: &str = "fudge-timestamp";
 
+type InnerError = Box<dyn std::error::Error>;
+
 #[derive(Error, Debug)]
 pub enum Error {
-	#[error("instance locking: {0}")]
-	InstanceLocking(Box<dyn std::error::Error>),
+	#[error("lock for instances is poisoned: {0}")]
+	InstancesLockPoisoned(InnerError),
 
 	#[error("current time retrieval: {0}")]
-	CurrentTimeRetrieval(SystemTimeError),
+	CurrentTimeRetrieval(InnerError),
 
 	#[error("instance with ID {0:?} not found")]
 	InstanceNotFound(InstanceId),
@@ -74,10 +74,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				" acquire instance lock",
+				"Instances lock is poisoned",
 			);
 
-			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		let start = if let Some(start) = start {
@@ -90,10 +90,10 @@ impl CurrTimeProvider {
 					tracing::error!(
 						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 						error = ?e,
-						" get current time",
+						"Could not get current time",
 					);
 
-					Error::CurrentTimeRetrieval(e)
+					Error::CurrentTimeRetrieval(e.into())
 				})?;
 
 			dur
@@ -132,10 +132,10 @@ impl CurrTimeProvider {
 					tracing::error!(
 						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 						error = ?e,
-						" get current time",
+						"Could not get current time",
 					);
 
-					Error::CurrentTimeRetrieval(e)
+					Error::CurrentTimeRetrieval(e.into())
 				})?;
 
 			dur
@@ -146,10 +146,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				" acquire instance lock",
+				"Instances lock is poisoned",
 			);
 
-			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		locked_instances.insert(
@@ -171,10 +171,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				" acquire instance lock",
+				"Instances lock is poisoned",
 			);
 
-			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		locked_instances
@@ -196,10 +196,10 @@ impl CurrTimeProvider {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				error = ?e,
-				" acquire instance lock",
+				"Instances lock is poisoned",
 			);
 
-			Error::InstanceLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
 		let instance = instances.get_mut(&self.instance_id).ok_or({

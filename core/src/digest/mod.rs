@@ -18,16 +18,18 @@ use thiserror::Error;
 mod aura;
 mod babe;
 
+type InnerError = Box<dyn std::error::Error>;
+
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("timestamp inherent data retrieval: {0}")]
-	TimestampInherentDataRetrieval(sp_inherents::Error),
+	TimestampInherentDataRetrieval(InnerError),
 
 	#[error("timestamp inherent data not found")]
 	TimestampInherentDataNotFound,
 
 	#[error("babe inherent data retrieval: {0}")]
-	BabeInherentDataRetrieval(sp_inherents::Error),
+	BabeInherentDataRetrieval(InnerError),
 
 	#[error("babe inherent data not found")]
 	BabeInherentDataNotFound,

@@ -51,10 +51,10 @@ where
 				tracing::error!(
 					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
 					error = ?e,
-					"Couldn't retrieve timestamp inherent data."
+					"Could not retrieve timestamp inherent data."
 				);
 
-				Error::TimestampInherentDataRetrieval(e)
+				Error::TimestampInherentDataRetrieval(e.into())
 			})?
 			.ok_or({
 				tracing::error!(
