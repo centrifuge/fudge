@@ -47,7 +47,7 @@ use thiserror::Error;
 
 use crate::{
 	builder::{
-		core::{Builder, Operation},
+		core::{Builder, InnerError, Operation},
 		relay_chain::{CollationBuilder, CollationJudgement},
 	},
 	digest::DigestCreator,
@@ -59,37 +59,37 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error<Block: sp_api::BlockT> {
 	#[error("core builder: {0}")]
-	CoreBuilder(Box<dyn std::error::Error>),
+	CoreBuilder(InnerError),
 
-	#[error("API version retrieval at {1}: {0}")]
-	APIVersionRetrieval(Box<dyn std::error::Error>, BlockId<Block>),
+	#[error("API version retrieval at {0}: {1}")]
+	APIVersionRetrieval(BlockId<Block>, InnerError),
 
 	#[error("API version not found at {0}")]
 	APIVersionNotFound(BlockId<Block>),
 
-	#[error("collation info collection before V2: {0}")]
-	CollationInfoCollectionBeforeV2(Box<dyn std::error::Error>),
+	#[error("collation info collection before V2 at {0}: {1}")]
+	CollationInfoCollectionBeforeV2(BlockId<Block>, InnerError),
 
-	#[error("collation info collection: {0}")]
-	CollationInfoCollection(Box<dyn std::error::Error>),
+	#[error("collation info collection at {0}: {1}")]
+	CollationInfoCollection(BlockId<Block>, InnerError),
 
 	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
 	#[error("inherent data creation: {0}")]
-	InherentDataCreation(Box<dyn std::error::Error>),
+	InherentDataCreation(InnerError),
 
 	#[error("digest creation error")]
 	DigestCreation,
 
 	#[error("next block locking: {0}")]
-	NextBlockLocking(Box<dyn std::error::Error>),
+	NextBlockLocking(InnerError),
 
 	#[error("next block not found")]
 	NextBlockNotFound,
 
 	#[error("next import locking: {0}")]
-	NextImportLocking(Box<dyn std::error::Error>),
+	NextImportLocking(InnerError),
 }
 
 pub struct FudgeParaBuild {
@@ -169,7 +169,7 @@ where
 					block_id,
 				);
 
-				Error::APIVersionRetrieval(e.into(), block_id)
+				Error::APIVersionRetrieval(block_id, e.into())
 			})?
 			.ok_or({
 				tracing::error!(
@@ -189,10 +189,11 @@ where
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
-						"Could not collect collation info before version 2.",
+						"Could not collect collation info before version 2 at {}.",
+						block_id,
 					);
 
-					Error::CollationInfoCollectionBeforeV2(e.into())
+					Error::CollationInfoCollectionBeforeV2(block_id, e.into())
 				})?
 				.into_latest(header.encode().into())
 		} else {
@@ -202,10 +203,11 @@ where
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
-						"Could not collect collation info.",
+						"Could not collect collation info at {}.",
+						block_id,
 					);
 
-					Error::CollationInfoCollection(e.into())
+					Error::CollationInfoCollection(block_id, e.into())
 				})?
 		};
 
@@ -297,7 +299,7 @@ where
 					"Could not lock next block.",
 				);
 
-				Error::<Block>::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+				Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
 			})?
 			.take()
 			.ok_or({
@@ -316,7 +318,7 @@ where
 				"Could not lock next import.",
 			);
 
-			Error::<Block>::NextImportLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::<Block>::NextImportLocking(InnerError::from(e.to_string()))
 		})?;
 
 		*locked_import = Some(build);
@@ -331,7 +333,7 @@ where
 				"Could not lock next block.",
 			);
 
-			Error::<Block>::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
 		})?;
 
 		let _build = locked.take().ok_or({
@@ -553,7 +555,7 @@ where
 				"Could not lock next block.",
 			);
 
-			Error::NextBlockLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::NextBlockLocking(InnerError::from(e.to_string()))
 		})?;
 
 		*locked = Some((block, proof));
@@ -584,7 +586,7 @@ where
 				"Could not lock next import.",
 			);
 
-			Error::NextImportLocking(Box::<dyn std::error::Error>::from(e.to_string()))
+			Error::NextImportLocking(InnerError::from(e.to_string()))
 		})?;
 
 		if let Some((block, proof)) = &*locked {

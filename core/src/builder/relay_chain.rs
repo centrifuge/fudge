@@ -57,7 +57,7 @@ use types::*;
 
 use crate::{
 	builder::{
-		core::{Builder, Operation},
+		core::{Builder, InnerError, Operation},
 		parachain::FudgeParaChain,
 	},
 	digest::DigestCreator,
@@ -69,10 +69,10 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("core builder: {0}")]
-	CoreBuilder(Box<dyn std::error::Error>),
+	CoreBuilder(InnerError),
 
 	#[error("parachain judge error: {0}")]
-	ParachainJudgeError(Box<dyn std::error::Error>),
+	ParachainJudgeError(InnerError),
 
 	#[error("parachain mutation error")]
 	ParachainMutation,
@@ -81,34 +81,34 @@ pub enum Error {
 	ParaLifecyclesMutation,
 
 	#[error("persisted validation data retrieval: {0}")]
-	PersistedValidationDataRetrieval(Box<dyn std::error::Error>),
+	PersistedValidationDataRetrieval(InnerError),
 
 	#[error("persisted validation data not found")]
 	PersistedValidationDataNotFound,
 
 	#[error("validation code hash retrieval: {0}")]
-	ValidationCodeHashRetrieval(Box<dyn std::error::Error>),
+	ValidationCodeHashRetrieval(InnerError),
 
 	#[error("validation code hash not found")]
 	ValidationCodeHashNotFound,
 
 	#[error("inherent data providers creation: {0}")]
-	InherentDataProvidersCreation(Box<dyn std::error::Error>),
+	InherentDataProvidersCreation(InnerError),
 
 	#[error("inherent data creation: {0}")]
-	InherentDataCreation(Box<dyn std::error::Error>),
+	InherentDataCreation(InnerError),
 
-	#[error("digest creation error")]
-	DigestCreation,
+	#[error("digest creation: {0}")]
+	DigestCreation(InnerError),
 
 	#[error("candidate pending availability decoding: {0}")]
-	CandidatePendingAvailabilityDecoding(Box<dyn std::error::Error>),
+	CandidatePendingAvailabilityDecoding(InnerError),
 
 	#[error("parachain not onboarded")]
 	ParachainNotOnboarded,
 
-	#[error("parachain core index creation")]
-	ParachainCoreIndexCreation,
+	#[error("parachain core index creation: {0}")]
+	ParachainCoreIndexCreation(InnerError),
 
 	#[error("parachain not found")]
 	ParachainNotFound,
@@ -372,7 +372,7 @@ where
 			.ok_or({
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
-					"Persisted validation data not found",
+					"Couldn't create parachain inherent data",
 				);
 
 				Error::ParachainInherentDataCreation
@@ -613,13 +613,13 @@ where
 		})?;
 
 		let digest = self.with_state(|| {
-			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|_| {
+			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 					"Could not create digest."
 				);
 
-				Error::DigestCreation
+				Error::DigestCreation(e.into())
 			})
 		})??;
 
@@ -762,10 +762,10 @@ where
 							tracing::error!(
 								target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 								error = ?e,
-								"Couldn't create parachain core index",
+								"Could not create parachain core index",
 							);
 
-							Error::ParachainCoreIndexCreation
+							Error::ParachainCoreIndexCreation(InnerError::from(e))
 						})?,
 				);
 

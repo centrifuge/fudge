@@ -9,8 +9,8 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-mod core;
 pub use self::core::PoolState;
+pub mod core;
 pub mod parachain;
 pub mod relay_chain;
 pub mod stand_alone;
