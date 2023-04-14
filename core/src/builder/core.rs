@@ -232,7 +232,7 @@ where
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
 					error = ?e,
-					"Couldn't retrieve latest header."
+					"Could not retrieve latest header."
 				);
 
 				Error::LatestHeaderRetrieval(e.into())
@@ -385,10 +385,11 @@ where
 						tracing::error!(
 							target = DEFAULT_BUILDER_LOG_TARGET,
 							error = ?e,
-							"Couldn't execute externalities.",
+							"Could not execute externalities at {:?}.",
+							at,
 						);
 
-						Error::ExternalitiesExecution(None, e.into())
+						Error::ExternalitiesExecution(Some(at), e.into())
 					})?;
 
 					self.mutate_normal(&mut op, changes, at)?;
@@ -427,7 +428,7 @@ where
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Couldn't execute externalities.",
+				"Could not execute externalities.",
 			);
 
 			Error::ExternalitiesExecution(None, e.into())
@@ -571,7 +572,8 @@ where
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not set block data."
+				"Could not set block data at {}.",
+				at
 			);
 
 			Error::BlockDataSet(Some(at), e.into())

@@ -48,10 +48,10 @@ where
 				tracing::error!(
 					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
 					error = ?e,
-					"Couldn't retrieve babe inherent data."
+					"Could not retrieve babe inherent data."
 				);
 
-				Error::BabeInherentDataRetrieval(e)
+				Error::BabeInherentDataRetrieval(e.into())
 			})?
 			.ok_or({
 				tracing::error!(

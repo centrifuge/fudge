@@ -77,7 +77,7 @@ pub enum Error {
 	#[error("parachain mutation error")]
 	ParachainMutation,
 
-	#[error("para lifecycles mutation")]
+	#[error("para lifecycles mutation error")]
 	ParaLifecyclesMutation,
 
 	#[error("persisted validation data retrieval: {0}")]
@@ -372,7 +372,7 @@ where
 			.ok_or({
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
-					"Couldn't create parachain inherent data",
+					"Could not create parachain inherent data",
 				);
 
 				Error::ParachainInherentDataCreation
@@ -616,6 +616,7 @@ where
 			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
 					"Could not create digest."
 				);
 
@@ -789,7 +790,7 @@ where
 									tracing::error!(
 										target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 										error = ?e,
-										"Couldn't decode candidate pending availability",
+										"Could not decode candidate pending availability",
 									);
 
 									Error::CandidatePendingAvailabilityDecoding(e.into())
@@ -841,7 +842,7 @@ where
 			collator.judge(CollationJudgement::Approved).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
-						error = ?e,
+					error = ?e,
 					"Parachain judge error",
 				);
 
@@ -906,7 +907,6 @@ where
 	Block: BlockT,
 	RtApi: ParachainHost<Block> + ApiExt<Block>,
 {
-	//TODO(cdamian): Do we really need to execute_in_transaction? If so, why? =D
 	let res = rt_api.execute_in_transaction(|api| {
 		let pvd = api.persisted_validation_data(&BlockId::Hash(parent), id, assumption);
 

@@ -207,7 +207,7 @@ where
 			tracing::error!(
 				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not create inherent data providers."
+				"Could not create inherent data."
 			);
 
 			Error::InherentDataCreation(e.into())
@@ -217,7 +217,8 @@ where
 			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
-					"Could not create inherent data providers."
+					error = ?e,
+					"Could not create digest."
 				);
 
 				Error::DigestCreation(e.into())

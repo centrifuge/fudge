@@ -79,17 +79,17 @@ pub enum Error<Block: sp_api::BlockT> {
 	#[error("inherent data creation: {0}")]
 	InherentDataCreation(InnerError),
 
-	#[error("digest creation error")]
-	DigestCreation,
+	#[error("digest creation: {0}")]
+	DigestCreation(InnerError),
 
-	#[error("next block locking: {0}")]
-	NextBlockLocking(InnerError),
+	#[error("next block lock is poisoned: {0}")]
+	NextBlockLockPoisoned(InnerError),
 
 	#[error("next block not found")]
 	NextBlockNotFound,
 
-	#[error("next import locking: {0}")]
-	NextImportLocking(InnerError),
+	#[error("next import lock is poisoned: {0}")]
+	NextImportLockPoisoned(InnerError),
 }
 
 pub struct FudgeParaBuild {
@@ -247,7 +247,7 @@ where
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
-						"Could not compact proof.",
+						"Could not get compact proof.",
 					);
 
 					return None;
@@ -268,7 +268,7 @@ where
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
-						"Failed to collect collation info.",
+						"Could not collect collation info.",
 					)
 				})
 				.ok()
@@ -296,10 +296,10 @@ where
 				tracing::error!(
 					target = DEFAULT_COLLATOR_LOG_TARGET,
 					error = ?e,
-					"Could not lock next block.",
+					"Lock for next block is poisoned.",
 				);
 
-				Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
+				Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 			})?
 			.take()
 			.ok_or({
@@ -315,10 +315,10 @@ where
 			tracing::error!(
 				target = DEFAULT_COLLATOR_LOG_TARGET,
 				error = ?e,
-				"Could not lock next import.",
+				"Lock for next import is poisoned.",
 			);
 
-			Error::<Block>::NextImportLocking(InnerError::from(e.to_string()))
+			Error::<Block>::NextImportLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
 		*locked_import = Some(build);
@@ -330,10 +330,10 @@ where
 			tracing::error!(
 				target = DEFAULT_COLLATOR_LOG_TARGET,
 				error = ?e,
-				"Could not lock next block.",
+				"Lock for next block is poisoned.",
 			);
 
-			Error::<Block>::NextBlockLocking(InnerError::from(e.to_string()))
+			Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
 		let _build = locked.take().ok_or({
@@ -510,13 +510,14 @@ where
 		})?;
 
 		let digest = self.with_state(|| {
-			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|_| {
+			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
 					"Could not create digest."
 				);
 
-				Error::DigestCreation
+				Error::DigestCreation(e.into())
 			})
 		})??;
 
@@ -552,10 +553,10 @@ where
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not lock next block.",
+				"Lock for next block is poisoned.",
 			);
 
-			Error::NextBlockLocking(InnerError::from(e.to_string()))
+			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
 		*locked = Some((block, proof));
@@ -583,10 +584,10 @@ where
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not lock next import.",
+				"Lock for next import is poisoned.",
 			);
 
-			Error::NextImportLocking(InnerError::from(e.to_string()))
+			Error::NextImportLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
 		if let Some((block, proof)) = &*locked {
