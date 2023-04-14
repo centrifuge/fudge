@@ -36,7 +36,7 @@ use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
 
 use crate::{
-	builder::core::{Builder, Operation},
+	builder::core::{Builder, InnerError, Operation},
 	digest::DigestCreator,
 	inherent::ArgsProvider,
 	provider::Initiator,
@@ -46,16 +46,16 @@ use crate::{
 #[derive(Error, Debug)]
 pub enum Error {
 	#[error("core builder: {0}")]
-	CoreBuilder(Box<dyn std::error::Error>),
+	CoreBuilder(InnerError),
 
 	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
 	#[error("inherent data creation: {0}")]
-	InherentDataCreation(Box<dyn std::error::Error>),
+	InherentDataCreation(InnerError),
 
-	#[error("digest creation error")]
-	DigestCreation,
+	#[error("digest creation: {0}")]
+	DigestCreation(InnerError),
 
 	#[error("next block not found")]
 	NextBlockNotFound,
@@ -226,13 +226,13 @@ where
 		})?;
 
 		let digest = self.with_state(|| {
-			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|_| {
+			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
 					"Could not create inherent data providers."
 				);
 
-				Error::DigestCreation
+				Error::DigestCreation(e.into())
 			})
 		})??;
 

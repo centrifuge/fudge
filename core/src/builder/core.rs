@@ -44,16 +44,18 @@ use crate::{
 
 const DEFAULT_BUILDER_LOG_TARGET: &str = "fudge-builder";
 
+pub type InnerError = Box<dyn std::error::Error>;
+
 #[derive(Error, Debug)]
 pub enum Error<Block: sp_api::BlockT> {
 	#[error("latest header retrieval: {0}")]
-	LatestHeaderRetrieval(Box<dyn std::error::Error>),
+	LatestHeaderRetrieval(InnerError),
 
 	#[error("latest header not found")]
 	LatestHeaderNotFound,
 
 	#[error("header retrieval at {0}: {1}")]
-	HeaderRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
+	HeaderRetrieval(BlockId<Block>, InnerError),
 
 	#[error("header not found at {0}")]
 	HeaderNotFound(BlockId<Block>),
@@ -62,61 +64,61 @@ pub enum Error<Block: sp_api::BlockT> {
 	LatestCodeNotFound,
 
 	#[error("state retrieval at {0}: {1}")]
-	StateRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
+	StateRetrieval(BlockId<Block>, InnerError),
 
 	#[error("block indexed body retrieval at {0}: {1}")]
-	BlockIndexedBodyRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
+	BlockIndexedBodyRetrieval(BlockId<Block>, InnerError),
 
 	#[error("justifications retrieval at {0}: {1}")]
-	JustificationsRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
+	JustificationsRetrieval(BlockId<Block>, InnerError),
 
-	#[error("backend operation start: {0}")]
-	BackendOperationStart(Box<dyn std::error::Error>),
+	#[error("backend operation start at {0}: {1}")]
+	BackendOperationStart(BlockId<Block>, InnerError),
 
-	#[error("backend state operation start: {0}")]
-	BackendStateOperationStart(Box<dyn std::error::Error>),
+	#[error("backend state operation start at {0}: {1}")]
+	BackendStateOperationStart(BlockId<Block>, InnerError),
 
 	#[error("backend operation reversal: {0}")]
-	BackendOperationReversal(Box<dyn std::error::Error>),
+	BackendOperationReversal(InnerError),
 
-	#[error("backend operation commit: {0}")]
-	BackendOperationCommit(Box<dyn std::error::Error>),
+	#[error("backend operation commit at {0}: {1}")]
+	BackendOperationCommit(BlockId<Block>, InnerError),
 
 	#[error("state not available at {0}: {1}")]
-	StateNotAvailable(BlockId<Block>, Box<dyn std::error::Error>),
+	StateNotAvailable(BlockId<Block>, InnerError),
 
 	#[error("block number retrieval at {0}: {1}")]
-	BlockNumberRetrieval(BlockId<Block>, Box<dyn std::error::Error>),
+	BlockNumberRetrieval(BlockId<Block>, InnerError),
 
 	#[error("block number not found at {0}")]
 	BlockNumberNotFound(BlockId<Block>),
 
-	#[error("externalities execution: {0}")]
-	ExternalitiesExecution(Box<dyn std::error::Error>),
+	#[error("externalities execution at {0:?}: {1}")]
+	ExternalitiesExecution(Option<BlockId<Block>>, InnerError),
 
-	#[error("storage update: {0}")]
-	StorageUpdate(Box<dyn std::error::Error>),
+	#[error("storage update at {0}: {1}")]
+	StorageUpdate(BlockId<Block>, InnerError),
 
-	#[error("DB storage update: {0}")]
-	DBStorageUpdate(Box<dyn std::error::Error>),
+	#[error("DB storage update at {0:?}: {1}")]
+	DBStorageUpdate(Option<BlockId<Block>>, InnerError),
 
-	#[error("transaction index update: {0}")]
-	TransactionIndexUpdate(Box<dyn std::error::Error>),
+	#[error("transaction index update at {0}: {1}")]
+	TransactionIndexUpdate(BlockId<Block>, InnerError),
 
-	#[error("block data set: {0}")]
-	BlockDataSet(Box<dyn std::error::Error>),
+	#[error("block data set at {0:?}: {1}")]
+	BlockDataSet(Option<BlockId<Block>>, InnerError),
 
 	#[error("extrinsic submission: {0}")]
-	ExtrinsicSubmission(Box<dyn std::error::Error>),
+	ExtrinsicSubmission(InnerError),
 
 	#[error("factory initialization: {0}")]
-	FactoryInitialization(Box<dyn std::error::Error>),
+	FactoryInitialization(InnerError),
 
 	#[error("block proposal: {0}")]
-	BlockProposal(Box<dyn std::error::Error>),
+	BlockProposal(InnerError),
 
 	#[error("block importing: {0}")]
-	BlockImporting(Box<dyn std::error::Error>),
+	BlockImporting(InnerError),
 }
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
@@ -247,9 +249,10 @@ where
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not begin backend operation."
+				"Could not begin backend operation at {}.",
+				at,
 			);
-			Error::BackendOperationStart(e.into())
+			Error::BackendOperationStart(at, e.into())
 		})?;
 
 		self.backend
@@ -258,10 +261,11 @@ where
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
 					error = ?e,
-					"Could not begin backend state operation."
+					"Could not begin backend state operation at {}.",
+					at,
 				);
 
-				Error::BackendStateOperationStart(e.into())
+				Error::BackendStateOperationStart(at, e.into())
 			})?;
 
 		let header = self.get_block_header(at)?;
@@ -274,10 +278,11 @@ where
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
-				"Could not commit backend operation."
+				"Could not commit backend operation at {}.",
+				at,
 			);
 
-			Error::BackendOperationCommit(e.into())
+			Error::BackendOperationCommit(at, e.into())
 		})
 	}
 
@@ -313,10 +318,11 @@ where
 					tracing::error!(
 						target = DEFAULT_BUILDER_LOG_TARGET,
 						error = ?e,
-						"Could not begin backend operation."
+						"Could not begin backend operation at {}.",
+						at,
 					);
 
-					Error::BackendOperationStart(e.into())
+					Error::BackendOperationStart(at, e.into())
 				})?;
 
 				self.backend
@@ -325,10 +331,11 @@ where
 						tracing::error!(
 							target = DEFAULT_BUILDER_LOG_TARGET,
 							error = ?e,
-							"Could not begin backend state operation."
+							"Could not begin backend state operation at {}.",
+							at,
 						);
 
-						Error::BackendStateOperationStart(e.into())
+						Error::BackendStateOperationStart(at, e.into())
 					})?;
 
 				let block_number = self
@@ -363,7 +370,7 @@ where
 							"Couldn't execute externalities.",
 						);
 
-						Error::ExternalitiesExecution(e.into())
+						Error::ExternalitiesExecution(None, e.into())
 					})?;
 
 					self.mutate_normal(&mut op, changes, at)?;
@@ -375,10 +382,11 @@ where
 					tracing::error!(
 						target = DEFAULT_BUILDER_LOG_TARGET,
 						error = ?e,
-						"Could not commit backend operation."
+						"Could not commit backend operation at {}.",
+						at,
 					);
 
-					Error::BackendOperationCommit(e.into())
+					Error::BackendOperationCommit(at, e.into())
 				})?;
 
 				Ok(r)
@@ -404,7 +412,7 @@ where
 				"Couldn't execute externalities.",
 			);
 
-			Error::ExternalitiesExecution(e.into())
+			Error::ExternalitiesExecution(None, e.into())
 		})?;
 
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
@@ -419,7 +427,7 @@ where
 				"Could not update DB storage."
 			);
 
-			Error::DBStorageUpdate(e.into())
+			Error::DBStorageUpdate(None, e.into())
 		})?;
 
 		let genesis_block = Block::new(
@@ -450,7 +458,7 @@ where
 				"Could not set block data."
 			);
 
-			Error::BlockDataSet(e.into())
+			Error::BlockDataSet(None, e.into())
 		})?;
 
 		Ok(())
@@ -476,7 +484,7 @@ where
 				"Could not update DB storage."
 			);
 
-			Error::DBStorageUpdate(e.into())
+			Error::DBStorageUpdate(Some(at), e.into())
 		})?;
 
 		op.update_storage(main_sc, child_sc).map_err(|e| {
@@ -486,7 +494,7 @@ where
 				"Could not update storage."
 			);
 
-			Error::StorageUpdate(e.into())
+			Error::StorageUpdate(at, e.into())
 		})?;
 
 		op.update_transaction_index(tx_index).map_err(|e| {
@@ -496,7 +504,7 @@ where
 				"Could not update transaction index."
 			);
 
-			Error::TransactionIndexUpdate(e.into())
+			Error::TransactionIndexUpdate(at, e.into())
 		})?;
 
 		let body = chain_backend.body(at).map_err(|e| {
@@ -546,7 +554,7 @@ where
 				"Could not set block data."
 			);
 
-			Error::BlockDataSet(e.into())
+			Error::BlockDataSet(Some(at), e.into())
 		})?;
 
 		Ok(())
