@@ -413,7 +413,7 @@ where
 				"Could not execute externalities.",
 			);
 
-			Error::ExternalitiesExecution(None, e.into())
+			Error::ExternalitiesExecution(Some(BlockId::Number(Zero::zero())), e.into())
 		})?;
 
 		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();

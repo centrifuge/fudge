@@ -3416,6 +3416,7 @@ dependencies = [
  "sp-inherents",
  "sp-std",
  "sp-tracing",
+ "thiserror",
 ]
 
 [[package]]
