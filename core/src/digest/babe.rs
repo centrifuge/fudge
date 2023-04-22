@@ -41,7 +41,7 @@ impl<B> DigestProvider<B> for Digest<B>
 where
 	B: BlockT,
 {
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error> {
+	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let slot = inherents
 			.babe_inherent_data()
 			.map_err(|e| {

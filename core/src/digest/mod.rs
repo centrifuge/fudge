@@ -40,25 +40,34 @@ pub trait DigestCreator<B>
 where
 	B: Block,
 {
-	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error>;
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, Error>;
 }
 
 #[async_trait::async_trait]
 pub trait DigestProvider<B: Block> {
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error>;
+	fn digest(&self, parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error>;
 
-	async fn build_digest(&self, inherents: &InherentData) -> Result<Digest, Error> {
+	async fn build_digest(
+		&self,
+		parent: B::Header,
+		inherents: &InherentData,
+	) -> Result<Digest, Error> {
 		Ok(Digest {
-			logs: vec![self.digest(inherents)?],
+			logs: vec![self.digest(parent, inherents)?],
 		})
 	}
 
 	async fn append_digest(
 		&self,
+		parent: B::Header,
 		digest: &mut Digest,
 		inherents: &InherentData,
 	) -> Result<(), Error> {
-		digest.push(self.digest(inherents)?);
+		digest.push(self.digest(parent, inherents)?);
 		Ok(())
 	}
 }
@@ -67,11 +76,15 @@ pub trait DigestProvider<B: Block> {
 impl<F, Fut, B> DigestCreator<B> for F
 where
 	B: Block,
-	F: Fn(InherentData) -> Fut + Sync + Send,
+	F: Fn(B::Header, InherentData) -> Fut + Sync + Send,
 	Fut: std::future::Future<Output = Result<Digest, Error>> + Send + 'static,
 {
-	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error> {
-		(*self)(inherents).await
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, Error> {
+		(*self)(parent, inherents).await
 	}
 }
 
@@ -80,7 +93,11 @@ impl<B> DigestCreator<B> for Box<dyn DigestCreator<B> + Send + Sync>
 where
 	B: Block,
 {
-	async fn create_digest(&self, inherents: InherentData) -> Result<Digest, Error> {
-		(**self).create_digest(inherents).await
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, Error> {
+		(**self).create_digest(parent, inherents).await
 	}
 }

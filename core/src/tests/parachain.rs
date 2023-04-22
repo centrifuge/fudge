@@ -250,9 +250,9 @@ where
 		},
 	);
 
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let babe = FudgeBabeDigest::<RTestBlock>::new();
-		let digest = babe.build_digest(&inherents).await?;
+		let digest = babe.build_digest(parent, &inherents).await?;
 		Ok(digest)
 	});
 
@@ -302,14 +302,14 @@ async fn parachain_creates_correct_inherents() {
 		|clone_client: Arc<
 			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
-			move |inherents| {
+			move |parent, inherents| {
 				let client = clone_client.clone();
 
 				async move {
 					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
 					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&inherents).await?;
+					let digest = aura.build_digest(parent, &inherents).await?;
 					Ok(digest)
 				}
 			}
@@ -400,14 +400,14 @@ async fn xcm_is_transported() {
 		|clone_client: Arc<
 			TFullClient<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>,
 		>| {
-			move |inherents| {
+			move |parent, inherents| {
 				let client = clone_client.clone();
 
 				async move {
 					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
 					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&inherents).await?;
+					let digest = aura.build_digest(parent, &inherents).await?;
 					Ok(digest)
 				}
 			}
