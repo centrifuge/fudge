@@ -213,16 +213,28 @@ where
 			Error::InherentDataCreation(e.into())
 		})?;
 
-		let digest = self.with_state(|| {
-			futures::executor::block_on(self.dp.create_digest(inherents.clone())).map_err(|e| {
-				tracing::error!(
-					target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
-					error = ?e,
-					"Could not create digest."
-				);
+		let parent = self.builder.latest_header().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not retrieve latest header."
+			);
 
-				Error::DigestCreation(e.into())
-			})
+			Error::CoreBuilder(e.into())
+		})?;
+
+		let digest = self.with_state(|| {
+			futures::executor::block_on(self.dp.create_digest(parent, inherents.clone())).map_err(
+				|e| {
+					tracing::error!(
+						target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create digest."
+					);
+
+					Error::DigestCreation(e.into())
+				},
+			)
 		})??;
 
 		let Proposal { block, proof, .. } = self

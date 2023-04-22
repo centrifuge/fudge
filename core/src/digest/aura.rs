@@ -44,7 +44,7 @@ impl<B> DigestProvider<B> for Digest<B>
 where
 	B: Block,
 {
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, Error> {
+	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let timestamp = inherents
 			.timestamp_inherent_data()
 			.map_err(|e| {

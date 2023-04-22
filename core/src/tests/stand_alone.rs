@@ -130,11 +130,11 @@ async fn mutating_genesis_works() {
 		},
 	);
 
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	});
@@ -253,11 +253,11 @@ async fn opening_state_from_db_path_works() {
 		},
 	);
 
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	});
@@ -401,11 +401,11 @@ async fn build_relay_block_works() {
 			}
 		},
 	);
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	});
@@ -477,11 +477,11 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 			}
 		},
 	);
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	});

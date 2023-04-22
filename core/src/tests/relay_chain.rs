@@ -126,11 +126,11 @@ async fn onboarding_parachain_works() {
 			}
 		},
 	);
-	let dp = Box::new(move |inherents| async move {
+	let dp = Box::new(move |parent, inherents| async move {
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	});
