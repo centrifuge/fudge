@@ -17,3 +17,4 @@ sp-authorship = { git = "https://github.com/paritytech/substrate", branch = "pol
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = true, branch = "polkadot-v0.9.29" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.29" }
+thiserror = "1.0.30"

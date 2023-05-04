@@ -2397,6 +2397,7 @@ dependencies = [
  "sp-storage",
  "sp-timestamp",
  "sp-transaction-pool",
+ "thiserror",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3096,6 +3097,7 @@ dependencies = [
  "sp-inherents",
  "sp-std",
  "sp-tracing",
+ "thiserror",
 ]
 
 [[package]]

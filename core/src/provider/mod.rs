@@ -22,12 +22,38 @@ use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::BuildStorage;
 use sp_std::{marker::PhantomData, str::FromStr, sync::Arc};
 use sp_storage::Storage;
+use thiserror::Error;
 
 pub use crate::provider::state_provider::DbOpen;
-use crate::provider::state_provider::StateProvider;
+use crate::provider::{
+	state_provider::StateProvider,
+	Error::{StateProviderError, StorageBuilderError},
+};
 
 mod externalities_provider;
 mod state_provider;
+
+const DEFAULT_ENV_PROVIDER_LOG_TARGET: &str = "fudge-env";
+
+type InnerError = Box<dyn std::error::Error>;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("full node parts creation: {0}")]
+	FullNodePartsCreation(InnerError),
+
+	#[error("local call executor creation: {0}")]
+	LocalCallExecutorCreation(InnerError),
+
+	#[error("substrate client creation: {0}")]
+	SubstrateClientCreation(InnerError),
+
+	#[error("state provider: {0}")]
+	StateProviderError(InnerError),
+
+	#[error("storage builder: {0}")]
+	StorageBuilderError(InnerError),
+}
 
 pub struct EnvProvider<Block, RtApi, Exec>
 where
@@ -44,74 +70,93 @@ where
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
-	pub fn empty() -> Self {
-		Self {
-			state: StateProvider::empty_default(None),
+	pub fn empty() -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::empty_default(None).map_err(|e| StateProviderError(e.into()))?,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
-	pub fn with_code(code: &'static [u8]) -> Self {
-		Self {
-			state: StateProvider::empty_default(Some(code)),
+	pub fn with_code(code: &'static [u8]) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::empty_default(Some(code))
+				.map_err(|e| StateProviderError(e.into()))?,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
-	pub fn from_spec(spec: &dyn BuildStorage) -> Self {
-		let storage = spec.build_storage().unwrap();
+	pub fn from_spec(spec: &dyn BuildStorage) -> Result<Self, Error> {
+		let storage = spec
+			.build_storage()
+			.map_err(|e| StorageBuilderError(Box::<dyn std::error::Error>::from(e)))?;
+
 		Self::from_storage(storage)
 	}
 
-	pub fn into_from_config(
+	pub fn from_config(
 		config: &Configuration,
 		exec: Exec,
-	) -> (
-		TFullClient<Block, RtApi, Exec>,
-		Arc<TFullBackend<Block>>,
-		KeystoreContainer,
-		TaskManager,
-	) {
-		//TODO: Handle unwrap
-		sc_service::new_full_parts(config, None, exec)
-			.map_err(|_| "err".to_string())
-			.unwrap()
+	) -> Result<
+		(
+			TFullClient<Block, RtApi, Exec>,
+			Arc<TFullBackend<Block>>,
+			KeystoreContainer,
+			TaskManager,
+		),
+		Error,
+	> {
+		sc_service::new_full_parts(config, None, exec).map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Could not create full node parts."
+			);
+
+			Error::FullNodePartsCreation(e.into())
+		})
 	}
 
-	pub fn from_storage(storage: Storage) -> Self {
-		Self {
-			state: StateProvider::from_storage(storage),
+	pub fn from_storage(storage: Storage) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::from_storage(storage)
+				.map_err(|e| StateProviderError(e.into()))?,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
-	pub fn from_db(open: DbOpen) -> Self {
-		Self {
-			state: StateProvider::from_db(open),
+	pub fn from_db(open: DbOpen) -> Result<Self, Error> {
+		Ok(Self {
+			state: StateProvider::from_db(open).map_err(|e| StateProviderError(e.into()))?,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
-	pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Self {
-		let mut state = StateProvider::empty_default(Some(code));
-		state.insert_storage(storage);
+	pub fn from_storage_with_code(storage: Storage, code: &'static [u8]) -> Result<Self, Error> {
+		let mut state =
+			StateProvider::empty_default(Some(code)).map_err(|e| StateProviderError(e.into()))?;
 
-		Self {
+		state
+			.insert_storage(storage)
+			.map_err(|e| StateProviderError(e.into()))?;
+
+		Ok(Self {
 			state,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
-	pub fn insert_storage(&mut self, storage: Storage) -> &mut Self {
-		self.state.insert_storage(storage);
-		self
+	pub fn insert_storage(&mut self, storage: Storage) -> Result<&mut Self, Error> {
+		self.state
+			.insert_storage(storage)
+			.map_err(|e| StateProviderError(e.into()))?;
+		Ok(self)
 	}
 
 	pub fn init_default(
 		self,
 		exec: Exec,
 		handle: Box<dyn SpawnNamed>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
 		self.init(exec, handle, None, None)
 	}
 
@@ -120,7 +165,7 @@ where
 		exec: Exec,
 		handle: Box<dyn SpawnNamed>,
 		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
 		self.init(exec, handle, None, Some(config))
 	}
 
@@ -130,7 +175,7 @@ where
 		handle: Box<dyn SpawnNamed>,
 		keystore: SyncCryptoStorePtr,
 		config: ClientConfig<Block>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
 		self.init(exec, handle, Some(keystore), Some(config))
 	}
 
@@ -139,7 +184,7 @@ where
 		exec: Exec,
 		handle: Box<dyn SpawnNamed>,
 		keystore: SyncCryptoStorePtr,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
 		self.init(exec, handle, Some(keystore), None)
 	}
 
@@ -149,18 +194,25 @@ where
 		handle: Box<dyn SpawnNamed>,
 		keystore: Option<SyncCryptoStorePtr>,
 		config: Option<ClientConfig<Block>>,
-	) -> (TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>) {
+	) -> Result<(TFullClient<Block, RtApi, Exec>, Arc<TFullBackend<Block>>), Error> {
 		let backend = self.state.backend();
 		let config = config.clone().unwrap_or(Self::client_config());
 
-		// TODO: Handle unwrap
 		let executor = sc_service::client::LocalCallExecutor::new(
 			backend.clone(),
 			exec,
 			handle,
 			config.clone(),
 		)
-		.unwrap();
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Could not create local call executor."
+			);
+
+			Error::LocalCallExecutorCreation(e.into())
+		})?;
 
 		// TODO: Execution strategies default is not right. Use always wasm instead
 		let extensions = sc_client_api::execution_extensions::ExecutionExtensions::new(
@@ -186,10 +238,17 @@ where
 			None,
 			config.clone(),
 		)
-		.map_err(|_| "err".to_string())
-		.unwrap();
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_ENV_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Could not create substrate client."
+			);
 
-		(client, backend)
+			Error::SubstrateClientCreation(e.into())
+		})?;
+
+		Ok((client, backend))
 	}
 
 	fn client_config() -> ClientConfig<Block> {

@@ -92,18 +92,23 @@ where
 	let mut provider =
 		EnvProvider::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			PCODE.unwrap(),
-		);
+		)
+		.unwrap();
+
 	pallet_aura::GenesisConfig::<PRuntime> {
 		authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
 	}
 	.assimilate_storage(&mut storage)
 	.unwrap();
-	provider.insert_storage(storage);
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 
 	ParachainBuilder::<PTestBlock, PTestRtApi, TestExec<sp_io::SubstrateHostFunctions>, _, _, _>::new(
@@ -151,21 +156,27 @@ where
 	let mut provider =
 		EnvProvider::<RTestBlock, RTestRtApi, TestExec<sp_io::SubstrateHostFunctions>>::with_code(
 			RCODE.unwrap(),
-		);
+		)
+		.unwrap();
+
 	polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime>::default()
 		.assimilate_storage(&mut storage)
 		.unwrap();
-	provider.insert_storage(storage);
 
-	let (client, backend) = provider.init_default(
-		TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
-		Box::new(manager.spawn_handle()),
-	);
+	provider.insert_storage(storage).unwrap();
+
+	let (client, backend) = provider
+		.init_default(
+			TestExec::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+			Box::new(manager.spawn_handle()),
+		)
+		.unwrap();
 	let client = Arc::new(client);
 	let clone_client = client.clone();
 	// Init timestamp instance_id
 	let instance_id =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
 	let cidp = Box::new(
 		|clone_client: Arc<
@@ -201,7 +212,7 @@ where
 
 	let dp = Box::new(move |parent, inherents| async move {
 		let babe = FudgeBabeDigest::<RTestBlock>::new();
-		let digest = babe.build_digest(&parent, &inherents).await?;
+		let digest = babe.build_digest(parent, &inherents).await?;
 		Ok(digest)
 	});
 
@@ -227,7 +238,8 @@ async fn parachain_creates_correct_inherents() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
@@ -255,16 +267,10 @@ async fn parachain_creates_correct_inherents() {
 				let client = clone_client.clone();
 
 				async move {
-					let aura = FudgeAuraDigest::<
-						PTestBlock,
-						TFullClient<
-							PTestBlock,
-							PTestRtApi,
-							TestExec<sp_io::SubstrateHostFunctions>,
-						>,
-					>::new(&*client);
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
+					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&parent, &inherents).await?;
+					let digest = aura.build_digest(parent, &inherents).await?;
 					Ok(digest)
 				}
 			}
@@ -275,11 +281,14 @@ async fn parachain_creates_correct_inherents() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
+
+	let collator = builder.collator();
+
 	relay_builder
-		.onboard_para(para, Box::new(builder.collator()))
+		.onboard_para(para, Box::new(collator))
 		.unwrap();
 
 	let para_head = relay_builder
@@ -287,8 +296,8 @@ async fn parachain_creates_correct_inherents() {
 			polkadot_runtime_parachains::paras::Pallet::<RRuntime>::para_head(para_id).unwrap()
 		})
 		.unwrap();
-	let start_head = builder.head();
-	assert_eq!(builder.head(), para_head);
+	let start_head = builder.head().unwrap();
+	assert_eq!(builder.head().unwrap(), para_head);
 
 	relay_builder.build_block().unwrap();
 	// We need to do this as cumulus does check for increasing block nums and starting
@@ -320,8 +329,8 @@ async fn parachain_creates_correct_inherents() {
 			polkadot_runtime_parachains::paras::Pallet::<RRuntime>::para_head(para_id).unwrap()
 		})
 		.unwrap();
-	assert_eq!(builder.head(), para_head);
-	assert_ne!(builder.head(), start_head);
+	assert_eq!(builder.head().unwrap(), para_head);
+	assert_ne!(builder.head().unwrap(), start_head);
 }
 
 #[tokio::test]
@@ -335,7 +344,8 @@ async fn xcm_is_transported() {
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = Box::new(move |_| {
 		move |_parent: H256, ()| {
@@ -363,16 +373,10 @@ async fn xcm_is_transported() {
 				let client = clone_client.clone();
 
 				async move {
-					let aura = FudgeAuraDigest::<
-						PTestBlock,
-						TFullClient<
-							PTestBlock,
-							PTestRtApi,
-							TestExec<sp_io::SubstrateHostFunctions>,
-						>,
-					>::new(&*client);
+					let slot_duration = sc_consensus_aura::slot_duration(&*client).unwrap();
+					let aura = FudgeAuraDigest::<PTestBlock>::new(slot_duration);
 
-					let digest = aura.build_digest(&parent, &inherents).await?;
+					let digest = aura.build_digest(parent, &inherents).await?;
 					Ok(digest)
 				}
 			}
@@ -383,8 +387,8 @@ async fn xcm_is_transported() {
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: builder.head().unwrap(),
+		code: builder.code().unwrap(),
 	};
 
 	relay_builder
