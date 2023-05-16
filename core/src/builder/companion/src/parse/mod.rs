@@ -93,6 +93,8 @@ impl Parse for CompanionDef {
 	}
 }
 
+const EXPECTED_PATH_SEGMENTS: usize = 2;
+
 impl CompanionDef {
 	pub(crate) fn parse_struct(
 		vis: Visibility,
@@ -118,19 +120,12 @@ impl CompanionDef {
 			}
 		}
 
-		if relaychain.is_none() {
-			return Err(Error::new(
-				attr_span,
-				"At least one relaychain field must be provided.",
-			));
-		}
-
 		Ok(Self {
 			vis,
 			companion_name,
 			attr_span,
 			parachains,
-			relaychain: relaychain.expect("Relaychain is some. qed."),
+			relaychain: relaychain.ok_or(Error::new(fields.span(), "Relay chain not found."))?,
 			others,
 		})
 	}
@@ -149,41 +144,52 @@ impl CompanionDef {
 
 		if companion_fields.is_empty() {
 			return Ok(FieldType::Other(field));
-		} else {
-			for attr in companion_fields {
-				// TODO: This is really imprecisve and WIP
-				let second = attr.path.segments.last().unwrap();
-				if second.ident == "parachain" {
+		}
+
+		for attr in companion_fields {
+			if attr.path.segments.len() != EXPECTED_PATH_SEGMENTS {
+				return Err(Error::new(
+					field.span(),
+					format!("Expected {} path segments", EXPECTED_PATH_SEGMENTS),
+				));
+			}
+
+			let second = attr
+				.path
+				.segments
+				.last()
+				.ok_or(Error::new(field.span(), "Last path segment not found."))?;
+
+			return match second.ident.to_string().as_str() {
+				"parachain" => {
 					let id: parachain::ParaId = parse2(attr.tokens.clone())?;
 
-					return Ok(FieldType::Parachain(ParachainDef {
-						name: field
-							.ident
-							.clone()
-							.expect("Only named fields are passed here. qed."),
+					Ok(FieldType::Parachain(ParachainDef {
+						name: field.ident.clone().ok_or(Error::new(
+							field.span(),
+							"Parachain field identifier not found.",
+						))?,
 						id: id.to_token_stream(),
 						builder: field.ty.clone(),
 						vis: field.vis.clone(),
-					}));
-				} else if second.ident == "relaychain" {
-					return Ok(FieldType::Relaychain(RelaychainDef {
-						name: field
-							.ident
-							.clone()
-							.expect("Only named fields are passed here. qed."),
-						builder: field.ty.clone(),
-						vis: field.vis.clone(),
-					}));
-				} else {
-					return Err(syn::Error::new(
-						field.span(),
-						"Only parachain or relaychain attributes supported currently.",
-					));
+					}))
 				}
-			}
+				"relaychain" => Ok(FieldType::Relaychain(RelaychainDef {
+					name: field.ident.clone().ok_or(Error::new(
+						field.span(),
+						"Relaychain field identifier not found.",
+					))?,
+					builder: field.ty.clone(),
+					vis: field.vis.clone(),
+				})),
+				_ => Err(Error::new(
+					field.span(),
+					"Only parachain or relaychain attributes supported currently.",
+				)),
+			};
 		}
 
-		Err(syn::Error::new(
+		Err(Error::new(
 			field.span(),
 			"Only parachain or relaychain attributes supported currently.",
 		))
