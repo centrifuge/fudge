@@ -2596,6 +2596,8 @@ name = "fudge-core"
 version = "0.0.10"
 dependencies = [
  "async-trait",
+ "bitvec",
+ "cumulus-primitives-core",
  "cumulus-primitives-parachain-inherent",
  "cumulus-relay-chain-inprocess-interface",
  "frame-benchmarking",
@@ -2615,6 +2617,7 @@ dependencies = [
  "parking_lot 0.12.1",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-node-primitives",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime",
@@ -2633,6 +2636,7 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "scale-info",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
