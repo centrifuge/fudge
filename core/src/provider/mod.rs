@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::{error::Error, marker::PhantomData, sync::Arc};
+use std::{error::Error as StdError, marker::PhantomData, sync::Arc};
 
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
@@ -28,11 +28,14 @@ use sp_block_builder::BlockBuilder;
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use thiserror::Error;
 
 pub mod backend;
 pub mod externalities;
 pub mod initiator;
 pub mod state;
+
+pub type InnerError = Box<dyn StdError>;
 
 pub trait Initiator<Block: BlockT>
 where
@@ -61,7 +64,7 @@ where
 		+ TransactionPool<Block = Block, Hash = Block::Hash>
 		+ MaintainedTransactionPool;
 	type Executor: 'static + CodeExecutor + RuntimeVersionOf + Clone;
-	type Error: 'static + Error;
+	type Error: 'static + StdError;
 
 	fn init(
 		self,
@@ -103,6 +106,7 @@ pub trait ClientProvider<Block: BlockT> {
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
 	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
+	type Error: 'static + StdError;
 
 	fn provide(
 		&self,
@@ -111,7 +115,7 @@ pub trait ClientProvider<Block: BlockT> {
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 		spawn_handle: Box<dyn SpawnNamed>,
-	) -> Result<Arc<Self::Client>, ()>;
+	) -> Result<Arc<Self::Client>, Self::Error>;
 }
 
 pub struct DefaultClient<Block, RtApi, Exec>(PhantomData<(Block, RtApi, Exec)>);
@@ -135,6 +139,14 @@ pub type TWasmExecutor = WasmExecutor<
 	>,
 >;
 
+const DEFAULT_CLIENT_PROVIDER_LOG_TARGET: &str = "fudge-client-provider";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("full client creation: {0}")]
+	FullClientCreation(InnerError),
+}
+
 impl<Block, RtApi, Exec> ClientProvider<Block> for DefaultClient<Block, RtApi, Exec>
 where
 	Block: BlockT,
@@ -148,6 +160,7 @@ where
 	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;
 	type Backend = TFullBackend<Block>;
 	type Client = TFullClient<Block, RtApi, Exec>;
+	type Error = Error;
 	type Exec = Exec;
 
 	fn provide(
@@ -157,7 +170,7 @@ where
 		backend: Arc<Self::Backend>,
 		exec: LocalCallExecutor<Block, Self::Backend, Self::Exec>,
 		spawn_handle: Box<dyn SpawnNamed>,
-	) -> Result<Arc<Self::Client>, ()> {
+	) -> Result<Arc<Self::Client>, Self::Error> {
 		TFullClient::new(
 			backend.clone(),
 			exec,
@@ -169,7 +182,15 @@ where
 			None,
 			config,
 		)
-		.map_err(|_| ())
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_CLIENT_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Could not create full client."
+			);
+
+			Error::FullClientCreation(e.into())
+		})
 		.map(|client| Arc::new(client))
 	}
 }

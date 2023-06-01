@@ -44,8 +44,11 @@ pub trait DigestCreator<B>
 where
 	B: Block,
 {
-	async fn create_digest(&self, parent: B::Header, inherents: InherentData)
-		-> Result<Digest, ()>;
+	async fn create_digest(
+		&self,
+		parent: B::Header,
+		inherents: InherentData,
+	) -> Result<Digest, Error>;
 }
 
 #[async_trait::async_trait]
@@ -78,13 +81,13 @@ impl<F, Fut, B> DigestCreator<B> for F
 where
 	B: Block,
 	F: Fn(B::Header, InherentData) -> Fut + Sync + Send,
-	Fut: std::future::Future<Output = Result<Digest, ()>> + Send + 'static,
+	Fut: std::future::Future<Output = Result<Digest, Error>> + Send + 'static,
 {
 	async fn create_digest(
 		&self,
 		parent: B::Header,
 		inherents: InherentData,
-	) -> Result<Digest, ()> {
+	) -> Result<Digest, Error> {
 		(*self)(parent, inherents).await
 	}
 }
@@ -98,7 +101,7 @@ where
 		&self,
 		parent: B::Header,
 		inherents: InherentData,
-	) -> Result<Digest, ()> {
+	) -> Result<Digest, Error> {
 		(**self).create_digest(parent, inherents).await
 	}
 }

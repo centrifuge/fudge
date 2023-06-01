@@ -120,7 +120,7 @@ impl CurrTimeProvider {
 			})
 	}
 
-	pub fn create_instance(delta: Duration, start: Option<Duration>) -> InstanceId {
+	pub fn create_instance(delta: Duration, start: Option<Duration>) -> Result<InstanceId, Error> {
 		let instance_id = InstanceId(COUNTER.fetch_add(1, Ordering::SeqCst));
 
 		let start = if let Some(start) = start {
@@ -163,7 +163,7 @@ impl CurrTimeProvider {
 			},
 		);
 
-		instance_id
+		Ok(instance_id)
 	}
 
 	pub fn get_instance(instance_id: InstanceId) -> Result<Self, Error> {
@@ -268,7 +268,8 @@ mod test {
 
 		let delta = Duration::from_secs(DELTA);
 		let instance_id =
-			CurrTimeProvider::create_instance(delta, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 
@@ -303,13 +304,15 @@ mod test {
 
 		let delta_a = Duration::from_secs(DELTA_A);
 		let instance_a =
-			CurrTimeProvider::create_instance(delta_a, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta_a, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
 
 		let delta_b = Duration::from_secs(DELTA_A);
 		let instance_b =
-			CurrTimeProvider::create_instance(delta_b, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta_b, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 

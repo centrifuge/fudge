@@ -13,6 +13,8 @@
 use std::sync::Mutex;
 
 use codec::{Decode, Encode};
+use cumulus_primitives_core::{CollationInfo, CollectCollationInfo, ParachainBlockData};
+use polkadot_node_primitives::{Collation, MaybeCompressedPoV, PoV};
 use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
 use polkadot_primitives::PersistedValidationData;
 use sc_client_api::{
@@ -41,6 +43,7 @@ use thiserror::Error;
 use crate::{
 	builder::{
 		core::{Builder, InnerError, Operation},
+		relay_chain::{CollationBuilder, CollationJudgement},
 		PoolState,
 	},
 	digest::DigestCreator,
@@ -53,9 +56,12 @@ const DEFAULT_COLLATOR_LOG_TARGET: &str = "fudge-collator";
 const DEFAULT_PARACHAIN_BUILDER_LOG_TARGET: &str = "fudge-parachain";
 
 #[derive(Error, Debug)]
-pub enum Error<Block: sp_api::BlockT> {
+pub enum Error<Block: BlockT> {
 	#[error("core builder: {0}")]
 	CoreBuilder(InnerError),
+
+	#[error("initiator: {0}")]
+	Initiator(InnerError),
 
 	#[error("API version retrieval at {0}: {1}")]
 	APIVersionRetrieval(BlockId<Block>, InnerError),
@@ -211,8 +217,7 @@ where
 	}
 
 	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
-		let at = BlockId::Hash(self.client.info().best_hash);
-		let _state = self.backend.state_at(at.clone()).ok()?;
+		let _state = self.backend.state_at(self.client.info().best_hash).ok()?;
 		//ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
 		//	.execute_with(|| self.create_collation(validation_data))
 		self.create_collation(validation_data)
@@ -364,7 +369,7 @@ pub struct ParachainBuilder<
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api: TaggedTransactionQueue<Block>,
+	C::Api: TaggedTransactionQueue<Block> + CollectCollationInfo<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	builder: Builder<Block, RtApi, Exec, B, C, A>,
@@ -389,7 +394,8 @@ where
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
 		+ ApiExt<Block, StateBackend = B::State>
-		+ TaggedTransactionQueue<Block>,
+		+ TaggedTransactionQueue<Block>
+		+ CollectCollationInfo<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -406,15 +412,24 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Self
+	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error<Block>>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
 	{
-		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
+		let (client, backend, pool, executor, task_manager) = initiator.init().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not initialize."
+			);
+
+			Error::Initiator(e.into())
+		})?;
+
 		let (cidp, dp) = setup(client.clone());
 
-		Self {
+		Ok(Self {
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
@@ -422,7 +437,7 @@ where
 			next_import: Arc::new(Mutex::new(None)),
 			imports: Vec::new(),
 			_phantom: Default::default(),
-		}
+		})
 	}
 
 	pub fn collator(&self) -> FudgeCollator<Block, C, B> {
@@ -496,8 +511,6 @@ where
 	 */
 
 	pub fn build_block(&mut self) -> Result<(), Error<Block>> {
-		assert!(self.next.is_none());
-
 		let provider =
 			self.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
@@ -577,8 +590,8 @@ where
 
 		self.import_block_with_params(params)?;
 
-		let locked = self.next_block.clone();
-		let mut locked = locked.lock().map_err(|e| {
+		let binding = self.next_block.clone();
+		let mut next_block = binding.lock().map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -588,7 +601,7 @@ where
 			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
-		*locked = Some((block, proof));
+		*next_block = Some((block, proof));
 
 		Ok(())
 	}
@@ -642,15 +655,31 @@ where
 		}
 	}
 
-	pub fn next_build(&self) -> Option<FudgeParaBuild> {
-		if let Some((ref block, _)) = self.next {
-			Some(FudgeParaBuild {
-				parent_head: HeadData(self.builder.latest_header().encode()),
+	pub fn next_build(&self) -> Result<Option<FudgeParaBuild>, Error<Block>> {
+		let binding = self.next_block.clone();
+		let next_block = binding.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Lock for next block is poisoned.",
+			);
+
+			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+		})?;
+
+		let latest_header = self
+			.builder
+			.latest_header()
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+		let code = self.code()?;
+
+		match *next_block {
+			Some((ref block, _)) => Ok(Some(FudgeParaBuild {
+				parent_head: HeadData(latest_header.encode()),
 				block: BlockData(block.clone().encode()),
-				code: self.code()?,
-			})
-		} else {
-			None
+				code,
+			})),
+			None => Ok(None),
 		}
 	}
 
@@ -692,8 +721,6 @@ where
 	}
 
 	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, Error<Block>> {
-		assert!(self.next.is_none());
-
 		self.builder
 			.with_state(Operation::Commit, None, exec)
 			.map_err(|e| {
@@ -713,8 +740,6 @@ where
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, Error<Block>> {
-		assert!(self.next.is_none());
-
 		self.builder
 			.with_state(Operation::Commit, Some(at), exec)
 			.map_err(|e| {
@@ -731,7 +756,7 @@ where
 
 	fn import_block_with_params(
 		&mut self,
-		params: BlockImportParams<Block, <C as BlockImport<Block>>::Transaction>,
+		params: BlockImportParams<Block, TransactionFor<B, Block>>,
 	) -> Result<(), Error<Block>> {
 		self.builder.import_block(params).map_err(|e| {
 			tracing::error!(

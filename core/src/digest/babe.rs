@@ -17,7 +17,7 @@ use sp_consensus_babe::{
 	BABE_ENGINE_ID,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block as BlockT, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block as BlockT, DigestItem};
 use sp_std::marker::PhantomData;
 
 use crate::digest::{DigestProvider, Error};

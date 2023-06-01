@@ -18,7 +18,7 @@ use sp_consensus_aura::{
 	AuraApi, Slot, SlotDuration,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block, DigestItem};
 use sp_std::marker::PhantomData;
 use sp_timestamp::TimestampInherentData;
 
@@ -37,7 +37,7 @@ where
 	C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
 	C::Api: AuraApi<B, AuthorityId>,
 {
-	pub fn new(client: &C) -> Self {
+	pub fn new(client: &C) -> Result<Self, Error> {
 		let slot_duration = sc_consensus_aura::slot_duration(client).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_DIGEST_AURA_LOG_TARGET,
@@ -48,10 +48,10 @@ where
 			Error::SlotDurationRetrieval(e.into())
 		})?;
 
-		Self {
+		Ok(Self {
 			slot_duration,
 			_phantom: Default::default(),
-		}
+		})
 	}
 }
 
@@ -59,7 +59,7 @@ impl<B, C> DigestProvider<B> for Digest<B, C>
 where
 	B: Block,
 {
-	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, ()> {
+	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let timestamp = inherents
 			.timestamp_inherent_data()
 			.map_err(|e| {

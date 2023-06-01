@@ -10,21 +10,27 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use bitvec::vec::BitVec;
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use codec::{Decode, Encode};
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
-use futures::TryFutureExt;
-use polkadot_core_primitives::Block as PBlock;
+use frame_support::{
+	storage::types::{StorageMap, StorageValue, ValueQuery},
+	traits::StorageInstance,
+	Identity, Twox64Concat,
+};
+use polkadot_core_primitives::{Block as PBlock, CandidateHash};
 use polkadot_node_primitives::Collation;
-use polkadot_parachain::primitives::{Id, ValidationCodeHash};
+use polkadot_parachain::primitives::{
+	HeadData, Id, Id as ParaId, ValidationCode, ValidationCodeHash,
+};
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
-	PersistedValidationData,
+	GroupIndex, PersistedValidationData,
 };
 use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
 use polkadot_service::Handle;
@@ -38,6 +44,7 @@ use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
+use scale_info::TypeInfo;
 use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
@@ -72,6 +79,9 @@ const DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET: &str = "fudge-relaychain";
 pub enum Error {
 	#[error("core builder: {0}")]
 	CoreBuilder(InnerError),
+
+	#[error("initiator: {0}")]
+	Initiator(InnerError),
 
 	#[error("parachain judge error: {0}")]
 	ParachainJudgeError(InnerError),
@@ -124,18 +134,7 @@ pub enum Error {
 
 /// Recreating private storage types for easier handling storage access
 pub mod types {
-	use bitvec::vec::BitVec;
-	use frame_support::{
-		storage::types::{StorageMap, StorageValue, ValueQuery},
-		traits::StorageInstance,
-		Identity, Twox64Concat,
-	};
-	use polkadot_core_primitives::CandidateHash;
-	use polkadot_parachain::primitives::{
-		HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
-	};
-	use polkadot_primitives::{CandidateCommitments, CandidateDescriptor, CoreIndex, GroupIndex};
-	use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, ParaLifecycle};
+	use super::*;
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
@@ -243,7 +242,7 @@ pub mod types {
 		CandidateCommitments,
 	>;
 
-	// TODO: Need a test that automatically detects wheter this changes
+	// TODO: Need a test that automatically detects whether this changes
 	//       on the polkadot side. Via encode from this type and decode into
 	//       imported polkadot type.
 	/// A backed candidate pending availability.
@@ -431,7 +430,8 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block> + 'static,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	Runtime: paras::Config + frame_system::Config,
+	Runtime:
+		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -453,15 +453,25 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Self
+	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
 	{
-		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
-		let (cidp, dp) = setup(client.clone());
+		let (client, backend, pool, executor, task_manager) = initiator.init().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not initialize."
+			);
 
-		Self {
+			Error::Initiator(e.into())
+		})?;
+
+		let (cidp, dp) = setup(client.clone());
+		let handle = task_manager.spawn_handle();
+
+		Ok(Self {
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
@@ -469,9 +479,9 @@ where
 			imports: Vec::new(),
 			parachains: Vec::new(),
 			collations: Vec::new(),
-			handle: task_manager.spawn_handle(),
+			handle,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
 	pub fn client(&self) -> Arc<C> {
@@ -664,13 +674,25 @@ where
 			)
 		})??;
 
-		let Proposal { block, proof, .. } = self.builder.build_block(
-			self.builder.handle(),
-			inherents,
-			digest,
-			Duration::from_secs(60),
-			6_000_000,
-		);
+		let Proposal { block, proof, .. } = self
+			.builder
+			.build_block(
+				self.builder.handle(),
+				inherents,
+				digest,
+				Duration::from_secs(60),
+				6_000_000,
+			)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not build block."
+				);
+
+				Error::CoreBuilder(e.into())
+			})?;
+
 		self.next = Some((block.clone(), proof));
 
 		Ok(block)
@@ -702,10 +724,12 @@ where
 			Error::CoreBuilder(e.into())
 		})?;
 
+		let block_header = block.header().clone();
+
 		self.imports.push((block, proof));
 
 		self.force_enact_collations()?;
-		self.collect_collations(block.header().clone())?;
+		self.collect_collations(block_header)?;
 
 		Ok(())
 	}

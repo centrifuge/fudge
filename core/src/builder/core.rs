@@ -16,13 +16,13 @@ use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::Numbe
 use sc_client_api::{
 	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
 	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
-	StateBackend, UsageProvider,
+	UsageProvider,
 };
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{Environment, InherentData, Proposal, Proposer};
 use sp_core::traits::CodeExecutor;
@@ -31,7 +31,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, One, Zero},
 	Digest,
 };
-use sp_state_machine::{StorageChanges, StorageProof};
+use sp_state_machine::StorageProof;
 use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -44,7 +44,7 @@ const DEFAULT_BUILDER_LOG_TARGET: &str = "fudge-builder";
 pub type InnerError = Box<dyn std::error::Error>;
 
 #[derive(Error, Debug)]
-pub enum Error<Block: sp_api::BlockT> {
+pub enum Error<Block: BlockT> {
 	#[error("latest header retrieval: {0}")]
 	LatestHeaderRetrieval(InnerError),
 
@@ -84,6 +84,12 @@ pub enum Error<Block: sp_api::BlockT> {
 	#[error("state not available at {0}: {1}")]
 	StateNotAvailable(BlockId<Block>, InnerError),
 
+	#[error("block hash retrieval at {0}: {1}")]
+	BlockHashRetrieval(BlockId<Block>, InnerError),
+
+	#[error("block hash not found at {0}")]
+	BlockHashNotFound(BlockId<Block>),
+
 	#[error("block number retrieval at {0}: {1}")]
 	BlockNumberRetrieval(BlockId<Block>, InnerError),
 
@@ -93,14 +99,14 @@ pub enum Error<Block: sp_api::BlockT> {
 	#[error("externalities execution at {0:?}: {1}")]
 	ExternalitiesExecution(Option<BlockId<Block>>, InnerError),
 
-	#[error("storage update at {0}: {1}")]
-	StorageUpdate(BlockId<Block>, InnerError),
+	#[error("storage update at {0:?}: {1}")]
+	StorageUpdate(Option<BlockId<Block>>, InnerError),
 
 	#[error("DB storage update at {0:?}: {1}")]
 	DBStorageUpdate(Option<BlockId<Block>>, InnerError),
 
-	#[error("transaction index update at {0}: {1}")]
-	TransactionIndexUpdate(BlockId<Block>, InnerError),
+	#[error("transaction index update at {0:?}: {1}")]
+	TransactionIndexUpdate(Option<BlockId<Block>>, InnerError),
 
 	#[error("block data set at {0:?}: {1}")]
 	BlockDataSet(Option<BlockId<Block>>, InnerError),
@@ -116,6 +122,9 @@ pub enum Error<Block: sp_api::BlockT> {
 
 	#[error("block importing: {0}")]
 	BlockImporting(InnerError),
+
+	#[error("runtime version retrieval: {0}")]
+	RuntimeVersionRetrieval(InnerError),
 }
 
 #[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
@@ -206,7 +215,7 @@ where
 	pub fn latest_header(&self) -> Result<Block::Header, Error<Block>> {
 		self.backend
 			.blockchain()
-			.header(BlockId::Hash(self.latest_block()))
+			.header(self.latest_block())
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
@@ -254,8 +263,10 @@ where
 			Error::BackendOperationStart(at, e.into())
 		})?;
 
+		let header = self.get_block_header(at)?;
+
 		self.backend
-			.begin_state_operation(&mut op, at)
+			.begin_state_operation(&mut op, header.hash())
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
@@ -266,8 +277,6 @@ where
 
 				Error::BackendStateOperationStart(at, e.into())
 			})?;
-
-		let header = self.get_block_header(at)?;
 
 		self.check_best_hash_and_revert(*header.number())?;
 
@@ -289,8 +298,8 @@ where
 		self.task_manager.spawn_handle()
 	}
 
-	fn state_version(&self) -> StateVersion {
-		let wasm = self.latest_code();
+	fn state_version(&self) -> Result<StateVersion, Error<Block>> {
+		let wasm = self.latest_code()?;
 		let code_fetcher = sp_core::traits::WrappedRuntimeCode(wasm.as_slice().into());
 		let runtime_code = sp_core::traits::RuntimeCode {
 			code_fetcher: &code_fetcher,
@@ -304,8 +313,19 @@ where
 		};
 		let mut ext = sp_state_machine::BasicExternalities::new_empty(); // just to read runtime version.
 		let runtime_version =
-			RuntimeVersionOf::runtime_version(&self.executor, &mut ext, &runtime_code).unwrap();
-		runtime_version.state_version()
+			RuntimeVersionOf::runtime_version(&self.executor, &mut ext, &runtime_code).map_err(
+				|e| {
+					tracing::error!(
+						target = DEFAULT_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not retrieve runtime version.",
+					);
+
+					Error::RuntimeVersionRetrieval(e.into())
+				},
+			)?;
+
+		Ok(runtime_version.state_version())
 	}
 
 	pub fn with_state<R>(
@@ -314,25 +334,22 @@ where
 		at: Option<BlockId<Block>>,
 		exec: impl FnOnce() -> R,
 	) -> Result<R, Error<Block>> {
-		let block = match at {
-			Some(BlockId::Hash(req_at)) => req_at,
-			Some(BlockId::Number(req_at)) => {
-				self.backend.blockchain().hash(req_at).unwrap().unwrap()
-			}
-			_ => self.client.info().best_hash,
+		let block_hash = match at {
+			Some(block_id) => self.get_block_hash(block_id)?,
+			None => self.client.info().best_hash,
 		};
-		let state = self.backend.state_at(block);
-		let at = sp_api::BlockId::Hash(block);
+
+		let state = self.backend.state_at(block_hash);
 
 		let state = state.map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
 				"State not available at {}.",
-				at
+				BlockId::<Block>::Hash(block_hash)
 			);
 
-			Error::StateNotAvailable(at, e.into())
+			Error::StateNotAvailable(BlockId::<Block>::Hash(block_hash), e.into())
 		})?;
 
 		match op {
@@ -342,40 +359,45 @@ where
 						target = DEFAULT_BUILDER_LOG_TARGET,
 						error = ?e,
 						"Could not begin backend operation at {}.",
-						at,
+						BlockId::<Block>::Hash(block_hash),
 					);
 
-					Error::BackendOperationStart(at, e.into())
+					Error::BackendOperationStart(BlockId::<Block>::Hash(block_hash), e.into())
 				})?;
 
 				self.backend
-					.begin_state_operation(&mut op, at)
+					.begin_state_operation(&mut op, block_hash)
 					.map_err(|e| {
 						tracing::error!(
 							target = DEFAULT_BUILDER_LOG_TARGET,
 							error = ?e,
 							"Could not begin backend state operation at {}.",
-							at,
+							BlockId::<Block>::Hash(block_hash),
 						);
 
-						Error::BackendStateOperationStart(at, e.into())
+						Error::BackendStateOperationStart(
+							BlockId::<Block>::Hash(block_hash),
+							e.into(),
+						)
 					})?;
 
 				let block_number = self
 					.backend
 					.blockchain()
-					.block_number_from_id(&at)
+					.block_number_from_id(&BlockId::<Block>::Hash(block_hash))
 					.map_err(|e| {
 						tracing::error!(
 							target = DEFAULT_BUILDER_LOG_TARGET,
 							error = ?e,
 							"Could not retrieve block number for block at {}.",
-							at,
+							BlockId::<Block>::Hash(block_hash),
 						);
 
-						Error::BlockNumberRetrieval(at, e.into())
+						Error::BlockNumberRetrieval(BlockId::<Block>::Hash(block_hash), e.into())
 					})?
-					.ok_or(Error::BlockNumberNotFound(at))?;
+					.ok_or(Error::BlockNumberNotFound(BlockId::<Block>::Hash(
+						block_hash,
+					)))?;
 
 				let res = if block_number == Zero::zero() {
 					self.mutate_genesis::<R>(&mut op, &state, exec)
@@ -394,10 +416,13 @@ where
 							at,
 						);
 
-						Error::ExternalitiesExecution(Some(at), e.into())
+						Error::ExternalitiesExecution(
+							Some(BlockId::<Block>::Hash(block_hash)),
+							e.into(),
+						)
 					})?;
 
-					self.mutate_normal(&mut op, changes, at)?;
+					self.mutate_normal(&mut op, changes, BlockId::<Block>::Hash(block_hash))?;
 
 					Ok(r)
 				}?;
@@ -407,13 +432,13 @@ where
 						target = DEFAULT_BUILDER_LOG_TARGET,
 						error = ?e,
 						"Could not commit backend operation at {}.",
-						at,
+						BlockId::<Block>::Hash(block_hash),
 					);
 
-					Error::BackendOperationCommit(at, e.into())
+					Error::BackendOperationCommit(BlockId::<Block>::Hash(block_hash), e.into())
 				})?;
 
-				res
+				Ok(res)
 			}
 			Operation::DryRun => Ok(
 				ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state).execute_with(exec),
@@ -439,7 +464,7 @@ where
 			Error::ExternalitiesExecution(Some(BlockId::Number(Zero::zero())), e.into())
 		})?;
 
-		let (_main_sc, _child_sc, _, tx, root, _tx_index) = changes.into_inner();
+		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
 		op.update_db_storage(tx).map_err(|e| {
 			tracing::error!(
@@ -458,7 +483,7 @@ where
 				"Could not update storage."
 			);
 
-			Error::StorageUpdate(at, e.into())
+			Error::StorageUpdate(None, e.into())
 		})?;
 
 		op.update_transaction_index(tx_index).map_err(|e| {
@@ -468,7 +493,7 @@ where
 				"Could not update transaction index."
 			);
 
-			Error::TransactionIndexUpdate(at, e.into())
+			Error::TransactionIndexUpdate(None, e.into())
 		})?;
 
 		let genesis_block = Block::new(
@@ -476,7 +501,7 @@ where
 				Zero::zero(),
 				<<<Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
 					Vec::new(),
-					self.state_version(),
+					self.state_version()?,
 				),
 				root,
 				Default::default(),
@@ -505,7 +530,7 @@ where
 		Ok(r)
 	}
 
-	fn mutate_normal<R>(
+	fn mutate_normal(
 		&self,
 		op: &mut B::BlockImportOperation,
 		changes: StorageChanges<B::State, Block>,
@@ -514,6 +539,7 @@ where
 		let chain_backend = self.backend.blockchain();
 
 		let mut header = self.get_block_header(at)?;
+		let block_hash = header.hash();
 
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
@@ -536,7 +562,7 @@ where
 				"Could not update storage."
 			);
 
-			Error::StorageUpdate(at, e.into())
+			Error::StorageUpdate(Some(at), e.into())
 		})?;
 
 		op.update_transaction_index(tx_index).map_err(|e| {
@@ -546,15 +572,10 @@ where
 				"Could not update transaction index."
 			);
 
-			Error::TransactionIndexUpdate(at, e.into())
+			Error::TransactionIndexUpdate(Some(at), e.into())
 		})?;
 
-		let block = match at {
-			BlockId::Hash(req_at) => req_at,
-			BlockId::Number(req_at) => self.backend.blockchain().hash(req_at).unwrap().unwrap(),
-		};
-
-		let body = chain_backend.body(block).map_err(|e| {
+		let body = chain_backend.body(block_hash).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -565,7 +586,7 @@ where
 			Error::StateRetrieval(at, e.into())
 		})?;
 
-		let indexed_body = chain_backend.block_indexed_body(at).map_err(|e| {
+		let indexed_body = chain_backend.block_indexed_body(block_hash).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -576,7 +597,7 @@ where
 			Error::BlockIndexedBodyRetrieval(at, e.into())
 		})?;
 
-		let justifications = chain_backend.justifications(at).map_err(|e| {
+		let justifications = chain_backend.justifications(block_hash).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -734,10 +755,41 @@ where
 		Ok(())
 	}
 
+	fn get_block_hash(&self, at: BlockId<Block>) -> Result<Block::Hash, Error<Block>> {
+		match at {
+			BlockId::Hash(hash) => Ok(hash),
+			BlockId::Number(number) => self
+				.backend
+				.blockchain()
+				.hash(number)
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not get block hash at {}.",
+						at,
+					);
+
+					Error::BlockHashRetrieval(at, e.into())
+				})?
+				.ok_or({
+					tracing::error!(
+						target = DEFAULT_BUILDER_LOG_TARGET,
+						"Block hash not found at {}",
+						at,
+					);
+
+					Error::BlockHashNotFound(at)
+				}),
+		}
+	}
+
 	fn get_block_header(&self, at: BlockId<Block>) -> Result<Block::Header, Error<Block>> {
+		let block_hash = self.get_block_hash(at)?;
+
 		self.backend
 			.blockchain()
-			.header(at)
+			.header(block_hash)
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,

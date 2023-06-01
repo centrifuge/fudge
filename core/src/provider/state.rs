@@ -106,7 +106,7 @@ where
 					path: path,
 					cache_size: 1024,
 				},
-				blocks_pruning: BlocksPruning::All,
+				blocks_pruning: BlocksPruning::KeepAll,
 			},
 			DbOpen::Default(path) => DatabaseSettings {
 				trie_cache_maximum_size: None,
@@ -115,7 +115,7 @@ where
 					path: path,
 					cache_size: 1024,
 				},
-				blocks_pruning: BlocksPruning::All,
+				blocks_pruning: BlocksPruning::KeepAll,
 			},
 		};
 
@@ -169,7 +169,7 @@ where
 				db: Arc::new(MemDb::new()),
 				require_create_flag: true,
 			},
-			blocks_pruning: BlocksPruning::All,
+			blocks_pruning: BlocksPruning::KeepAll,
 		};
 
 		let backend = Arc::new(

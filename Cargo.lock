@@ -3406,13 +3406,16 @@ name = "integration_test"
 version = "0.1.0"
 dependencies = [
  "fudge",
+ "fudge-core",
  "fudge-test-runtime",
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-runtime",
  "sp-consensus-babe",
  "sp-inherents",
+ "sp-std",
  "sp-tracing",
+ "thiserror",
 ]
 
 [[package]]

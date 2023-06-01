@@ -48,6 +48,9 @@ pub enum Error {
 	#[error("core builder: {0}")]
 	CoreBuilder(InnerError),
 
+	#[error("initiator: {0}")]
+	Initiator(InnerError),
+
 	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
@@ -122,23 +125,34 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Self
+	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
 	{
-		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
+		let (client, backend, pool, executor, task_manager) = initiator.init().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not initialize."
+			);
+
+			Error::Initiator(e.into())
+		})?;
+
 		let (cidp, dp) = setup(client.clone());
 
-		Self {
+		let handle = task_manager.spawn_handle();
+
+		Ok(Self {
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
 			next: None,
 			imports: Vec::new(),
-			handle: task_manager.spawn_handle(),
+			handle,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
 	pub fn client(&self) -> Arc<C> {
