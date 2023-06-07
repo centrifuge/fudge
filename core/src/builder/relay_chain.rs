@@ -30,9 +30,11 @@ use polkadot_primitives::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
-	GroupIndex, PersistedValidationData,
+	GroupIndex, PersistedValidationData, SessionIndex,
 };
-use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
+use polkadot_runtime_parachains::{
+	inclusion::CandidatePendingAvailability, paras, session_info::AccountId, ParaLifecycle,
+};
 use polkadot_service::Handle;
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
@@ -242,6 +244,17 @@ pub mod types {
 		CandidateCommitments,
 	>;
 
+	pub struct AccountKeysPrefix;
+	impl StorageInstance for AccountKeysPrefix {
+		const STORAGE_PREFIX: &'static str = "AccountKeys";
+
+		fn pallet_prefix() -> &'static str {
+			"ParaSessionInfo"
+		}
+	}
+	pub type AccountKeys<T> =
+		StorageMap<AccountKeysPrefix, Identity, SessionIndex, Vec<AccountId<T>>>;
+
 	// TODO: Need a test that automatically detects whether this changes
 	//       on the polkadot side. Via encode from this type and decode into
 	//       imported polkadot type.
@@ -358,7 +371,7 @@ where
 
 				Error::PersistedValidationDataRetrieval(e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 					"Persisted validation data not found",
@@ -374,7 +387,7 @@ where
 			self.id,
 		)
 		.await
-		.ok_or({
+		.ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 				"Could not create parachain inherent data",
@@ -430,8 +443,10 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block> + 'static,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	Runtime:
-		paras::Config + frame_system::Config + polkadot_runtime_parachains::initializer::Config,
+	Runtime: paras::Config
+		+ frame_system::Config
+		+ polkadot_runtime_parachains::session_info::Config
+		+ polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
 		+ ApiExt<Block, StateBackend = B::State>
@@ -591,11 +606,11 @@ where
 				});
 			}
 
-			ParaLifecycles::try_mutate::<_, (), (), _>(id, |para_lifecylce| {
-				if let Some(lifecycle) = para_lifecylce.as_mut() {
+			ParaLifecycles::try_mutate::<_, (), (), _>(id, |para_lifecycle| {
+				if let Some(lifecycle) = para_lifecycle.as_mut() {
 					*lifecycle = ParaLifecycle::Parachain;
 				} else {
-					*para_lifecylce = Some(ParaLifecycle::Parachain);
+					*para_lifecycle = Some(ParaLifecycle::Parachain);
 				}
 
 				Ok(())
@@ -608,6 +623,9 @@ where
 
 				Error::ParaLifecyclesMutation
 			})?;
+
+			// Populate the account keys storage of the SessionInfo pallet.
+			AccountKeys::<Runtime>::insert(0, Vec::<AccountId<Runtime>>::new());
 
 			Heads::insert(&id, head);
 
@@ -647,7 +665,7 @@ where
 					"Could not create inherent data."
 				);
 
-				Error::InherentDataProvidersCreation(e.into())
+				Error::InherentDataCreation(e.into())
 			})?;
 
 		let parent = self.builder.latest_header().map_err(|e| {
@@ -699,7 +717,7 @@ where
 	}
 
 	pub fn import_block(&mut self) -> Result<(), Error> {
-		let (block, proof) = self.next.take().ok_or({
+		let (block, proof) = self.next.take().ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 				"Next block not found."
@@ -812,7 +830,7 @@ where
 					Parachains::get()
 						.iter()
 						.position(|in_id| *in_id == id)
-						.ok_or({
+						.ok_or_else(|| {
 							tracing::error!(
 								target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 								"Parachain not onboarded",
@@ -867,7 +885,7 @@ where
 				polkadot_runtime_parachains::runtime_api_impl::v2::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
-				.ok_or({
+				.ok_or_else(|| {
 					tracing::error!(
 						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 						"Persisted validation data not found",
@@ -883,7 +901,7 @@ where
 				.parachains
 				.iter()
 				.position(|(in_id, _)| *in_id == id)
-				.ok_or({
+				.ok_or_else(|| {
 					tracing::error!(
 						target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 						"Parachain not onboarded",
@@ -892,7 +910,7 @@ where
 					Error::ParachainNotOnboarded
 				})?;
 
-			let (_, collator) = self.parachains.get(index).ok_or({
+			let (_, collator) = self.parachains.get(index).ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 					"Parachain not found",
@@ -984,7 +1002,7 @@ where
 
 		Error::PersistedValidationDataRetrieval(e.into())
 	})?
-	.ok_or({
+	.ok_or_else(|| {
 		tracing::error!(
 			target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 			"Persisted validation data not found",
@@ -1015,7 +1033,7 @@ where
 
 			Error::ValidationCodeHashRetrieval(e.into())
 		})?
-		.ok_or({
+		.ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
 				"Validation code hash not found",

@@ -53,7 +53,7 @@ where
 
 				Error::BabeInherentDataRetrieval(e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
 					"Babe inherent data not found."

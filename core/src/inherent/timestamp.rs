@@ -110,7 +110,7 @@ impl CurrTimeProvider {
 					ticks: 0,
 				};
 			})
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 					"Instance not found",
@@ -181,7 +181,7 @@ impl CurrTimeProvider {
 		locked_instances
 			.get(&instance_id)
 			.map(|instance| instance.clone())
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 					"Instance not found",
@@ -203,7 +203,7 @@ impl CurrTimeProvider {
 			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
 		})?;
 
-		let instance = instances.get_mut(&self.instance_id).ok_or({
+		let instance = instances.get_mut(&self.instance_id).ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
 				"Instance not found",
@@ -279,7 +279,7 @@ mod test {
 		);
 
 		// Progress time by delta
-		time.update_time();
+		time.update_time().unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -288,7 +288,7 @@ mod test {
 		);
 
 		// Progress time by delta
-		time.update_time();
+		time.update_time().unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -326,10 +326,10 @@ mod test {
 		);
 
 		// Progress time by delta
-		time_a.update_time();
+		time_a.update_time().unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
-		time_b.update_time();
+		time_b.update_time().unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -342,10 +342,10 @@ mod test {
 		);
 
 		// Progress time by delta
-		time_a.update_time();
+		time_a.update_time().unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
-		time_b.update_time();
+		time_b.update_time().unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 		assert_eq!(

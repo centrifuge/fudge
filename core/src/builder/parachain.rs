@@ -173,7 +173,7 @@ where
 
 				Error::APIVersionRetrieval(block_id, e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_COLLATOR_LOG_TARGET,
 					"API version at {} not found.",
@@ -303,7 +303,7 @@ where
 				Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 			})?
 			.take()
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_COLLATOR_LOG_TARGET,
 					"Next block not found.",
@@ -323,6 +323,7 @@ where
 		})?;
 
 		*locked_import = Some(build);
+
 		Ok(())
 	}
 
@@ -337,7 +338,7 @@ where
 			Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
-		let _build = locked.take().ok_or({
+		let _build = locked.take().ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_COLLATOR_LOG_TARGET,
 				"Next block not found.",
@@ -590,6 +591,7 @@ where
 
 		self.import_block_with_params(params)?;
 
+		// self.set_next_block_and_import(Some((block, proof)))?;
 		let binding = self.next_block.clone();
 		let mut next_block = binding.lock().map_err(|e| {
 			tracing::error!(
@@ -602,6 +604,39 @@ where
 		})?;
 
 		*next_block = Some((block, proof));
+
+		Ok(())
+	}
+
+	fn set_next_block_and_import(
+		&self,
+		block: Option<(Block, StorageProof)>,
+	) -> Result<(), Error<Block>> {
+		let binding = self.next_block.clone();
+		let mut next_block = binding.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Lock for next block is poisoned.",
+			);
+
+			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+		})?;
+
+		*next_block = block.clone();
+
+		let binding = self.next_import.clone();
+		let mut next_import = binding.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Lock for next import is poisoned.",
+			);
+
+			Error::NextImportLockPoisoned(InnerError::from(e.to_string()))
+		})?;
+
+		*next_import = block;
 
 		Ok(())
 	}
@@ -645,12 +680,14 @@ where
 			self.imports.push((block.clone(), proof.clone()));
 
 			*locked = None;
+
 			Ok(())
 		} else {
 			tracing::warn!(
 				target: DEFAULT_COLLATOR_LOG_TARGET,
 				"No import for parachain available.",
 			);
+
 			Ok(())
 		}
 	}

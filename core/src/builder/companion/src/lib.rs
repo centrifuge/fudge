@@ -22,17 +22,17 @@ mod parse;
 /// # Usage
 /// In order to generate a companion builder use the macro as shown below.
 ///
-/// ```rust
+/// ```ignore
 /// #[fudge::companion]
-/// struct Local {
-/// 	#[fudge::parachain(2000)]
-/// 	pub centrifuge: ParachainBuilder<Block, RtApi>,
+/// struct TestEnv {
+/// 	#[fudge::parachain(PARA_ID)]
+/// 	centrifuge: ParachainBuilder<PBlock, PRtApi, PCidp, PDp>,
 ///
-///     #[fudge::parachain(2001)]
-/// 	pub acala: ParachainBuilder<Block, RtApi>,
+/// 	#[fudge::parachain(2000u32)]
+/// 	sibling: ParachainBuilder<PBlock, PRtApi, PCidp, PDp>,
 ///
-///  	#[fudge::relaychain]
-///		pub polkadot: RelaychainBuilder<RtApi>,
+/// 	#[fudge::relaychain]
+/// 	polkadot: RelaychainBuilder<RBlock, RRtApi, RRuntime, RCidp, RDp>,
 /// }
 /// ```
 #[proc_macro_attribute]

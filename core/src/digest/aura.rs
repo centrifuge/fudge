@@ -71,7 +71,7 @@ where
 
 				Error::TimestampInherentDataRetrieval(e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
 					"Timestamp inherent data not found."

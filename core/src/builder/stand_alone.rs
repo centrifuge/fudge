@@ -283,7 +283,7 @@ where
 	}
 
 	pub fn import_block(&mut self) -> Result<(), Error> {
-		let (block, proof) = self.next.take().ok_or({
+		let (block, proof) = self.next.take().ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
 				"Next block not found."

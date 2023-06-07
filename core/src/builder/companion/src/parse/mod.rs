@@ -125,7 +125,8 @@ impl CompanionDef {
 			companion_name,
 			attr_span,
 			parachains,
-			relaychain: relaychain.ok_or(Error::new(fields.span(), "Relay chain not found."))?,
+			relaychain: relaychain
+				.ok_or_else(|| Error::new(fields.span(), "Relay chain not found."))?,
 			others,
 		})
 	}
@@ -158,27 +159,25 @@ impl CompanionDef {
 				.path
 				.segments
 				.last()
-				.ok_or(Error::new(field.span(), "Last path segment not found."))?;
+				.ok_or_else(|| Error::new(field.span(), "Last path segment not found."))?;
 
 			return match second.ident.to_string().as_str() {
 				"parachain" => {
 					let id: parachain::ParaId = parse2(attr.tokens.clone())?;
 
 					Ok(FieldType::Parachain(ParachainDef {
-						name: field.ident.clone().ok_or(Error::new(
-							field.span(),
-							"Parachain field identifier not found.",
-						))?,
+						name: field.ident.clone().ok_or_else(|| {
+							Error::new(field.span(), "Parachain field identifier not found.")
+						})?,
 						id: id.to_token_stream(),
 						builder: field.ty.clone(),
 						vis: field.vis.clone(),
 					}))
 				}
 				"relaychain" => Ok(FieldType::Relaychain(RelaychainDef {
-					name: field.ident.clone().ok_or(Error::new(
-						field.span(),
-						"Relaychain field identifier not found.",
-					))?,
+					name: field.ident.clone().ok_or_else(|| {
+						Error::new(field.span(), "Relaychain field identifier not found.")
+					})?,
 					builder: field.ty.clone(),
 					vis: field.vis.clone(),
 				})),

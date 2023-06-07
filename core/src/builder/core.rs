@@ -225,7 +225,7 @@ where
 
 				Error::LatestHeaderRetrieval(e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
 					"Latest header not found."
@@ -237,14 +237,16 @@ where
 
 	pub fn latest_code(&self) -> Result<Vec<u8>, Error<Block>> {
 		self.with_state(Operation::DryRun, None, || {
-			frame_support::storage::unhashed::get_raw(sp_storage::well_known_keys::CODE).ok_or({
-				tracing::error!(
-					target = DEFAULT_BUILDER_LOG_TARGET,
-					"Latest code not found."
-				);
+			frame_support::storage::unhashed::get_raw(sp_storage::well_known_keys::CODE).ok_or_else(
+				|| {
+					tracing::error!(
+						target = DEFAULT_BUILDER_LOG_TARGET,
+						"Latest code not found."
+					);
 
-				Error::LatestCodeNotFound
-			})
+					Error::LatestCodeNotFound
+				},
+			)
 		})?
 	}
 
@@ -339,9 +341,7 @@ where
 			None => self.client.info().best_hash,
 		};
 
-		let state = self.backend.state_at(block_hash);
-
-		let state = state.map_err(|e| {
+		let state = self.backend.state_at(block_hash).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -395,9 +395,15 @@ where
 
 						Error::BlockNumberRetrieval(BlockId::<Block>::Hash(block_hash), e.into())
 					})?
-					.ok_or(Error::BlockNumberNotFound(BlockId::<Block>::Hash(
-						block_hash,
-					)))?;
+					.ok_or_else(|| {
+						tracing::error!(
+							target = DEFAULT_BUILDER_LOG_TARGET,
+							"Block number not found for block at {}.",
+							BlockId::<Block>::Hash(block_hash),
+						);
+
+						Error::BlockNumberNotFound(BlockId::<Block>::Hash(block_hash))
+					})?;
 
 				let res = if block_number == Zero::zero() {
 					self.mutate_genesis::<R>(&mut op, &state, exec)
@@ -608,8 +614,6 @@ where
 			Error::JustificationsRetrieval(at, e.into())
 		})?;
 
-		// TODO(cdamian): Carried over from original PR.
-		//
 		// TODO: We set as final, this might not be correct.
 		op.set_block_data(
 			header,
@@ -707,7 +711,7 @@ where
 		)
 	}
 
-	/// Import a block, that has been previosuly build
+	/// Import a block, that has been previously built.
 	pub fn import_block(
 		&mut self,
 		params: BlockImportParams<Block, TransactionFor<B, Block>>,
@@ -772,7 +776,7 @@ where
 
 					Error::BlockHashRetrieval(at, e.into())
 				})?
-				.ok_or({
+				.ok_or_else(|| {
 					tracing::error!(
 						target = DEFAULT_BUILDER_LOG_TARGET,
 						"Block hash not found at {}",
@@ -800,7 +804,7 @@ where
 
 				Error::HeaderRetrieval(at, e.into())
 			})?
-			.ok_or({
+			.ok_or_else(|| {
 				tracing::error!(
 					target = DEFAULT_BUILDER_LOG_TARGET,
 					"Header not found at {}",

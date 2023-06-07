@@ -50,8 +50,6 @@ where
 	B: Backend<H>,
 {
 	overlay: OverlayedChanges,
-	// TODO(cdamian): carried over from original PR.
-	//
 	// TODO: Do we need an offchain-db here?
 	//offchain_db: TestPersistentOffchainDB,
 	storage_transaction_cache: StorageTransactionCache<<B as Backend<H>>::Transaction, H>,
@@ -83,8 +81,6 @@ where
 		)
 	}
 
-	// TODO(cdamian): carried over from original PR.
-	//
 	/*
 	/// Create a new instance_id of `TestExternalities` with storage.
 	pub fn new(storage: Storage) -> Self {
