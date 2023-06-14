@@ -218,8 +218,6 @@ where
 
 	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
 		let _state = self.backend.state_at(self.client.info().best_hash).ok()?;
-		//ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state)
-		//	.execute_with(|| self.create_collation(validation_data))
 		self.create_collation(validation_data)
 	}
 
@@ -591,7 +589,6 @@ where
 
 		self.import_block_with_params(params)?;
 
-		// self.set_next_block_and_import(Some((block, proof)))?;
 		let binding = self.next_block.clone();
 		let mut next_block = binding.lock().map_err(|e| {
 			tracing::error!(
@@ -604,39 +601,6 @@ where
 		})?;
 
 		*next_block = Some((block, proof));
-
-		Ok(())
-	}
-
-	fn set_next_block_and_import(
-		&self,
-		block: Option<(Block, StorageProof)>,
-	) -> Result<(), Error<Block>> {
-		let binding = self.next_block.clone();
-		let mut next_block = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
-
-			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*next_block = block.clone();
-
-		let binding = self.next_import.clone();
-		let mut next_import = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next import is poisoned.",
-			);
-
-			Error::NextImportLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*next_import = block;
 
 		Ok(())
 	}
