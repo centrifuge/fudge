@@ -30,11 +30,9 @@ use polkadot_primitives::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
-	GroupIndex, PersistedValidationData, SessionIndex,
+	GroupIndex, PersistedValidationData,
 };
-use polkadot_runtime_parachains::{
-	inclusion::CandidatePendingAvailability, paras, session_info::AccountId, ParaLifecycle,
-};
+use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
 use polkadot_service::Handle;
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
@@ -140,10 +138,10 @@ pub mod types {
 
 	pub struct ParaLifecyclesPrefix;
 	impl StorageInstance for ParaLifecyclesPrefix {
-		const STORAGE_PREFIX: &'static str = "Parachains";
+		const STORAGE_PREFIX: &'static str = "ParaLifecycles";
 
 		fn pallet_prefix() -> &'static str {
-			"ParaLifecycles"
+			"Paras"
 		}
 	}
 	pub type ParaLifecycles = StorageMap<ParaLifecyclesPrefix, Twox64Concat, ParaId, ParaLifecycle>;
@@ -243,17 +241,6 @@ pub mod types {
 		ParaId,
 		CandidateCommitments,
 	>;
-
-	pub struct AccountKeysPrefix;
-	impl StorageInstance for AccountKeysPrefix {
-		const STORAGE_PREFIX: &'static str = "AccountKeys";
-
-		fn pallet_prefix() -> &'static str {
-			"ParaSessionInfo"
-		}
-	}
-	pub type AccountKeys<T> =
-		StorageMap<AccountKeysPrefix, Identity, SessionIndex, Vec<AccountId<T>>>;
 
 	// TODO: Need a test that automatically detects whether this changes
 	//       on the polkadot side. Via encode from this type and decode into
@@ -569,6 +556,7 @@ where
 		collator: Box<dyn CollationBuilder>,
 	) -> Result<(), Error> {
 		let FudgeParaChain { id, head, code } = para;
+
 		self.with_mut_state(|| -> Result<(), Error> {
 			let current_block = frame_system::Pallet::<Runtime>::block_number();
 			let code_hash = code.hash();
@@ -623,9 +611,6 @@ where
 
 				Error::ParaLifecyclesMutation
 			})?;
-
-			// Populate the account keys storage of the SessionInfo pallet.
-			AccountKeys::<Runtime>::insert(0, Vec::<AccountId<Runtime>>::new());
 
 			Heads::insert(&id, head);
 

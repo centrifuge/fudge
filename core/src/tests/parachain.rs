@@ -17,10 +17,11 @@ use fudge_test_runtime::{
 };
 use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
+use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
-use sp_core::H256;
+use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::Storage;
 use sp_std::sync::Arc;
@@ -177,6 +178,31 @@ fn default_relay_builder(
 			polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
 				.build_storage()
 				.unwrap(),
+		)
+		.unwrap();
+	state
+		.insert_storage(
+			pallet_session::GenesisConfig::<RRuntime> {
+				keys: vec![(
+					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
+					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
+					polkadot_runtime::SessionKeys {
+						grandpa: pallet_grandpa::AuthorityId::from_slice([0u8; 32].as_slice())
+							.unwrap(),
+						babe: pallet_babe::AuthorityId::from_slice([0u8; 32].as_slice()).unwrap(),
+						im_online: pallet_im_online::sr25519::AuthorityId::from_slice(
+							[0u8; 32].as_slice(),
+						)
+						.unwrap(),
+						para_validator: ValidatorId::from_slice([0u8; 32].as_slice()).unwrap(),
+						para_assignment: AssignmentId::from_slice([0u8; 32].as_slice()).unwrap(),
+						authority_discovery: AuthorityDiscoveryId::from_slice([0u8; 32].as_slice())
+							.unwrap(),
+					},
+				)],
+			}
+			.build_storage()
+			.unwrap(),
 		)
 		.unwrap();
 	state.insert_storage(genesis).unwrap();
