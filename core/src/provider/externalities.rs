@@ -13,12 +13,30 @@
 //! The module provides a ways and means to interact with
 //! and provide externalities.
 
-use std::panic::{AssertUnwindSafe, UnwindSafe};
+use std::{
+	any::Any,
+	panic::{AssertUnwindSafe, UnwindSafe},
+};
 
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
 use sp_storage::StateVersion;
+use thiserror::Error;
+
+const DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET: &str = "fudge-externalities";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("storage transaction commit error")]
+	StorageTransactionCommit,
+
+	#[error("storage changes draining: {0}")]
+	StorageChangesDraining(Box<dyn std::error::Error>),
+
+	#[error("externalities set and run: {0:?}")]
+	ExternalitiesSetAndRun(Box<dyn Any + Send + 'static>),
+}
 
 /// Provides a simple and secure way to execute code
 /// in an externalities provided environment.
@@ -32,6 +50,8 @@ where
 	B: Backend<H>,
 {
 	overlay: OverlayedChanges,
+	// TODO: Do we need an offchain-db here?
+	//offchain_db: TestPersistentOffchainDB,
 	storage_transaction_cache: StorageTransactionCache<<B as Backend<H>>::Transaction, H>,
 	backend: &'a B,
 }
@@ -61,51 +81,166 @@ where
 		)
 	}
 
-	/// Drains the overlay changes into a `StorageChanges` struct. Leaving an empty overlay
-	/// in place.
-	///
-	/// This can be used to retain changes that should be commited to an underlying database or
-	/// to reset the overlay.
-	pub fn drain(&mut self, state_version: StateVersion) -> StorageChanges<B::Transaction, H> {
-		self.overlay
-			.drain_storage_changes::<B, H>(
-				self.backend,
-				&mut self.storage_transaction_cache,
-				state_version,
-			)
-			.expect("Drain  storage changes implementation does not return result but fails. Qed.")
+	/*
+	/// Create a new instance_id of `TestExternalities` with storage.
+	pub fn new(storage: Storage) -> Self {
+		Self::new_with_code(&[], storage)
 	}
 
-	/// Execute some code in an externalities provided environment.
+	/// New empty test externalities.
+	pub fn new_empty() -> Self {
+		Self::new_with_code(&[], Storage::default())
+	}
+
+	/// Create a new instance_id of `TestExternalities` with code and storage.
+	pub fn new_with_code(code: &[u8], mut storage: Storage) -> Self {
+		let mut overlay = OverlayedChanges::default();
+		let changes_trie_config = storage
+			.top
+			.get(CHANGES_TRIE_CONFIG)
+			.and_then(|v| Decode::decode(&mut &v[..]).ok());
+		overlay.set_collect_extrinsics(changes_trie_config.is_some());
+
+		assert!(storage.top.keys().all(|key| !is_child_storage_key(key)));
+		assert!(storage.children_default.keys().all(|key| is_child_storage_key(key)));
+
+		storage.top.insert(CODE.to_vec(), code.to_vec());
+
+		let mut extensions = Extensions::default();
+		extensions.register(TaskExecutorExt::new(TaskExecutor::new()));
+
+		let offchain_db = TestPersistentOffchainDB::new();
+
+		TestExternalities {
+			overlay,
+			offchain_db,
+			changes_trie_config,
+			extensions,
+			changes_trie_storage: ChangesTrieInMemoryStorage::new(),
+			backend: storage.into(),
+			storage_transaction_cache: Default::default(),
+		}
+	}
+
+	/// Returns the overlayed changes.
+	pub fn overlayed_changes(&self) -> &OverlayedChanges {
+		&self.overlay
+	}
+
+	/// Move offchain changes from overlay to the persistent store.
+	pub fn persist_offchain_overlay(&mut self) {
+		self.offchain_db.apply_offchain_changes(self.overlay.offchain_drain_committed());
+	}
+
+	/// A shared reference type around the offchain worker storage.
+	pub fn offchain_db(&self) -> TestPersistentOffchainDB {
+		self.offchain_db.clone()
+	}
+
+	/// Insert key/value into backend
+	pub fn insert(&mut self, k: StorageKey, v: StorageValue) {
+		self.backend.insert(vec![(None, vec![(k, Some(v))])]);
+	}
+
+	/// Registers the given extension for this instance_id.
+	pub fn register_extension<E: Any + Extension>(&mut self, ext: E) {
+		self.extensions.register(ext);
+	}
+
+	/// Get mutable reference to changes trie storage.
+	pub fn changes_trie_storage(&mut self) -> &mut ChangesTrieInMemoryStorage<H, N> {
+		&mut self.changes_trie_storage
+	}
+
+	/// Return a new backend with all pending changes.
 	///
-	/// Panics are NOT catched.
+	/// In contrast to [`commit_all`](Self::commit_all) this will not panic if there are open
+	/// transactions.
+	pub fn as_backend(&self) -> B {
+		let top: Vec<_> =
+			self.overlay.changes().map(|(k, v)| (k.clone(), v.value().cloned())).collect();
+		let mut transaction = vec![(None, top)];
+
+		for (child_changes, child_info) in self.overlay.children() {
+			transaction.push((
+				Some(child_info.clone()),
+				child_changes.map(|(k, v)| (k.clone(), v.value().cloned())).collect(),
+			))
+		}
+
+		self.backend.update(transaction)
+	}
+	*/
+
+	/// Execute the given closure while `self` is set as externalities.
+	///
+	/// Returns the result of the given closure.
 	pub fn execute_with<R>(&mut self, execute: impl FnOnce() -> R) -> R {
+		let mut ext = self.ext();
+		sp_externalities::set_and_run_with_externalities(&mut ext, execute)
+	}
+
+	pub fn execute_with_mut<R>(
+		&mut self,
+		execute: impl FnOnce() -> R,
+	) -> Result<(R, StorageChanges<B::Transaction, H>), Error> {
+		let _parent_hash = self.overlay.storage_root(
+			self.backend,
+			&mut self.storage_transaction_cache,
+			StateVersion::V0,
+		);
+
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
 		let r = sp_externalities::set_and_run_with_externalities(&mut ext, execute);
-		ext.storage_commit_transaction().expect(
-			"Started a transaction above. Runtime takes care of opening and closing transactions correctly too. Qed.",
-		);
-		r
+
+		ext.storage_commit_transaction().map_err(|_| {
+			tracing::error!(
+				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+				"Could not commit storage transaction."
+			);
+
+			Error::StorageTransactionCommit
+		})?;
+
+		Ok((
+			r,
+			self.overlay
+				.drain_storage_changes::<B, H>(
+					self.backend,
+					&mut self.storage_transaction_cache,
+					StateVersion::V0,
+				)
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+						error = ?e,
+						"Could not drain storage changes."
+					);
+
+					Error::StorageChangesDraining(Box::<dyn std::error::Error>::from(e))
+				})?,
+		))
 	}
 
 	/// Execute the given closure while `self` is set as externalities.
 	///
 	/// Returns the result of the given closure, if no panics occured.
 	/// Otherwise, returns `Err`.
-	pub fn execute_with_safe<R>(
-		&mut self,
-		execute: impl FnOnce() -> R + UnwindSafe,
-	) -> Result<R, String> {
+	#[allow(dead_code)]
+	pub fn execute_with_safe<R>(&mut self, f: impl FnOnce() -> R + UnwindSafe) -> Result<R, Error> {
 		let mut ext = AssertUnwindSafe(self.ext());
 		std::panic::catch_unwind(move || {
-			ext.storage_start_transaction();
-			let r = sp_externalities::set_and_run_with_externalities(&mut *ext, execute);
-			ext.storage_commit_transaction().expect(
-				"Started a transaction above. Runtime takes care of opening and closing transactions correctly too. Qed.",
-			);
-			r
+			sp_externalities::set_and_run_with_externalities(&mut *ext, f)
 		})
-		.map_err(|e| format!("Closure panicked: {:?}", e))
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Could not set and run externalities."
+			);
+
+			Error::ExternalitiesSetAndRun(e)
+		})
 	}
 }

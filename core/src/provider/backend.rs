@@ -216,8 +216,8 @@ impl<Block> DiskDb<Block> {
 
 	/// Overwrites current database type. The newly set `DiskDatabaseType` will be used
 	/// when a backend is created via `BackendProvider::provide(&self)`
-	pub fn with_database_type(&mut self, datbase_type: DiskDatabaseType) -> &mut Self {
-		self.database_type = datbase_type;
+	pub fn with_database_type(&mut self, database_type: DiskDatabaseType) -> &mut Self {
+		self.database_type = database_type;
 		self
 	}
 

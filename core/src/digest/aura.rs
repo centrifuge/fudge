@@ -18,11 +18,13 @@ use sp_consensus_aura::{
 	AuraApi, Slot, SlotDuration,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block, DigestItem};
 use sp_std::marker::PhantomData;
 use sp_timestamp::TimestampInherentData;
 
-use crate::digest::DigestProvider;
+use crate::digest::{DigestProvider, Error};
+
+const DEFAULT_DIGEST_AURA_LOG_TARGET: &str = "fudge-digest-aura";
 
 pub struct Digest<B, C> {
 	slot_duration: SlotDuration,
@@ -35,26 +37,48 @@ where
 	C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
 	C::Api: AuraApi<B, AuthorityId>,
 {
-	pub fn new(client: &C) -> Self {
-		let slot_duration = sc_consensus_aura::slot_duration(client)
-			.expect("slot_duration is always present; qed.");
+	pub fn new(client: &C) -> Result<Self, Error> {
+		let slot_duration = sc_consensus_aura::slot_duration(client).map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_DIGEST_AURA_LOG_TARGET,
+				error = ?e,
+				"Could not retrieve slot duration."
+			);
 
-		Self {
+			Error::SlotDurationRetrieval(e.into())
+		})?;
+
+		Ok(Self {
 			slot_duration,
 			_phantom: Default::default(),
-		}
+		})
 	}
 }
 
-impl<B, C> Digest<B, C>
+impl<B, C> DigestProvider<B> for Digest<B, C>
 where
 	B: Block,
 {
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, ()> {
+	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error> {
 		let timestamp = inherents
 			.timestamp_inherent_data()
-			.map_err(|_| ())?
-			.expect("Timestamp is always present; qed");
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
+					error = ?e,
+					"Could not retrieve timestamp inherent data."
+				);
+
+				Error::TimestampInherentDataRetrieval(e.into())
+			})?
+			.ok_or_else(|| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_AURA_LOG_TARGET,
+					"Timestamp inherent data not found."
+				);
+
+				Error::TimestampInherentDataNotFound
+			})?;
 
 		// we always calculate the new slot number based on the current time-stamp and the slot
 		// duration.
@@ -63,32 +87,5 @@ where
 				Slot::from_timestamp(timestamp, self.slot_duration),
 			),
 		)
-	}
-}
-
-#[async_trait::async_trait]
-impl<B, C> DigestProvider<B> for Digest<B, C>
-where
-	B: Block,
-	C: std::marker::Sync,
-{
-	async fn build_digest(
-		&self,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<SPDigest, ()> {
-		Ok(SPDigest {
-			logs: vec![self.digest(inherents)?],
-		})
-	}
-
-	async fn append_digest(
-		&self,
-		digest: &mut SPDigest,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<(), ()> {
-		digest.push(self.digest(inherents)?);
-		Ok(())
 	}
 }

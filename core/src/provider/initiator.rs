@@ -35,11 +35,36 @@ use sp_core::traits::CodeExecutor;
 use sp_runtime::{traits::BlockIdTo, BuildStorage};
 use sp_storage::Storage;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use thiserror::Error;
 use tokio::runtime::Handle;
 
 use crate::provider::{
-	backend::MemDb, BackendProvider, ClientProvider, DefaultClient, Initiator, TWasmExecutor,
+	backend::MemDb, BackendProvider, ClientProvider, DefaultClient, Initiator, InnerError,
+	TWasmExecutor,
 };
+
+const DEFAULT_INIT_LOG_TARGET: &str = "fudge-init";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("task manager creation: {0}")]
+	TaskManagerCreation(InnerError),
+
+	#[error("backend provider: {0}")]
+	BackendProvider(InnerError),
+
+	#[error("call executor creation: {0}")]
+	CallExecutorCreation(InnerError),
+
+	#[error("genesis block builder creation: {0}")]
+	GenesisBlockBuilderCreation(InnerError),
+
+	#[error("client provider: {0}")]
+	ClientProvider(InnerError),
+
+	#[error("full parts creation: {0}")]
+	FullPartsCreation(InnerError),
+}
 
 /// A struct that holds configuration
 /// options for a transaction pool.
@@ -230,7 +255,7 @@ where
 	type Api = CP::Api;
 	type Backend = CP::Backend;
 	type Client = CP::Client;
-	type Error = sp_blockchain::Error;
+	type Error = Error;
 	type Executor = CP::Exec;
 	type Pool = FullPool<Block, Self::Client>;
 
@@ -244,10 +269,28 @@ where
 			CP::Exec,
 			TaskManager,
 		),
-		sp_blockchain::Error,
+		Error,
 	> {
-		let task_manager = TaskManager::new(self.handle, None).unwrap();
-		let backend = self.backend_provider.provide().unwrap();
+		let task_manager = TaskManager::new(self.handle, None).map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_INIT_LOG_TARGET,
+				error = ?e,
+				"Could not create task manager."
+			);
+
+			Error::TaskManagerCreation(e.into())
+		})?;
+
+		let backend = self.backend_provider.provide().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_INIT_LOG_TARGET,
+				error = ?e,
+				"Could not provide backed."
+			);
+
+			Error::BackendProvider(e.into())
+		})?;
+
 		let call_executor = LocalCallExecutor::new(
 			backend.clone(),
 			self.exec.clone(),
@@ -255,14 +298,32 @@ where
 			self.client_config.clone(),
 			self.execution_extensions,
 		)
-		.unwrap();
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_INIT_LOG_TARGET,
+				error = ?e,
+				"Could not create call executor."
+			);
+
+			Error::CallExecutorCreation(e.into())
+		})?;
+
 		let genesis_block_builder = GenesisBlockBuilder::new(
 			&(*self.genesis),
 			!self.client_config.no_genesis,
 			backend.clone(),
 			self.exec.clone(),
 		)
-		.unwrap();
+		.map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_INIT_LOG_TARGET,
+				error = ?e,
+				"Could not create genesis block builder."
+			);
+
+			Error::GenesisBlockBuilderCreation(e.into())
+		})?;
+
 		let client = self
 			.client_provider
 			.provide(
@@ -272,7 +333,15 @@ where
 				call_executor,
 				Box::new(task_manager.spawn_handle()),
 			)
-			.unwrap();
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_INIT_LOG_TARGET,
+					error = ?e,
+					"Could not provide client."
+				);
+
+				Error::ClientProvider(e.into())
+			})?;
 
 		let pool = Arc::new(FullPool::<Block, CP::Client>::with_revalidation_type(
 			self.pool_config.options,
@@ -373,7 +442,7 @@ where
 	type Api = RtApi::RuntimeApi;
 	type Backend = TFullBackend<Block>;
 	type Client = TFullClient<Block, RtApi, Exec>;
-	type Error = sp_blockchain::Error;
+	type Error = Error;
 	type Executor = Exec;
 	type Pool = FullPool<Block, Self::Client>;
 
@@ -390,7 +459,16 @@ where
 		Self::Error,
 	> {
 		let (client, backend, keystore_container, task_manager) =
-			sc_service::new_full_parts(&self.config, None, self.exec.clone()).unwrap(); // TODO NEED own error type
+			sc_service::new_full_parts(&self.config, None, self.exec.clone()).map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_INIT_LOG_TARGET,
+					error = ?e,
+					"Could not create full parts."
+				);
+
+				Error::FullPartsCreation(e.into())
+			})?;
+
 		let client = Arc::new(client);
 
 		let pool = Arc::new(FullPool::<Block, Self::Client>::with_revalidation_type(

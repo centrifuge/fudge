@@ -17,10 +17,11 @@ use fudge_test_runtime::{
 };
 use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
+use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
-use sp_core::H256;
+use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::Storage;
 use sp_std::sync::Arc;
@@ -54,15 +55,19 @@ fn default_para_builder(
 	(),
 	impl DigestCreator<PTestBlock>,
 > {
-	let mut state = StateProvider::new(PCODE.expect("Wasm is build. Qed."));
-	state.insert_storage(
-		pallet_aura::GenesisConfig::<PRuntime> {
-			authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
-		}
-		.build_storage()
-		.unwrap(),
-	);
-	state.insert_storage(genesis);
+	let mut state: StateProvider<TFullBackend<RTestBlock>, RTestBlock> =
+		StateProvider::empty_default(Some(PCODE.expect("Wasm is build. Qed."))).unwrap();
+
+	state
+		.insert_storage(
+			pallet_aura::GenesisConfig::<PRuntime> {
+				authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
+			}
+			.build_storage()
+			.unwrap(),
+		)
+		.unwrap();
+	state.insert_storage(genesis).unwrap();
 
 	let mut init = crate::provider::initiator::default(handle);
 
@@ -70,7 +75,8 @@ fn default_para_builder(
 
 	// Init timestamp instance_id
 	let instance_id_para =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(12), None)
+			.unwrap();
 
 	let cidp = move |_parent: H256, ()| {
 		let inherent_builder_clone = inherent_builder.clone();
@@ -97,15 +103,16 @@ fn default_para_builder(
 				let aura = FudgeAuraDigest::<
 					PTestBlock,
 					TFullClient<PTestBlock, PTestRtApi, TWasmExecutor>,
-				>::new(&*client);
+				>::new(&*client)
+				.unwrap();
 
-				let digest = aura.build_digest(&parent, &inherents).await?;
+				let digest = aura.build_digest(parent, &inherents).await?;
 				Ok(digest)
 			}
 		}
 	};
 
-	ParachainBuilder::new(init, |client| (cidp, dp(client)))
+	ParachainBuilder::new(init, |client| (cidp, dp(client))).unwrap()
 }
 
 fn cidp_and_dp_relay(
@@ -116,7 +123,8 @@ fn cidp_and_dp_relay(
 ) {
 	// Init timestamp instance_id
 	let instance_id =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
 	let cidp = move |clone_client: Arc<TFullClient<RTestBlock, RTestRtApi, TWasmExecutor>>| {
 		move |parent: H256, ()| {
@@ -143,7 +151,7 @@ fn cidp_and_dp_relay(
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<RTestBlock>::new();
-		babe.append_digest(&mut digest, &parent, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	};
@@ -163,18 +171,46 @@ fn default_relay_builder(
 	impl DigestCreator<RTestBlock>,
 	RRuntime,
 > {
-	let mut state = StateProvider::new(RCODE.expect("Wasm is build. Qed."));
-	state.insert_storage(
-		polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
+	let mut state: StateProvider<TFullBackend<RTestBlock>, RTestBlock> =
+		StateProvider::empty_default(Some(RCODE.expect("Wasm is build. Qed."))).unwrap();
+	state
+		.insert_storage(
+			polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
+				.build_storage()
+				.unwrap(),
+		)
+		.unwrap();
+	state
+		.insert_storage(
+			pallet_session::GenesisConfig::<RRuntime> {
+				keys: vec![(
+					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
+					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
+					polkadot_runtime::SessionKeys {
+						grandpa: pallet_grandpa::AuthorityId::from_slice([0u8; 32].as_slice())
+							.unwrap(),
+						babe: pallet_babe::AuthorityId::from_slice([0u8; 32].as_slice()).unwrap(),
+						im_online: pallet_im_online::sr25519::AuthorityId::from_slice(
+							[0u8; 32].as_slice(),
+						)
+						.unwrap(),
+						para_validator: ValidatorId::from_slice([0u8; 32].as_slice()).unwrap(),
+						para_assignment: AssignmentId::from_slice([0u8; 32].as_slice()).unwrap(),
+						authority_discovery: AuthorityDiscoveryId::from_slice([0u8; 32].as_slice())
+							.unwrap(),
+					},
+				)],
+			}
 			.build_storage()
 			.unwrap(),
-	);
-	state.insert_storage(genesis);
+		)
+		.unwrap();
+	state.insert_storage(genesis).unwrap();
 
 	let mut init = crate::provider::initiator::default(handle);
 	init.with_genesis(Box::new(state));
 
-	RelaychainBuilder::new(init, cidp_and_dp_relay)
+	RelaychainBuilder::new(init, cidp_and_dp_relay).unwrap()
 }
 
 #[tokio::test]
@@ -184,48 +220,58 @@ async fn parachain_creates_correct_inherents() {
 	let mut relay_builder = default_relay_builder(Handle::current(), Storage::default());
 	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
-	let mut builder = default_para_builder(Handle::current(), Storage::default(), inherent_builder);
+	let mut para_builder =
+		default_para_builder(Handle::current(), Storage::default(), inherent_builder);
+	let collator = para_builder.collator();
 
 	let para = FudgeParaChain {
 		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
+		head: para_builder.head().unwrap(),
+		code: para_builder.code().unwrap(),
 	};
-	relay_builder.onboard_para(para).unwrap();
-	relay_builder.build_block().unwrap();
-	relay_builder.import_block().unwrap();
 
-	let num_start = builder
-		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+	relay_builder
+		.onboard_para(para, Box::new(collator))
 		.unwrap();
-
-	builder.build_block().unwrap();
-	builder.import_block().unwrap();
-
-	let num_after_one = builder
-		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
-		.unwrap();
-
-	assert_eq!(num_start + 1, num_after_one);
 
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block().unwrap();
 
-	builder.build_block().unwrap();
-	builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
 
-	let num_after_two = builder
+	let num_start = para_builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+		.unwrap();
+
+	para_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_builder.import_block().unwrap();
+
+	let num_after_one = para_builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
+		.unwrap();
+
+	assert_eq!(num_start + 1, num_after_one); // this should be fine after populating session_info account keys
+
+	relay_builder.build_block().unwrap();
+	para_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_builder.import_block().unwrap();
+
+	let num_after_two = para_builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
 		.unwrap();
 
 	assert_eq!(num_start + 2, num_after_two);
 
-	let para = FudgeParaChain {
-		id: para_id,
-		head: builder.head(),
-		code: builder.code(),
-	};
-	relay_builder.onboard_para(para).unwrap();
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block().unwrap();
 
@@ -233,5 +279,5 @@ async fn parachain_creates_correct_inherents() {
 		.with_state(|| Heads::try_get(para_id).unwrap())
 		.unwrap();
 
-	assert_eq!(builder.head(), para_head);
+	assert_eq!(para_builder.head().unwrap(), para_head);
 }

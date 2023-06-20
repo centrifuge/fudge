@@ -13,7 +13,7 @@
 use fudge_test_runtime::WASM_BINARY as PARA_CODE;
 use polkadot_parachain::primitives::{HeadData, Id, ValidationCode};
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
-use sc_service::TFullClient;
+use sc_service::{TFullBackend, TFullClient};
 use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
@@ -40,7 +40,8 @@ fn cidp_and_dp(
 ) {
 	// Init timestamp instance_id
 	let instance_id =
-		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None);
+		FudgeInherentTimestamp::create_instance(sp_std::time::Duration::from_secs(6), None)
+			.unwrap();
 
 	let cidp = move |clone_client: Arc<TFullClient<TestBlock, TestRtApi, TWasmExecutor>>| {
 		move |parent: H256, ()| {
@@ -67,7 +68,7 @@ fn cidp_and_dp(
 		let mut digest = sp_runtime::Digest::default();
 
 		let babe = FudgeBabeDigest::<TestBlock>::new();
-		babe.append_digest(&mut digest, &parent, &inherents).await?;
+		babe.append_digest(parent, &mut digest, &inherents).await?;
 
 		Ok(digest)
 	};
@@ -87,13 +88,14 @@ fn default_relay_builder(
 	impl DigestCreator<TestBlock>,
 	Runtime,
 > {
-	let mut state = StateProvider::new(CODE.expect("Wasm is build. Qed."));
-	state.insert_storage(genesis);
+	let mut state: StateProvider<TFullBackend<TestBlock>, TestBlock> =
+		StateProvider::empty_default(Some(CODE.expect("Wasm is build. Qed."))).unwrap();
+	state.insert_storage(genesis).unwrap();
 
 	let mut init = crate::provider::initiator::default(handle);
 	init.with_genesis(Box::new(state));
 
-	RelaychainBuilder::new(init, cidp_and_dp)
+	RelaychainBuilder::new(init, cidp_and_dp).unwrap()
 }
 
 #[tokio::test]
@@ -111,7 +113,7 @@ async fn onboarding_parachain_works() {
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para).unwrap();
+	builder.onboard_para(dummy_para, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 
@@ -133,13 +135,14 @@ async fn onboarding_parachain_works() {
 			.as_ref()
 			.to_vec(),
 	);
+
 	let dummy_para_new = FudgeParaChain {
 		id,
 		head: head_new.clone(),
 		code: code.clone(),
 	};
 
-	builder.onboard_para(dummy_para_new).unwrap();
+	builder.onboard_para(dummy_para_new, Box::new(())).unwrap();
 	builder.build_block().unwrap();
 	builder.import_block().unwrap();
 

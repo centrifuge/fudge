@@ -16,7 +16,7 @@ use sc_client_api::{
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::TFullClient;
+use sc_service::{SpawnTaskHandle, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
@@ -31,14 +31,38 @@ use sp_runtime::{
 use sp_state_machine::StorageProof;
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
+use thiserror::Error;
 
 use crate::{
-	builder::core::{Builder, Operation, PoolState},
+	builder::core::{Builder, InnerError, Operation, PoolState},
 	digest::DigestCreator,
 	inherent::ArgsProvider,
 	provider::Initiator,
 	types::StoragePair,
 };
+
+const DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET: &str = "fudge-standalone-chain";
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("core builder: {0}")]
+	CoreBuilder(InnerError),
+
+	#[error("initiator: {0}")]
+	Initiator(InnerError),
+
+	#[error("inherent data providers creation: {0}")]
+	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
+
+	#[error("inherent data creation: {0}")]
+	InherentDataCreation(InnerError),
+
+	#[error("digest creation: {0}")]
+	DigestCreation(InnerError),
+
+	#[error("next block not found")]
+	NextBlockNotFound,
+}
 
 pub struct StandAloneBuilder<
 	Block: BlockT,
@@ -67,6 +91,7 @@ pub struct StandAloneBuilder<
 	dp: DP,
 	next: Option<(Block, StorageProof)>,
 	imports: Vec<(Block, StorageProof)>,
+	handle: SpawnTaskHandle,
 	_phantom: PhantomData<ExtraArgs>,
 }
 
@@ -100,22 +125,34 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Self
+	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
 	{
-		let (client, backend, pool, executor, task_manager) = initiator.init().unwrap();
+		let (client, backend, pool, executor, task_manager) = initiator.init().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not initialize."
+			);
+
+			Error::Initiator(e.into())
+		})?;
+
 		let (cidp, dp) = setup(client.clone());
 
-		Self {
+		let handle = task_manager.spawn_handle();
+
+		Ok(Self {
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
 			next: None,
 			imports: Vec::new(),
+			handle,
 			_phantom: Default::default(),
-		}
+		})
 	}
 
 	pub fn client(&self) -> Arc<C> {
@@ -126,21 +163,27 @@ where
 		self.builder.backend()
 	}
 
-	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, ()> {
-		self.builder.append_extrinsic(xt)
+	pub fn append_extrinsic(&mut self, xt: Block::Extrinsic) -> Result<Block::Hash, Error> {
+		self.builder
+			.append_extrinsic(xt)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	pub fn append_extrinsics(
 		&mut self,
 		xts: Vec<Block::Extrinsic>,
-	) -> Result<Vec<Block::Hash>, ()> {
+	) -> Result<Vec<Block::Hash>, Error> {
 		xts.into_iter().fold(Ok(Vec::new()), |hashes, xt| {
-			if let Ok(mut hashes) = hashes {
-				hashes.push(self.builder.append_extrinsic(xt)?);
-				Ok(hashes)
-			} else {
-				Err(())
-			}
+			let mut hashes = hashes?;
+
+			let block_hash = self
+				.builder
+				.append_extrinsic(xt)
+				.map_err(|e| Error::CoreBuilder(e.into()))?;
+
+			hashes.push(block_hash);
+
+			Ok(hashes)
 		})
 	}
 
@@ -168,49 +211,96 @@ where
 	}
 	 */
 
-	pub fn build_block(&mut self) -> Result<Block, ()> {
+	pub fn build_block(&mut self) -> Result<Block, Error> {
 		assert!(self.next.is_none());
 
-		let provider = self
-			.with_state(|| {
+		let provider =
+			self.with_state(|| {
 				futures::executor::block_on(self.cidp.create_inherent_data_providers(
 					self.builder.latest_block(),
 					ExtraArgs::extra(),
 				))
-				.unwrap()
-			})
-			.unwrap();
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create inherent data providers."
+					);
 
-		let parent = self.builder.latest_header();
-		let inherents = futures::executor::block_on(provider.create_inherent_data()).unwrap();
-		let digest = self
-			.with_state(|| {
-				futures::executor::block_on(self.dp.create_digest(parent, inherents.clone()))
-					.unwrap()
-			})
-			.unwrap();
+					Error::InherentDataProvidersCreation(e)
+				})
+			})??;
 
-		let Proposal { block, proof, .. } = self.builder.build_block(
-			self.builder.handle(),
-			inherents,
-			digest,
-			Duration::from_secs(60),
-			6_000_000,
-		);
+		let inherents =
+			futures::executor::block_on(provider.create_inherent_data()).map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not create inherent data."
+				);
+
+				Error::InherentDataCreation(e.into())
+			})?;
+
+		let parent = self.builder.latest_header().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+				error = ?e,
+				"Could not retrieve latest header."
+			);
+
+			Error::CoreBuilder(e.into())
+		})?;
+
+		let digest = self.with_state(|| {
+			futures::executor::block_on(self.dp.create_digest(parent, inherents.clone())).map_err(
+				|e| {
+					tracing::error!(
+						target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+						error = ?e,
+						"Could not create digest."
+					);
+
+					Error::DigestCreation(e.into())
+				},
+			)
+		})??;
+
+		let Proposal { block, proof, .. } = self
+			.builder
+			.build_block(
+				self.builder.handle(),
+				inherents,
+				digest,
+				Duration::from_secs(60),
+				6_000_000,
+			)
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
 		self.next = Some((block.clone(), proof));
 
 		Ok(block)
 	}
 
-	pub fn import_block(&mut self) -> Result<(), ()> {
-		let (block, proof) = self.next.take().unwrap();
+	pub fn import_block(&mut self) -> Result<(), Error> {
+		let (block, proof) = self.next.take().ok_or_else(|| {
+			tracing::error!(
+				target = DEFAULT_STANDALONE_CHAIN_BUILDER_LOG_TARGET,
+				"Next block not found."
+			);
+
+			Error::NextBlockNotFound
+		})?;
 		let (header, body) = block.clone().deconstruct();
 		let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 		params.body = Some(body);
 		params.finalized = true;
 		params.fork_choice = Some(ForkChoiceStrategy::Custom(true));
 
-		self.builder.import_block(params).unwrap();
+		self.builder
+			.import_block(params)
+			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
 		self.imports.push((block, proof));
 		Ok(())
 	}
@@ -219,22 +309,28 @@ where
 		self.imports.clone()
 	}
 
-	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, None, exec)
+	pub fn with_state<R>(&self, exec: impl FnOnce() -> R) -> Result<R, Error> {
+		self.builder
+			.with_state(Operation::DryRun, None, exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	pub fn with_state_at<R>(
 		&self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
-		self.builder.with_state(Operation::DryRun, Some(at), exec)
+	) -> Result<R, Error> {
+		self.builder
+			.with_state(Operation::DryRun, Some(at), exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
-	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, String> {
+	pub fn with_mut_state<R>(&mut self, exec: impl FnOnce() -> R) -> Result<R, Error> {
 		assert!(self.next.is_none());
 
-		self.builder.with_state(Operation::Commit, None, exec)
+		self.builder
+			.with_state(Operation::Commit, None, exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 
 	/// Mutating past states not supported yet...
@@ -242,9 +338,11 @@ where
 		&mut self,
 		at: BlockId<Block>,
 		exec: impl FnOnce() -> R,
-	) -> Result<R, String> {
+	) -> Result<R, Error> {
 		assert!(self.next.is_none());
 
-		self.builder.with_state(Operation::Commit, Some(at), exec)
+		self.builder
+			.with_state(Operation::Commit, Some(at), exec)
+			.map_err(|e| Error::CoreBuilder(e.into()))
 	}
 }

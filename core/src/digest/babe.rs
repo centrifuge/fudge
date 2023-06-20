@@ -17,10 +17,12 @@ use sp_consensus_babe::{
 	BABE_ENGINE_ID,
 };
 use sp_inherents::InherentData;
-use sp_runtime::{traits::Block as BlockT, Digest as SPDigest, DigestItem};
+use sp_runtime::{traits::Block as BlockT, DigestItem};
 use sp_std::marker::PhantomData;
 
-use crate::digest::DigestProvider;
+use crate::digest::{DigestProvider, Error};
+
+const DEFAULT_DIGEST_BABE_LOG_TARGET: &str = "fudge-digest-babe";
 
 pub struct Digest<B> {
 	_phantom: PhantomData<B>,
@@ -32,20 +34,6 @@ impl<B> Digest<B> {
 			_phantom: Default::default(),
 		}
 	}
-
-	fn digest(&self, inherents: &InherentData) -> Result<DigestItem, ()> {
-		let slot = inherents
-			.babe_inherent_data()
-			.map_err(|_| ())?
-			.ok_or_else(|| ())?;
-
-		let predigest = PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
-			authority_index: 0,
-			slot,
-		});
-
-		Ok(DigestItem::PreRuntime(BABE_ENGINE_ID, predigest.encode()))
-	}
 }
 
 #[async_trait::async_trait]
@@ -53,23 +41,32 @@ impl<B> DigestProvider<B> for Digest<B>
 where
 	B: BlockT,
 {
-	async fn build_digest(
-		&self,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<SPDigest, ()> {
-		Ok(SPDigest {
-			logs: vec![self.digest(inherents)?],
-		})
-	}
+	fn digest(&self, _parent: B::Header, inherents: &InherentData) -> Result<DigestItem, Error> {
+		let slot = inherents
+			.babe_inherent_data()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
+					error = ?e,
+					"Could not retrieve babe inherent data."
+				);
 
-	async fn append_digest(
-		&self,
-		digest: &mut SPDigest,
-		_parent: &B::Header,
-		inherents: &InherentData,
-	) -> Result<(), ()> {
-		digest.push(self.digest(inherents)?);
-		Ok(())
+				Error::BabeInherentDataRetrieval(e.into())
+			})?
+			.ok_or_else(|| {
+				tracing::error!(
+					target = DEFAULT_DIGEST_BABE_LOG_TARGET,
+					"Babe inherent data not found."
+				);
+
+				Error::BabeInherentDataNotFound
+			})?;
+
+		let predigest = PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+			authority_index: 0,
+			slot,
+		});
+
+		Ok(DigestItem::PreRuntime(BABE_ENGINE_ID, predigest.encode()))
 	}
 }

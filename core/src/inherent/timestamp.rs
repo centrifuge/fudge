@@ -24,6 +24,23 @@ use sp_std::{
 	time::Duration,
 };
 use sp_timestamp::{InherentError, INHERENT_IDENTIFIER};
+use thiserror::Error;
+
+const DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET: &str = "fudge-timestamp";
+
+type InnerError = Box<dyn std::error::Error>;
+
+#[derive(Error, Debug)]
+pub enum Error {
+	#[error("lock for instances is poisoned: {0}")]
+	InstancesLockPoisoned(InnerError),
+
+	#[error("current time retrieval: {0}")]
+	CurrentTimeRetrieval(InnerError),
+
+	#[error("instance with ID {0:?} not found")]
+	InstanceNotFound(InstanceId),
+}
 
 lazy_static::lazy_static!(
 	pub static ref INSTANCES: Arc<Mutex<BTreeMap<InstanceId, CurrTimeProvider>>> = Arc::new(Mutex::new(BTreeMap::new()));
@@ -51,9 +68,18 @@ impl CurrTimeProvider {
 		instance_id: InstanceId,
 		delta: Duration,
 		start: Option<Duration>,
-	) -> Result<(), ()> {
+	) -> Result<(), Error> {
 		let storage = INSTANCES.clone();
-		let mut locked_instances = storage.lock().expect("Time MUST NOT fail.");
+
+		let mut locked_instances = storage.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Instances lock is poisoned",
+			);
+
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
+		})?;
 
 		let start = if let Some(start) = start {
 			start
@@ -61,7 +87,15 @@ impl CurrTimeProvider {
 			let now = std::time::SystemTime::now();
 			let dur = now
 				.duration_since(std::time::SystemTime::UNIX_EPOCH)
-				.expect("Current time is always after unix epoch; qed");
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+						error = ?e,
+						"Could not get current time",
+					);
+
+					Error::CurrentTimeRetrieval(e.into())
+				})?;
 
 			dur
 		};
@@ -76,10 +110,17 @@ impl CurrTimeProvider {
 					ticks: 0,
 				};
 			})
-			.ok_or(())
+			.ok_or_else(|| {
+				tracing::error!(
+					target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+					"Instance not found",
+				);
+
+				Error::InstanceNotFound(instance_id)
+			})
 	}
 
-	pub fn create_instance(delta: Duration, start: Option<Duration>) -> InstanceId {
+	pub fn create_instance(delta: Duration, start: Option<Duration>) -> Result<InstanceId, Error> {
 		let instance_id = InstanceId(COUNTER.fetch_add(1, Ordering::SeqCst));
 
 		let start = if let Some(start) = start {
@@ -88,13 +129,30 @@ impl CurrTimeProvider {
 			let now = std::time::SystemTime::now();
 			let dur = now
 				.duration_since(std::time::SystemTime::UNIX_EPOCH)
-				.expect("Current time is always after unix epoch; qed");
+				.map_err(|e| {
+					tracing::error!(
+						target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+						error = ?e,
+						"Could not get current time",
+					);
+
+					Error::CurrentTimeRetrieval(e.into())
+				})?;
 
 			dur
 		};
 
 		let storage = INSTANCES.clone();
-		let mut locked_instances = storage.lock().expect("Time MUST NOT fail.");
+		let mut locked_instances = storage.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Instances lock is poisoned",
+			);
+
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
+		})?;
+
 		locked_instances.insert(
 			instance_id,
 			CurrTimeProvider {
@@ -105,25 +163,58 @@ impl CurrTimeProvider {
 			},
 		);
 
-		instance_id
+		Ok(instance_id)
 	}
 
-	pub fn get_instance(instance_id: InstanceId) -> Option<Self> {
+	pub fn get_instance(instance_id: InstanceId) -> Result<Self, Error> {
 		let storage = INSTANCES.clone();
-		let locked_instances = storage.lock().expect("Time MUST NOT fail.");
+		let locked_instances = storage.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Instances lock is poisoned",
+			);
+
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
+		})?;
 
 		locked_instances
 			.get(&instance_id)
 			.map(|instance| instance.clone())
+			.ok_or_else(|| {
+				tracing::error!(
+					target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+					"Instance not found",
+				);
+
+				Error::InstanceNotFound(instance_id)
+			})
 	}
 
-	fn update_time(&self) {
+	fn update_time(&self) -> Result<(), Error> {
 		let storage = INSTANCES.clone();
-		let mut instances = storage.lock().expect("Time MUST NOT fail.");
-		let instance = instances
-			.get_mut(&self.instance_id)
-			.expect("ONLY calls this method after new(). qed");
+		let mut instances = storage.lock().map_err(|e| {
+			tracing::error!(
+				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+				error = ?e,
+				"Instances lock is poisoned",
+			);
+
+			Error::InstancesLockPoisoned(Box::<dyn std::error::Error>::from(e.to_string()))
+		})?;
+
+		let instance = instances.get_mut(&self.instance_id).ok_or_else(|| {
+			tracing::error!(
+				target = DEFAULT_TIMESTAMP_PROVIDER_LOG_TARGET,
+				"Instance not found",
+			);
+
+			Error::InstanceNotFound(self.instance_id.clone())
+		})?;
+
 		instance.ticks = instance.ticks + 1;
+
+		Ok(())
 	}
 
 	pub fn current_time(&self) -> sp_timestamp::Timestamp {
@@ -139,11 +230,13 @@ impl sp_inherents::InherentDataProvider for CurrTimeProvider {
 		&self,
 		inherent_data: &mut InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		inherent_data
-			.put_data(INHERENT_IDENTIFIER, &self.current_time())
-			.unwrap();
-		self.update_time();
-		Ok(())
+		inherent_data.put_data(INHERENT_IDENTIFIER, &self.current_time())?;
+
+		self.update_time().map_err(|e| {
+			sp_inherents::Error::Application(Box::<dyn std::error::Error + Send + Sync>::from(
+				e.to_string(),
+			))
+		})
 	}
 
 	async fn try_handle_error(
@@ -175,7 +268,8 @@ mod test {
 
 		let delta = Duration::from_secs(DELTA);
 		let instance_id =
-			CurrTimeProvider::create_instance(delta, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 
@@ -185,7 +279,7 @@ mod test {
 		);
 
 		// Progress time by delta
-		time.update_time();
+		time.update_time().unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -194,7 +288,7 @@ mod test {
 		);
 
 		// Progress time by delta
-		time.update_time();
+		time.update_time().unwrap();
 		let time =
 			CurrTimeProvider::get_instance(instance_id).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -210,13 +304,15 @@ mod test {
 
 		let delta_a = Duration::from_secs(DELTA_A);
 		let instance_a =
-			CurrTimeProvider::create_instance(delta_a, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta_a, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
 
 		let delta_b = Duration::from_secs(DELTA_A);
 		let instance_b =
-			CurrTimeProvider::create_instance(delta_b, Some(Duration::from_secs(START_DATE)));
+			CurrTimeProvider::create_instance(delta_b, Some(Duration::from_secs(START_DATE)))
+				.unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 
@@ -230,10 +326,10 @@ mod test {
 		);
 
 		// Progress time by delta
-		time_a.update_time();
+		time_a.update_time().unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
-		time_b.update_time();
+		time_b.update_time().unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 		assert_eq!(
@@ -246,10 +342,10 @@ mod test {
 		);
 
 		// Progress time by delta
-		time_a.update_time();
+		time_a.update_time().unwrap();
 		let time_a =
 			CurrTimeProvider::get_instance(instance_a).expect("Instance is initialized. qed");
-		time_b.update_time();
+		time_b.update_time().unwrap();
 		let time_b =
 			CurrTimeProvider::get_instance(instance_b).expect("Instance is initialized. qed");
 		assert_eq!(

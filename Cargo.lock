@@ -2596,6 +2596,8 @@ name = "fudge-core"
 version = "0.0.10"
 dependencies = [
  "async-trait",
+ "bitvec",
+ "cumulus-primitives-core",
  "cumulus-primitives-parachain-inherent",
  "cumulus-relay-chain-inprocess-interface",
  "frame-benchmarking",
@@ -2607,14 +2609,19 @@ dependencies = [
  "lazy_static",
  "node-primitives",
  "pallet-aura",
+ "pallet-authority-discovery",
  "pallet-babe",
  "pallet-balances",
+ "pallet-grandpa",
+ "pallet-im-online",
+ "pallet-session",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-node-primitives",
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime",
@@ -2633,6 +2640,7 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "scale-info",
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
@@ -3402,13 +3410,16 @@ name = "integration_test"
 version = "0.1.0"
 dependencies = [
  "fudge",
+ "fudge-core",
  "fudge-test-runtime",
  "parity-scale-codec",
  "polkadot-core-primitives",
  "polkadot-runtime",
  "sp-consensus-babe",
  "sp-inherents",
+ "sp-std",
  "sp-tracing",
+ "thiserror",
 ]
 
 [[package]]
