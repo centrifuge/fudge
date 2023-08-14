@@ -26,7 +26,7 @@ use polkadot_parachain::primitives::{
 };
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v2::{
+	v4::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
