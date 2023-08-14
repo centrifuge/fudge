@@ -80,7 +80,7 @@ fn build_wasm_executor<H>() -> WasmExecutor<H>
 where
 	H: HostFunctions + Send + Sync,
 {
-	let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 8 };
+	let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 1024 };
 	WasmExecutor::<H>::builder()
 		.with_max_runtime_instances(8)
 		.with_runtime_cache_size(2)
