@@ -107,8 +107,10 @@ pub mod constants {
 	pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 
 	/// We allow for 0.5 seconds of compute with a 6 second average block time.
-	pub const MAXIMUM_BLOCK_WEIGHT: Weight =
-		Weight::from_ref_time(WEIGHT_REF_TIME_PER_SECOND).saturating_div(2);
+	pub const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(
+		WEIGHT_REF_TIME_PER_SECOND.saturating_div(2),
+		cumulus_primitives_core::relay_chain::MAX_POV_SIZE as u64, // .into() is not const, so we must use as
+	);
 
 	pub const MICRO_CUR: Balance = 1_000_000_000_000; // 10−6 	0.000001
 	pub const MILLI_CUR: Balance = 1_000 * MICRO_CUR; // 10−3 	0.001

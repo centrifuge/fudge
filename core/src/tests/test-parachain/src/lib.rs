@@ -30,7 +30,6 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use node_primitives::AccountId;
 use pallet_transaction_payment::CurrencyAdapter;
 use polkadot_runtime_common::{impls::DealWithFees, BlockHashCount, SlowAdjustingFeeUpdate};
 pub use primitives::*;
@@ -243,6 +242,10 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	/// The minimum amount required to keep an account open.
 	type ExistentialDeposit = ExistentialDeposit;
+	type FreezeIdentifier = ();
+	type HoldIdentifier = ();
+	type MaxFreezes = ();
+	type MaxHolds = ();
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
@@ -360,6 +363,7 @@ impl pallet_aura::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
 }
 
 impl cumulus_pallet_aura_ext::Config for Runtime {}
@@ -509,6 +513,14 @@ impl_runtime_apis! {
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
+		}
+
+		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+			Runtime::metadata_at_version(version)
+		}
+
+		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+			Runtime::metadata_versions()
 		}
 	}
 
