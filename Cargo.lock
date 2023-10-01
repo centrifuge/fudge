@@ -2617,6 +2617,7 @@ dependencies = [
  "pallet-session",
  "pallet-timestamp",
  "pallet-transaction-payment",
+ "parachain-info",
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "polkadot-cli",

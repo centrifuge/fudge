@@ -10,19 +10,21 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use cumulus_primitives_parachain_inherent::{ParachainInherentData, INHERENT_IDENTIFIER};
 use frame_support::traits::GenesisBuild;
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	WASM_BINARY as PCODE,
 };
-use polkadot_core_primitives::Block as RTestBlock;
+use polkadot_core_primitives::{Block as RTestBlock, InboundDownwardMessage};
 use polkadot_parachain::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
+use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
-use sp_core::{crypto::AccountId32, ByteArray, H256};
-use sp_inherents::CreateInherentDataProviders;
+use sp_core::{crypto::AccountId32, ByteArray, Get, H256};
+use sp_inherents::{CreateInherentDataProviders, InherentData};
 use sp_runtime::Storage;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
@@ -39,6 +41,8 @@ use crate::{
 	},
 	provider::{state::StateProvider, TWasmExecutor},
 };
+
+const PARA_ID: u32 = 2001;
 
 fn default_para_builder(
 	handle: Handle,
@@ -64,6 +68,16 @@ fn default_para_builder(
 				authorities: vec![AuraId::from(sp_core::sr25519::Public([0u8; 32]))],
 			}
 			.build_storage()
+			.unwrap(),
+		)
+		.unwrap();
+	state
+		.insert_storage(
+			<parachain_info::GenesisConfig as GenesisBuild<PRuntime>>::build_storage(
+				&parachain_info::GenesisConfig {
+					parachain_id: Id::from(PARA_ID),
+				},
+			)
 			.unwrap(),
 		)
 		.unwrap();
@@ -173,12 +187,15 @@ fn default_relay_builder(
 > {
 	let mut state: StateProvider<TFullBackend<RTestBlock>, RTestBlock> =
 		StateProvider::empty_default(Some(RCODE.expect("Wasm is build. Qed."))).unwrap();
+	let mut configuration = configuration::GenesisConfig::<RRuntime>::default();
+
+	let mut host_config = HostConfiguration::<u32>::default();
+	host_config.max_downward_message_size = 1024;
+
+	configuration.config = host_config;
+
 	state
-		.insert_storage(
-			polkadot_runtime_parachains::configuration::GenesisConfig::<RRuntime>::default()
-				.build_storage()
-				.unwrap(),
-		)
+		.insert_storage(configuration.build_storage().unwrap())
 		.unwrap();
 	state
 		.insert_storage(
@@ -218,7 +235,7 @@ async fn parachain_creates_correct_inherents() {
 	super::utils::init_logs();
 
 	let mut relay_builder = default_relay_builder(Handle::current(), Storage::default());
-	let para_id = Id::from(2001u32);
+	let para_id = Id::from(PARA_ID);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	let mut para_builder =
 		default_para_builder(Handle::current(), Storage::default(), inherent_builder);
@@ -236,6 +253,15 @@ async fn parachain_creates_correct_inherents() {
 
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block().unwrap();
+
+	relay_builder
+		.with_mut_state(|| {
+			let config = <configuration::Pallet<RRuntime>>::config();
+			<dmp::Pallet<RRuntime>>::queue_downward_message(&config, para_id, vec![0, 1, 2, 3])
+				.map_err(|_| ())
+				.unwrap();
+		})
+		.unwrap();
 
 	relay_builder.build_block().unwrap();
 

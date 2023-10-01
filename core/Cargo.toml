@@ -78,6 +78,8 @@ cumulus-relay-chain-inprocess-interface= { git = "https://github.com/paritytech/
 cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.38" }
 
 [dev-dependencies]
+parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.38" }
+
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.38" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
 
