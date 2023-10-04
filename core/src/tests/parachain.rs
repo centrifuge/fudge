@@ -10,24 +10,26 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use cumulus_primitives_parachain_inherent::{ParachainInherentData, INHERENT_IDENTIFIER};
+use codec::Encode;
+use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::traits::GenesisBuild;
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
-	WASM_BINARY as PCODE,
+	RuntimeCall as PRuntimeCall, WASM_BINARY as PCODE,
 };
-use polkadot_core_primitives::{Block as RTestBlock, InboundDownwardMessage};
+use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RTestRtApi, WASM_BINARY as RCODE};
 use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
-use sp_core::{crypto::AccountId32, ByteArray, Get, H256};
-use sp_inherents::{CreateInherentDataProviders, InherentData};
+use sp_core::{crypto::AccountId32, ByteArray, H256};
+use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::Storage;
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
+use xcm::VersionedXcm;
 
 ///! Test for the ParachainBuilder
 use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
@@ -254,10 +256,22 @@ async fn parachain_creates_correct_inherents() {
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block().unwrap();
 
+	let remark = vec![0, 1, 2, 3];
+
+	let call = PRuntimeCall::System(frame_system::Call::remark { remark });
+
+	let transact: Instruction<PRuntimeCall> = Transact {
+		origin_kind: OriginKind::SovereignAccount,
+		require_weight_at_most: Default::default(),
+		call: call.encode().into(),
+	};
+
+	let xcm = VersionedXcm::from(Xcm(vec![transact]));
+
 	relay_builder
 		.with_mut_state(|| {
 			let config = <configuration::Pallet<RRuntime>>::config();
-			<dmp::Pallet<RRuntime>>::queue_downward_message(&config, para_id, vec![0, 1, 2, 3])
+			<dmp::Pallet<RRuntime>>::queue_downward_message(&config, para_id, xcm.encode())
 				.map_err(|_| ())
 				.unwrap();
 		})
@@ -276,6 +290,10 @@ async fn parachain_creates_correct_inherents() {
 	relay_builder.import_block().unwrap();
 
 	para_builder.import_block().unwrap();
+
+	let _events = para_builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::events())
+		.unwrap();
 
 	let num_after_one = para_builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())

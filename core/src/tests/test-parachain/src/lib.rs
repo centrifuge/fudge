@@ -14,6 +14,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+
 use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
@@ -51,8 +52,12 @@ use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use xcm_executor::XcmExecutor;
+
+use crate::xcm::XcmConfig;
 
 mod primitives;
+mod xcm;
 
 pub struct WeightToFee;
 impl WeightToFeePolynomial for WeightToFee {
@@ -184,7 +189,7 @@ parameter_types! {
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
-	type DmpMessageHandler = ();
+	type DmpMessageHandler = DmpQueue;
 	type OnSystemEvent = ();
 	type OutboundXcmpMessageSource = ();
 	type ReservedDmpWeight = ReservedDmpWeight;
@@ -192,6 +197,14 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SelfParaId = parachain_info::Pallet<Runtime>;
 	type XcmpMessageHandler = ();
+}
+
+// DMP
+
+impl cumulus_pallet_dmp_queue::Config for Runtime {
+	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type RuntimeEvent = RuntimeEvent;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 impl parachain_info::Config for Runtime {}
@@ -451,6 +464,16 @@ construct_runtime!(
 		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 64,
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 65,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 66,
+
+		// orml
+		// OrmlAssetRegistry: orml_asset_registry::{Pallet, Storage, Call, Event<T>, Config<T>} = 70,
+		// OrmlTokens: orml_tokens::{Pallet, Storage, Event<T>, Config<T>} = 72,
+
+		// xcm
+		XcmpQueue: cumulus_pallet_xcmp_queue::{Pallet, Call, Storage, Event<T>} = 100,
+		PolkadotXcm: pallet_xcm::{Pallet, Call, Storage, Config, Event<T>, Origin} = 101,
+		DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 102,
+		CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 103,
 
 		// admin stuff
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>} = 200,

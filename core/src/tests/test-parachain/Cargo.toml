@@ -9,13 +9,13 @@ license = "LGPL-3.0"
 # third-party dependencies
 codec = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
-integer-sqrt = { version = "0.1.2" }
+integer-sqrt = { version = "0.1.2", default-features = false }
 safe-mix = { version = "1.0", default-features = false }
-smallvec = "1.6.1"
-static_assertions = "1.1.0"
-hex-literal = { version = "0.2.1", optional = true }
-rustc-hex = { version = "2.0", optional = true }
-serde = { version = "1.0.102", optional = true }
+smallvec = { version = "1.6.1", default-features = false }
+static_assertions = { version = "1.1.0", default-features = false }
+hex-literal = { version = "0.2.1", default-features = false, optional = true }
+rustc-hex = { version = "2.0", default-features = false, optional = true }
+serde = { version = "1.0.102", default-features = false, optional = true }
 
 # parachain
 parachain-info = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.38" }
@@ -69,12 +69,32 @@ pallet-sudo = { git = "https://github.com/paritytech/substrate", default-feature
 pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.38" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "polkadot-v0.9.38" }
 
+# xcm
+xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+cumulus-pallet-xcm = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.38" }
+cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.38" }
+cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.38" }
+xcm-builder = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+xcm-executor = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
 
 [features]
 default = ["std"]
 std = [
+    "serde/std",
+    "rustc-hex/std",
+    "codec/std",
+    "scale-info/std",
+    "xcm/std",
+    "pallet-xcm/std",
+    "cumulus-pallet-xcm/std",
+    "cumulus-pallet-dmp-queue/std",
+    "cumulus-pallet-xcmp-queue/std",
+    "xcm-builder/std",
+    "xcm-executor/std",
     "sp-authority-discovery/std",
     "pallet-authorship/std",
     "pallet-balances/std",
@@ -104,16 +124,24 @@ std = [
     "rustc-hex",
     "safe-mix/std",
     "cumulus-pallet-parachain-system/std",
+    "cumulus-primitives-core/std",
+    "cumulus-primitives-utility/std",
     "cumulus-primitives-timestamp/std",
     "pallet-collator-selection/std",
+    "polkadot-parachain/std",
     "parachain-info/std",
     "cumulus-pallet-aura-ext/std",
     "pallet-aura/std",
     "sp-consensus-aura/std",
+    "sp-consensus-babe/std",
     "polkadot-runtime-common/std",
     "pallet-treasury/std",
     "pallet-preimage/std",
     "pallet-identity/std",
+    "frame-system-benchmarking/std",
+    "frame-benchmarking/std",
+    "frame-system-rpc-runtime-api/std",
+    "pallet-randomness-collective-flip/std",
     "pallet-sudo/std"
 ]
 

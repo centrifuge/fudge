@@ -94,6 +94,8 @@ pallet-im-online = { git = "https://github.com/paritytech/substrate",  default-f
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate",  default-features = false , branch = "polkadot-v0.9.38" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
 
+xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+
 tracing-subscriber = "0.2"
 fudge-test-runtime = {path = "./src/tests/test-parachain", default-features = true}
 
