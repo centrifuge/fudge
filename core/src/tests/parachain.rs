@@ -15,7 +15,7 @@ use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::traits::GenesisBuild;
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
-	RuntimeCall as PRuntimeCall, WASM_BINARY as PCODE,
+	RuntimeCall as PRuntimeCall, RuntimeEvent as PRuntimeEvent, WASM_BINARY as PCODE,
 };
 use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain::primitives::Id;
@@ -26,10 +26,13 @@ use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::Storage;
+use sp_runtime::{
+	traits::{BlakeTwo256, Hash},
+	Storage,
+};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
-use xcm::VersionedXcm;
+use xcm::{v3::Weight, VersionedXcm};
 
 ///! Test for the ParachainBuilder
 use crate::digest::{DigestCreator, DigestProvider, FudgeAuraDigest, FudgeBabeDigest};
@@ -237,7 +240,7 @@ async fn parachain_creates_correct_inherents() {
 	super::utils::init_logs();
 
 	let mut relay_builder = default_relay_builder(Handle::current(), Storage::default());
-	let para_id = Id::from(PARA_ID);
+	let para_id = Id::from(2001u32);
 	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
 	let mut para_builder =
 		default_para_builder(Handle::current(), Storage::default(), inherent_builder);
@@ -256,27 +259,6 @@ async fn parachain_creates_correct_inherents() {
 	relay_builder.build_block().unwrap();
 	relay_builder.import_block().unwrap();
 
-	let remark = vec![0, 1, 2, 3];
-
-	let call = PRuntimeCall::System(frame_system::Call::remark { remark });
-
-	let transact: Instruction<PRuntimeCall> = Transact {
-		origin_kind: OriginKind::SovereignAccount,
-		require_weight_at_most: Default::default(),
-		call: call.encode().into(),
-	};
-
-	let xcm = VersionedXcm::from(Xcm(vec![transact]));
-
-	relay_builder
-		.with_mut_state(|| {
-			let config = <configuration::Pallet<RRuntime>>::config();
-			<dmp::Pallet<RRuntime>>::queue_downward_message(&config, para_id, xcm.encode())
-				.map_err(|_| ())
-				.unwrap();
-		})
-		.unwrap();
-
 	relay_builder.build_block().unwrap();
 
 	let num_start = para_builder
@@ -290,10 +272,6 @@ async fn parachain_creates_correct_inherents() {
 	relay_builder.import_block().unwrap();
 
 	para_builder.import_block().unwrap();
-
-	let _events = para_builder
-		.with_state(|| frame_system::Pallet::<PRuntime>::events())
-		.unwrap();
 
 	let num_after_one = para_builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::block_number())
@@ -324,4 +302,78 @@ async fn parachain_creates_correct_inherents() {
 		.unwrap();
 
 	assert_eq!(para_builder.head().unwrap(), para_head);
+}
+
+#[tokio::test]
+async fn parachain_can_process_downward_message() {
+	super::utils::init_logs();
+
+	let mut relay_builder = default_relay_builder(Handle::current(), Storage::default());
+	let para_id = Id::from(PARA_ID);
+	let inherent_builder = relay_builder.inherent_builder(para_id.clone());
+	let mut para_builder =
+		default_para_builder(Handle::current(), Storage::default(), inherent_builder);
+	let collator = para_builder.collator();
+
+	let para = FudgeParaChain {
+		id: para_id,
+		head: para_builder.head().unwrap(),
+		code: para_builder.code().unwrap(),
+	};
+
+	relay_builder
+		.onboard_para(para, Box::new(collator))
+		.unwrap();
+
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	let remark = vec![0, 1, 2, 3];
+
+	let call = PRuntimeCall::System(frame_system::Call::remark_with_event {
+		remark: remark.clone(),
+	});
+
+	let instruction: Instruction<PRuntimeCall> = Transact {
+		origin_kind: OriginKind::SovereignAccount,
+		require_weight_at_most: Weight::from_ref_time(200_000_000),
+		call: call.encode().into(),
+	};
+
+	let xcm = VersionedXcm::from(Xcm(vec![instruction]));
+
+	relay_builder
+		.with_mut_state(|| {
+			let config = <configuration::Pallet<RRuntime>>::config();
+			<dmp::Pallet<RRuntime>>::queue_downward_message(&config, para_id, xcm.encode())
+				.map_err(|_| ())
+				.unwrap();
+		})
+		.unwrap();
+
+	relay_builder.build_block().unwrap();
+
+	para_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_builder.import_block().unwrap();
+
+	let events = para_builder
+		.with_state(|| frame_system::Pallet::<PRuntime>::events())
+		.unwrap();
+
+	events
+		.iter()
+		.find(|e| match e.event {
+			PRuntimeEvent::System(frame_system::Event::<PRuntime>::Remarked { hash, .. })
+				if hash == BlakeTwo256::hash(&remark) =>
+			{
+				true
+			}
+			_ => false,
+		})
+		.unwrap();
 }

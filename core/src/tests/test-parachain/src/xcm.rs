@@ -16,8 +16,12 @@ use ::xcm::{
 };
 use frame_support::traits::Nothing;
 use pallet_xcm::TestWeightInfo;
+use polkadot_parachain::primitives::Sibling;
 use sp_core::ConstU32;
-use xcm_builder::{EnsureXcmOrigin, FixedWeightBounds, SignedToAccountId32};
+use xcm_builder::{
+	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, ParentIsPreset,
+	SiblingParachainConvertsVia, SignedToAccountId32, SovereignSignedViaLocation,
+};
 use xcm_executor::traits::ShouldExecute;
 
 use super::*;
@@ -51,7 +55,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type MaxAssetsIntoHolding = ConstU32<64>;
 	type MessageExporter = ();
-	type OriginConverter = ();
+	type OriginConverter = XcmOriginToTransactDispatchOrigin;
 	type PalletInstancesInfo = crate::AllPalletsWithSystem;
 	type ResponseHandler = PolkadotXcm;
 	type RuntimeCall = RuntimeCall;
@@ -76,6 +80,36 @@ impl ShouldExecute for TestBarrier {
 		Ok(())
 	}
 }
+
+pub type XcmOriginToTransactDispatchOrigin = (
+	// A matcher that catches all Moonbeam relaying contracts to generate the right Origin
+	// LpInstanceRelayer<ParaToEvm, Runtime>,
+	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
+	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
+	// foreign chains who want to have a local sovereign account on this chain which they control.
+	SovereignSignedViaLocation<LocationToAccountId, RuntimeOrigin>,
+	// Native converter for Relay-chain (Parent) location; will converts to a `Relay` origin when
+	// recognized.
+	// RelayChainAsNative<RelayChainOrigin, RuntimeOrigin>,
+	// Native converter for sibling Parachains; will convert to a `SiblingPara` origin when
+	// recognized.
+	// SiblingParachainAsNative<cumulus_pallet_xcm::Origin, RuntimeOrigin>,
+	// Native signed account converter; this just converts an `AccountId32` origin into a normal
+	// `Origin::Signed` origin of the same 32-byte value.
+	// SignedAccountId32AsNative<RelayNetwork, RuntimeOrigin>,
+	// Xcm origins can be represented natively under the Xcm pallet's Xcm origin.
+	// XcmPassthrough<RuntimeOrigin>,
+);
+
+pub type LocationToAccountId = (
+	// The parent (Relay-chain) origin converts to the default `AccountId`.
+	ParentIsPreset<AccountId>,
+	// Sibling parachain origins convert to AccountId via the `ParaId::into`.
+	SiblingParachainConvertsVia<Sibling, AccountId>,
+	// If we receive a MultiLocation of type AccountId32 that is within Centrifuge,
+	// just alias it to a local [AccountId].
+	AccountId32Aliases<RelayNetwork, AccountId>,
+);
 
 pub type XcmRouter = (
 	// Use UMP to communicate with the relay chain
