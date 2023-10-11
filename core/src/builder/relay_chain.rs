@@ -130,6 +130,9 @@ pub enum Error {
 
 	#[error("next block not found")]
 	NextBlockNotFound,
+
+	#[error("parachain {0} collation error: {1}")]
+	ParachainCollation(Id, InnerError),
 }
 
 /// Recreating private storage types for easier handling storage access
@@ -274,15 +277,21 @@ pub enum CollationJudgement {
 }
 
 pub trait CollationBuilder {
-	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation>;
+	fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>>;
 
 	fn judge(&self, judgement: CollationJudgement) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 #[cfg(test)]
 impl CollationBuilder for () {
-	fn collation(&self, _validation_data: PersistedValidationData) -> Option<Collation> {
-		None
+	fn collation(
+		&self,
+		_validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		Ok(None)
 	}
 
 	fn judge(&self, _judgement: CollationJudgement) -> Result<(), Box<dyn std::error::Error>> {
@@ -751,7 +760,11 @@ where
 				)
 			})??;
 
-			if let Some(collation) = para.collation(pvd) {
+			let parachain_collation = para
+				.collation(pvd)
+				.map_err(|e| Error::ParachainCollation(id.clone(), e))?;
+
+			if let Some(collation) = parachain_collation {
 				// Only collect collations when they are not already collected
 				if !self.collations.iter().any(|(in_id, _, _)| in_id == id) {
 					self.collations.push((*id, collation, parent_head.clone()))

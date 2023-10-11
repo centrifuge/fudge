@@ -75,6 +75,9 @@ pub enum Error<Block: BlockT> {
 	#[error("collation info collection at {0}: {1}")]
 	CollationInfoCollection(BlockId<Block>, InnerError),
 
+	#[error("collation info not found at {0}")]
+	CollationInfoNotFound(BlockId<Block>),
+
 	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
@@ -92,6 +95,12 @@ pub enum Error<Block: BlockT> {
 
 	#[error("next import lock is poisoned: {0}")]
 	NextImportLockPoisoned(InnerError),
+
+	#[error("head data decoding: {0}")]
+	HeadDataDecoding(InnerError),
+
+	#[error("compact proof creation: {0}")]
+	CompactProofCreation(InnerError),
 }
 
 pub struct FudgeParaBuild {
@@ -120,7 +129,10 @@ where
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: CollectCollationInfo<Block>,
 {
-	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
+	fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
 		self.collation(validation_data)
 	}
 
@@ -216,42 +228,47 @@ where
 		Ok(Some(collation_info))
 	}
 
-	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
-		let _state = self.backend.state_at(self.client.info().best_hash).ok()?;
+	pub fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		let _state = self.backend.state_at(self.client.info().best_hash)?;
 		self.create_collation(validation_data)
 	}
 
-	fn create_collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
-		let locked = self.next_block.lock().ok()?;
+	fn create_collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		let locked = self
+			.next_block
+			.lock()
+			.map_err(|e| InnerError::from(e.to_string()))?;
+
 		if let Some((block, proof)) = &*locked {
-			let last_head = match Block::Header::decode(&mut &validation_data.parent_head.0[..]) {
-				Ok(x) => x,
-				Err(e) => {
+			let last_head = Block::Header::decode(&mut &validation_data.parent_head.0[..])
+				.map_err(|e| {
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not decode the head data."
 					);
 
-					return None;
-				}
-			};
+					Error::<Block>::HeadDataDecoding(e.into())
+				})?;
 
-			let compact_proof = match proof
+			let compact_proof = proof
 				.clone()
 				.into_compact_proof::<HashFor<Block>>(last_head.state_root().clone())
-			{
-				Ok(proof) => proof,
-				Err(e) => {
+				.map_err(|e| {
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not get compact proof.",
 					);
 
-					return None;
-				}
-			};
+					Error::<Block>::CompactProofCreation(e.into())
+				})?;
 
 			let b = ParachainBlockData::<Block>::new(
 				block.header().clone(),
@@ -268,12 +285,13 @@ where
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not collect collation info.",
-					)
-				})
-				.ok()
-				.flatten()?;
+					);
 
-			Some(Collation {
+					Error::<Block>::CollationInfoCollection(BlockId::Hash(block_hash), e.into())
+				})?
+				.ok_or_else(|| Error::<Block>::CollationInfoNotFound(BlockId::Hash(block_hash)))?;
+
+			Ok(Some(Collation {
 				upward_messages: collation_info.upward_messages,
 				new_validation_code: collation_info.new_validation_code,
 				processed_downward_messages: collation_info.processed_downward_messages,
@@ -281,9 +299,9 @@ where
 				hrmp_watermark: collation_info.hrmp_watermark,
 				head_data: collation_info.head_data,
 				proof_of_validity: MaybeCompressedPoV::Raw(PoV { block_data }),
-			})
+			}))
 		} else {
-			None
+			Ok(None)
 		}
 	}
 
@@ -575,7 +593,7 @@ where
 				tracing::error!(
 					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 					error = ?e,
-					"Could not create inherent data."
+					"Could not create build block."
 				);
 
 				Error::CoreBuilder(e.into())
