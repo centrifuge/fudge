@@ -780,11 +780,8 @@ where
 		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
 		let parent_number = self.client().info().best_number;
-		let collations = self.collations.clone();
 
-		for (collation_index, (id, collation, generation_parent)) in
-			collations.into_iter().enumerate()
-		{
+		for (id, collation, generation_parent) in self.collations.clone().into_iter() {
 			let pvd = self.with_state(|| {
 				persisted_validation_data(&mut rt_api, parent, id, OccupiedCoreAssumption::TimedOut)
 			})??;
@@ -926,9 +923,9 @@ where
 
 				Error::ParachainJudgeError(e.into())
 			})?;
-
-			self.collations.remove(collation_index);
 		}
+
+		self.collations = Vec::new();
 
 		Ok(())
 	}
