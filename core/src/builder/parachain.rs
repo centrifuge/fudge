@@ -118,8 +118,7 @@ pub struct FudgeParaChain {
 pub struct FudgeCollator<Block, C, B> {
 	client: Arc<C>,
 	backend: Arc<B>,
-	next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+	block_storage: Arc<Mutex<BlockStorage<Block>>>,
 }
 
 impl<Block, C, B> CollationBuilder for FudgeCollator<Block, C, B>
@@ -154,14 +153,12 @@ where
 	pub fn new(
 		client: Arc<C>,
 		backend: Arc<B>,
-		next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-		next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+		block_storage: Arc<Mutex<BlockStorage<Block>>>,
 	) -> Self {
 		Self {
 			client,
 			backend,
-			next_block,
-			next_import,
+			block_storage,
 		}
 	}
 
@@ -240,12 +237,13 @@ where
 		&self,
 		validation_data: PersistedValidationData,
 	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
-		let locked = self
-			.next_block
+		let next_block = self
+			.block_storage
 			.lock()
-			.map_err(|e| InnerError::from(e.to_string()))?;
+			.map_err(|e| InnerError::from(e.to_string()))?
+			.get_next_block();
 
-		if let Some((block, proof)) = &*locked {
+		if let Some((block, proof)) = next_block {
 			let last_head = Block::Header::decode(&mut &validation_data.parent_head.0[..])
 				.map_err(|e| {
 					tracing::error!(
@@ -306,55 +304,12 @@ where
 	}
 
 	pub fn approve(&self) -> Result<(), Box<dyn std::error::Error>> {
-		let build = self
-			.next_block
+		let mut storage = self
+			.block_storage
 			.lock()
-			.map_err(|e| {
-				tracing::error!(
-					target = DEFAULT_COLLATOR_LOG_TARGET,
-					error = ?e,
-					"Lock for next block is poisoned.",
-				);
+			.map_err(|e| Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string())))?;
 
-				Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-			})?
-			.take()
-			.ok_or_else(|| {
-				tracing::error!(
-					target = DEFAULT_COLLATOR_LOG_TARGET,
-					"Next block not found.",
-				);
-
-				Error::<Block>::NextBlockNotFound
-			})?;
-
-		let mut locked_import = self.next_import.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_COLLATOR_LOG_TARGET,
-				error = ?e,
-				"Lock for next import is poisoned.",
-			);
-
-			Error::<Block>::NextImportLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*locked_import = Some(build);
-
-		Ok(())
-	}
-
-	pub fn reject(&self) -> Result<(), Box<dyn std::error::Error>> {
-		let mut locked = self.next_block.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_COLLATOR_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
-
-			Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		let _build = locked.take().ok_or_else(|| {
+		let build = storage.get_next_block().ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_COLLATOR_LOG_TARGET,
 				"Next block not found.",
@@ -363,7 +318,54 @@ where
 			Error::<Block>::NextBlockNotFound
 		})?;
 
+		storage.set_next_block(None);
+		storage.set_next_import(Some(build));
+
 		Ok(())
+	}
+
+	pub fn reject(&self) -> Result<(), Box<dyn std::error::Error>> {
+		self.block_storage
+			.lock()
+			.map_err(|e| Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string())))?
+			.set_next_block(None);
+
+		Ok(())
+	}
+}
+
+pub struct BlockStorage<Block> {
+	next_block: Option<(Block, StorageProof)>,
+	next_import: Option<(Block, StorageProof)>,
+}
+
+impl<Block> Default for BlockStorage<Block> {
+	fn default() -> Self {
+		BlockStorage {
+			next_block: None,
+			next_import: None,
+		}
+	}
+}
+
+impl<Block> BlockStorage<Block>
+where
+	Block: BlockT,
+{
+	fn set_next_block(&mut self, block: Option<(Block, StorageProof)>) {
+		self.next_block = block;
+	}
+
+	fn set_next_import(&mut self, import: Option<(Block, StorageProof)>) {
+		self.next_import = import
+	}
+
+	fn get_next_block(&self) -> Option<(Block, StorageProof)> {
+		self.next_block.clone()
+	}
+
+	fn get_next_import(&self) -> Option<(Block, StorageProof)> {
+		self.next_import.clone()
 	}
 }
 
@@ -392,8 +394,7 @@ pub struct ParachainBuilder<
 	builder: Builder<Block, RtApi, Exec, B, C, A>,
 	cidp: CIDP,
 	dp: DP,
-	next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+	block_storage: Arc<Mutex<BlockStorage<Block>>>,
 	imports: Vec<(Block, StorageProof)>,
 	_phantom: PhantomData<ExtraArgs>,
 }
@@ -450,20 +451,14 @@ where
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
-			next_block: Arc::new(Mutex::new(None)),
-			next_import: Arc::new(Mutex::new(None)),
+			block_storage: Arc::new(Mutex::new(BlockStorage::default())),
 			imports: Vec::new(),
 			_phantom: Default::default(),
 		})
 	}
 
 	pub fn collator(&self) -> FudgeCollator<Block, C, B> {
-		FudgeCollator::new(
-			self.client(),
-			self.backend(),
-			self.next_block.clone(),
-			self.next_import.clone(),
-		)
+		FudgeCollator::new(self.client(), self.backend(), self.block_storage.clone())
 	}
 
 	pub fn client(&self) -> Arc<C> {
@@ -607,18 +602,18 @@ where
 
 		self.import_block_with_params(params)?;
 
-		let binding = self.next_block.clone();
-		let mut next_block = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
+		self.block_storage
+			.lock()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Lock for next block is poisoned.",
+				);
 
-			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*next_block = Some((block, proof));
+				Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+			})?
+			.set_next_block(Some((block, proof)));
 
 		Ok(())
 	}
@@ -638,8 +633,8 @@ where
 	}
 
 	pub fn import_block(&mut self) -> Result<(), Error<Block>> {
-		let locked = self.next_import.clone();
-		let mut locked = locked.lock().map_err(|e| {
+		let binding = self.block_storage.clone();
+		let mut storage = binding.lock().map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -649,7 +644,9 @@ where
 			Error::NextImportLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
-		if let Some((block, proof)) = &*locked {
+		let next_import = storage.get_next_import();
+
+		if let Some((block, proof)) = next_import {
 			let (header, body) = block.clone().deconstruct();
 			let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 			params.body = Some(body);
@@ -661,7 +658,7 @@ where
 
 			self.imports.push((block.clone(), proof.clone()));
 
-			*locked = None;
+			storage.set_next_import(None);
 
 			Ok(())
 		} else {
@@ -675,24 +672,28 @@ where
 	}
 
 	pub fn next_build(&self) -> Result<Option<FudgeParaBuild>, Error<Block>> {
-		let binding = self.next_block.clone();
-		let next_block = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
+		let next_block = self
+			.block_storage
+			.lock()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Lock for next block is poisoned.",
+				);
 
-			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
+				Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+			})?
+			.get_next_block();
 
 		let latest_header = self
 			.builder
 			.latest_header()
 			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
 		let code = self.code()?;
 
-		match *next_block {
+		match next_block {
 			Some((ref block, _)) => Ok(Some(FudgeParaBuild {
 				parent_head: HeadData(latest_header.encode()),
 				block: BlockData(block.clone().encode()),
