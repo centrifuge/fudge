@@ -344,11 +344,7 @@ where
 		);
 		let api = self.client.runtime_api();
 		let persisted_validation_data = api
-			.persisted_validation_data(
-				&BlockId::Hash(parent),
-				self.id,
-				OccupiedCoreAssumption::TimedOut,
-			)
+			.persisted_validation_data(parent, self.id, OccupiedCoreAssumption::TimedOut)
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
@@ -867,7 +863,7 @@ where
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
-				polkadot_runtime_parachains::runtime_api_impl::v2::persisted_validation_data::<
+				polkadot_runtime_parachains::runtime_api_impl::v4::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
 				.ok_or_else(|| {
@@ -973,7 +969,7 @@ where
 	RtApi: ParachainHost<Block> + ApiExt<Block>,
 {
 	let res = rt_api.execute_in_transaction(|api| {
-		let pvd = api.persisted_validation_data(&BlockId::Hash(parent), id, assumption);
+		let pvd = api.persisted_validation_data(parent, id, assumption);
 
 		TransactionOutcome::Commit(pvd)
 	});
@@ -1008,7 +1004,7 @@ where
 	RtApi: ParachainHost<Block>,
 {
 	rt_api
-		.validation_code_hash(&BlockId::Hash(parent), id, assumption)
+		.validation_code_hash(parent, id, assumption)
 		.map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,

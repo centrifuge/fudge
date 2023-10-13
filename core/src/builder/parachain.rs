@@ -162,7 +162,7 @@ where
 		let block_id = BlockId::Hash(block_hash);
 
 		let api_version = runtime_api
-			.api_version::<dyn CollectCollationInfo<Block>>(&block_id)
+			.api_version::<dyn CollectCollationInfo<Block>>(block_hash)
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -171,7 +171,7 @@ where
 					block_id,
 				);
 
-				Error::APIVersionRetrieval(block_id, e.into())
+				Error::APIVersionRetrieval(block_id.clone(), e.into())
 			})?
 			.ok_or_else(|| {
 				tracing::error!(
@@ -186,7 +186,7 @@ where
 		let collation_info = if api_version < 2 {
 			#[allow(deprecated)]
 			runtime_api
-				.collect_collation_info_before_version_2(&block_id)
+				.collect_collation_info_before_version_2(block_hash)
 				.map_err(|e| {
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -200,7 +200,7 @@ where
 				.into_latest(header.encode().into())
 		} else {
 			runtime_api
-				.collect_collation_info(&block_id, header)
+				.collect_collation_info(block_hash, header)
 				.map_err(|e| {
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -273,11 +273,35 @@ where
 				.ok()
 				.flatten()?;
 
+			let upward_messages = collation_info
+				.upward_messages
+				.try_into()
+				.map_err(|e| {
+					tracing::error!(
+						target: DEFAULT_COLLATOR_LOG_TARGET,
+						error = ?e,
+						"Could not cast upward messages.",
+					)
+				})
+				.ok()?;
+
+			let horizontal_messages = collation_info
+				.horizontal_messages
+				.try_into()
+				.map_err(|e| {
+					tracing::error!(
+						target: DEFAULT_COLLATOR_LOG_TARGET,
+						error = ?e,
+						"Could not cast horizontal messages.",
+					)
+				})
+				.ok()?;
+
 			Some(Collation {
-				upward_messages: collation_info.upward_messages,
+				upward_messages,
 				new_validation_code: collation_info.new_validation_code,
 				processed_downward_messages: collation_info.processed_downward_messages,
-				horizontal_messages: collation_info.horizontal_messages,
+				horizontal_messages,
 				hrmp_watermark: collation_info.hrmp_watermark,
 				head_data: collation_info.head_data,
 				proof_of_validity: MaybeCompressedPoV::Raw(PoV { block_data }),

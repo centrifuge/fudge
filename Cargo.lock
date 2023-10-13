@@ -2761,7 +2761,6 @@ dependencies = [
  "lazy_static",
  "node-primitives",
  "pallet-aura",
- "pallet-authority-discovery",
  "pallet-babe",
  "pallet-balances",
  "pallet-grandpa",
