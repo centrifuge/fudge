@@ -8,8 +8,10 @@ edition = "2021"
 [dependencies]
 fudge = { path = "../fudge" }
 fudge-core = { path = "../core" }
-fudge-test-runtime = {path = "../core/src/tests/test-parachain", default-features = true}
-codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
+fudge-test-runtime = { path = "../core/src/tests/test-parachain", default-features = true }
+codec = { package = "parity-scale-codec", version = "3.0.0", features = [
+  "derive",
+] }
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }

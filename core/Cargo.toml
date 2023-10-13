@@ -7,9 +7,13 @@ edition = "2021"
 
 [dependencies]
 # third-party dependencies
-scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+scale-info = { version = "2.1.2", default-features = false, features = [
+  "derive",
+] }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "3.0.0", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.0.0", features = [
+  "derive",
+] }
 futures = "0.3.19"
 async-trait = "0.1.52"
 parking_lot = "0.12.1"
@@ -20,7 +24,7 @@ tokio = { version = "1.15", features = ["macros"] }
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
 # Local dependencies
-fudge-companion = { path = "./src/builder/companion"}
+fudge-companion = { path = "./src/builder/companion" }
 
 # Substrate primitives dependencies
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
@@ -45,7 +49,9 @@ sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = 
 # Substarte client dependencies
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "polkadot-v0.9.43" }
+sc-service = { git = "https://github.com/paritytech/substrate", features = [
+  "test-helpers",
+], branch = "polkadot-v0.9.43" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
@@ -60,21 +66,21 @@ node-primitives = { git = "https://github.com/paritytech/substrate", branch = "p
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.43" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", optional = true, branch = "polkadot-v0.9.43" }
 
 # Polkadot dependencies
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 polkadot-node-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
-polkadot-runtime-parachains =  { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
+polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 ## Currently only needed to make cumulus-relay-chain-inprocess-interface compile, not sure why cumulus works though
 polkadot-cli = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 
 # Cumulus dependencies
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
-cumulus-relay-chain-inprocess-interface= { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
+cumulus-relay-chain-inprocess-interface = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
 cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
 
 [dev-dependencies]
@@ -86,13 +92,13 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polka
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 tracing-subscriber = "0.2"
 pallet-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-fudge-test-runtime = {path = "./src/tests/test-parachain", default-features = true}
-pallet-session = { git = "https://github.com/paritytech/substrate", features = ["historical"] , branch = "polkadot-v0.9.43" }
+fudge-test-runtime = { path = "./src/tests/test-parachain", default-features = true }
+pallet-session = { git = "https://github.com/paritytech/substrate", features = [
+  "historical",
+], branch = "polkadot-v0.9.43" }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 
 [features]
 default = []
-runtime-benchmarks = [
-    'frame-benchmarking/runtime-benchmarks'
-]
+runtime-benchmarks = ['frame-benchmarking/runtime-benchmarks']
