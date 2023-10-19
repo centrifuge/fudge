@@ -391,6 +391,7 @@ pub struct ParachainBuilder<
 	C::Api: TaggedTransactionQueue<Block> + CollectCollationInfo<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
+	id: Id,
 	builder: Builder<Block, RtApi, Exec, B, C, A>,
 	cidp: CIDP,
 	dp: DP,
@@ -430,7 +431,7 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error<Block>>
+	pub fn new<I, F>(id: Id, initiator: I, setup: F) -> Result<Self, Error<Block>>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
@@ -448,6 +449,7 @@ where
 		let (cidp, dp) = setup(client.clone());
 
 		Ok(Self {
+			id,
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
@@ -455,6 +457,10 @@ where
 			imports: Vec::new(),
 			_phantom: Default::default(),
 		})
+	}
+
+	pub fn id(&self) -> Id {
+		self.id
 	}
 
 	pub fn collator(&self) -> FudgeCollator<Block, C, B> {

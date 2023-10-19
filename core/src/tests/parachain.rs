@@ -143,7 +143,7 @@ fn default_para_builder(
 		}
 	};
 
-	ParachainBuilder::new(init, |client| (cidp, dp(client))).unwrap()
+	ParachainBuilder::new(Id::from(para_id), init, |client| (cidp, dp(client))).unwrap()
 }
 
 fn cidp_and_dp_relay(
@@ -690,10 +690,6 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.update_para_head(Id::from(PARA_ID_1), para_1_builder.head().unwrap())
 		.unwrap();
 
-	relay_builder
-		.update_para_head(Id::from(PARA_ID_2), para_2_builder.head().unwrap())
-		.unwrap();
-
 	relay_builder.build_block().unwrap();
 
 	para_1_builder.build_block().unwrap();
@@ -703,6 +699,10 @@ async fn multi_parachains_can_send_xcm_messages() {
 	relay_builder.import_block().unwrap();
 
 	para_1_builder.import_block().unwrap();
+
+	relay_builder
+		.update_para_head(Id::from(PARA_ID_2), para_2_builder.head().unwrap())
+		.unwrap();
 
 	relay_builder.build_block().unwrap();
 
