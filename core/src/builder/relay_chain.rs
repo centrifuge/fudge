@@ -527,6 +527,12 @@ where
 		})
 	}
 
+	pub fn update_para_head(&mut self, id: Id, head: HeadData) -> Result<(), Error> {
+		self.with_mut_state(|| {
+			Heads::insert(&id, head);
+		})
+	}
+
 	pub fn append_transition(&mut self, aux: StoragePair) {
 		self.builder.append_transition(aux);
 	}

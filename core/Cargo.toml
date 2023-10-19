@@ -95,6 +95,8 @@ pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", 
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
 
 xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+pallet-xcm-transactor = { git = "https://github.com/PureStake/moonbeam", default-features = false, rev = "00b3e3d97806e889b02e1bcb4b69e65433dd805d" }
 
 tracing-subscriber = "0.2"
 fudge-test-runtime = {path = "./src/tests/test-parachain", default-features = true}

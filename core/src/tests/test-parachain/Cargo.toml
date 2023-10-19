@@ -77,6 +77,9 @@ cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", defa
 cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "polkadot-v0.9.38" }
 xcm-builder = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.38" }
+pallet-xcm-transactor = { git = "https://github.com/PureStake/moonbeam", default-features = false, rev = "00b3e3d97806e889b02e1bcb4b69e65433dd805d" }
+moonbeam-relay-encoder = { git = "https://github.com/PureStake/moonbeam", default-features = false, rev = "00b3e3d97806e889b02e1bcb4b69e65433dd805d" }
+xcm-primitives = { git = "https://github.com/PureStake/moonbeam", default-features = false, rev = "00b3e3d97806e889b02e1bcb4b69e65433dd805d" }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.38" }
@@ -142,7 +145,10 @@ std = [
     "frame-benchmarking/std",
     "frame-system-rpc-runtime-api/std",
     "pallet-randomness-collective-flip/std",
-    "pallet-sudo/std"
+    "pallet-sudo/std",
+    "pallet-xcm-transactor/std",
+    "moonbeam-relay-encoder/std",
+    "xcm-primitives/std",
 ]
 
 # A feature that should be enabled when the runtime should be build for on-chain

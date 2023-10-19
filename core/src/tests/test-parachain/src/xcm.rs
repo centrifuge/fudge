@@ -11,26 +11,34 @@
 // GNU General Public License for more details.
 
 use ::xcm::{
-	latest::{Instruction, MultiLocation},
-	v3::NetworkId,
+	latest::{Instruction, MultiAsset, MultiLocation, XcmContext},
+	prelude::{AccountId32, XcmError, X1},
+	v3::{AssetId, NetworkId},
 };
+use codec::{Decode, Encode};
 use frame_support::traits::Nothing;
 use pallet_xcm::TestWeightInfo;
 use polkadot_parachain::primitives::Sibling;
-use sp_core::ConstU32;
+use scale_info::TypeInfo;
+use sp_core::{ConstU32, Get};
+use sp_runtime::traits::Convert;
+use sp_std::marker::PhantomData;
 use xcm_builder::{
 	AccountId32Aliases, EnsureXcmOrigin, FixedWeightBounds, ParentIsPreset,
 	SiblingParachainConvertsVia, SignedToAccountId32, SovereignSignedViaLocation,
 };
-use xcm_executor::traits::ShouldExecute;
+use xcm_executor::{
+	traits::{ShouldExecute, TransactAsset, WeightTrader},
+	Assets,
+};
+use xcm_primitives::{UtilityAvailableCalls, UtilityEncodeCall, XcmTransact};
 
 use super::*;
-
-/////////// XCM Config
 
 parameter_types! {
 	pub const RelayNetwork: NetworkId = NetworkId::Rococo;
 	pub RelayChainOrigin: RuntimeOrigin = cumulus_pallet_xcm::Origin::Relay.into();
+	pub SelfLocation: MultiLocation = MultiLocation::new(1, ::xcm::v3::Junctions::X1(::xcm::v3::Junction::Parachain(ParachainInfo::get().into())));
 
 	pub UniversalLocation: ::xcm::v3::InteriorMultiLocation = ::xcm::v3::Junctions::X2(
 		::xcm::v3::Junction::GlobalConsensus(RelayNetwork::get()),
@@ -46,7 +54,7 @@ impl xcm_executor::Config for XcmConfig {
 	type AssetClaims = PolkadotXcm;
 	type AssetExchanger = ();
 	type AssetLocker = ();
-	type AssetTransactor = ();
+	type AssetTransactor = DummyAssetTransactor;
 	type AssetTrap = PolkadotXcm;
 	type Barrier = TestBarrier;
 	type CallDispatcher = RuntimeCall;
@@ -61,7 +69,7 @@ impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
 	type SafeCallFilter = Everything;
 	type SubscriptionService = PolkadotXcm;
-	type Trader = ();
+	type Trader = DummyWeightTrader;
 	type UniversalAliases = Nothing;
 	type UniversalLocation = UniversalLocation;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
@@ -82,23 +90,10 @@ impl ShouldExecute for TestBarrier {
 }
 
 pub type XcmOriginToTransactDispatchOrigin = (
-	// A matcher that catches all Moonbeam relaying contracts to generate the right Origin
-	// LpInstanceRelayer<ParaToEvm, Runtime>,
 	// Sovereign account converter; this attempts to derive an `AccountId` from the origin location
 	// using `LocationToAccountId` and then turn that into the usual `Signed` origin. Useful for
 	// foreign chains who want to have a local sovereign account on this chain which they control.
 	SovereignSignedViaLocation<LocationToAccountId, RuntimeOrigin>,
-	// Native converter for Relay-chain (Parent) location; will converts to a `Relay` origin when
-	// recognized.
-	// RelayChainAsNative<RelayChainOrigin, RuntimeOrigin>,
-	// Native converter for sibling Parachains; will convert to a `SiblingPara` origin when
-	// recognized.
-	// SiblingParachainAsNative<cumulus_pallet_xcm::Origin, RuntimeOrigin>,
-	// Native signed account converter; this just converts an `AccountId32` origin into a normal
-	// `Origin::Signed` origin of the same 32-byte value.
-	// SignedAccountId32AsNative<RelayNetwork, RuntimeOrigin>,
-	// Xcm origins can be represented natively under the Xcm pallet's Xcm origin.
-	// XcmPassthrough<RuntimeOrigin>,
 );
 
 pub type LocationToAccountId = (
@@ -134,7 +129,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 
 impl pallet_xcm::Config for Runtime {
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
-	type Currency = crate::Balances;
+	type Currency = Balances;
 	type CurrencyMatcher = ();
 	type ExecuteXcmOrigin = EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type MaxLockers = ConstU32<8>;
@@ -162,3 +157,92 @@ impl cumulus_pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
+
+parameter_types! {
+	pub const BaseXcmWeight: ::xcm::v3::Weight = ::xcm::v3::Weight::from_ref_time(100_000_000);
+	pub MaxHrmpRelayFee: ::xcm::v3::MultiAsset = (MultiLocation::parent(), 1_000_000_000_000u128).into();
+}
+
+impl pallet_xcm_transactor::Config for Runtime {
+	type AccountIdToMultiLocation = AccountIdToMultiLocation<AccountId>;
+	type AssetTransactor = DummyAssetTransactor;
+	type Balance = Balance;
+	type BaseXcmWeight = BaseXcmWeight;
+	type CurrencyId = AssetId;
+	type CurrencyIdToMultiLocation = CurrencyIdConvert;
+	type DerivativeAddressRegistrationOrigin = EnsureRoot<AccountId>;
+	type HrmpEncoder = moonbeam_relay_encoder::westend::WestendEncoder;
+	type HrmpManipulatorOrigin = EnsureRoot<AccountId>;
+	type MaxHrmpFee = xcm_builder::Case<MaxHrmpRelayFee>;
+	type ReserveProvider = xcm_primitives::AbsoluteAndRelativeReserve<SelfLocation>;
+	type RuntimeEvent = RuntimeEvent;
+	type SelfLocation = SelfLocation;
+	type SovereignAccountDispatcherOrigin = EnsureRoot<AccountId>;
+	type Transactor = NullTransactor;
+	type UniversalLocation = UniversalLocation;
+	type Weigher = XcmWeigher;
+	type WeightInfo = ();
+	type XcmSender = XcmRouter;
+}
+
+pub struct DummyAssetTransactor;
+
+impl TransactAsset for DummyAssetTransactor {
+	fn withdraw_asset(
+		_what: &MultiAsset,
+		_who: &MultiLocation,
+		_maybe_context: Option<&XcmContext>,
+	) -> Result<Assets, XcmError> {
+		Ok(Assets::default())
+	}
+}
+
+pub struct DummyWeightTrader;
+impl WeightTrader for DummyWeightTrader {
+	fn new() -> Self {
+		DummyWeightTrader
+	}
+
+	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+		Ok(Assets::default())
+	}
+}
+
+#[derive(Clone, Eq, Debug, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
+pub struct NullTransactor {}
+
+impl UtilityEncodeCall for NullTransactor {
+	fn encode_call(self, _call: UtilityAvailableCalls) -> Vec<u8> {
+		vec![]
+	}
+}
+
+impl XcmTransact for NullTransactor {
+	fn destination(self) -> MultiLocation {
+		Default::default()
+	}
+}
+
+pub struct AccountIdToMultiLocation<AccountId>(PhantomData<AccountId>);
+impl<AccountId> Convert<AccountId, MultiLocation> for AccountIdToMultiLocation<AccountId>
+where
+	AccountId: Into<[u8; 32]> + Clone,
+{
+	fn convert(account: AccountId) -> MultiLocation {
+		X1(AccountId32 {
+			network: None,
+			id: account.into(),
+		})
+		.into()
+	}
+}
+
+pub struct CurrencyIdConvert;
+
+impl Convert<AssetId, Option<MultiLocation>> for CurrencyIdConvert {
+	fn convert(_id: AssetId) -> Option<MultiLocation> {
+		Some(MultiLocation::here())
+	}
+}
+
+pub type XcmWeigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
