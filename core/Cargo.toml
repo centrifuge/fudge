@@ -37,6 +37,7 @@ sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polk
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+sp-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
@@ -84,6 +85,8 @@ cumulus-relay-chain-inprocess-interface = { git = "https://github.com/paritytech
 cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
 
 [dev-dependencies]
+parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "polkadot-v0.9.43" }
+
 polkadot-runtime = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
@@ -98,6 +101,11 @@ pallet-session = { git = "https://github.com/paritytech/substrate", features = [
 ], branch = "polkadot-v0.9.43" }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+
+
+xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.43" }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.43" }
+pallet-xcm-transactor = { git = "https://github.com/moonbeam-foundation/moonbeam", default-features = false, rev = "7759b616c378b84e920ac56d3977bf9e49bcb1fb" }
 
 [features]
 default = []
