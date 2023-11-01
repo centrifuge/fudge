@@ -120,8 +120,14 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					let collator = companion.#parachain_names.collator();
 
 					companion.#relay_chain_name.onboard_para(para, Box::new(collator)).map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-
 				)*
+
+				{
+					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
+
+					companion.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+					companion.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+				}
 
 				Ok(companion)
 			}
