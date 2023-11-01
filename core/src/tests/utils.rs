@@ -19,7 +19,7 @@ const UNINITIALIZED: usize = 0;
 const INITIALIZING: usize = 1;
 const INITIALIZED: usize = 2;
 
-const LOG_LEVEL: LevelFilter = LevelFilter::DEBUG;
+const LOG_LEVEL: LevelFilter = LevelFilter::INFO;
 
 pub fn init_logs() {
 	if GLOBAL_INIT
