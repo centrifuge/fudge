@@ -31,7 +31,7 @@ use sc_service::{
 	TFullBackend, TFullClient, TaskManager,
 };
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
-use sp_api::{ApiExt, BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata};
 use sp_core::traits::{CodeExecutor, ReadRuntimeVersion};
 use sp_runtime::{traits::BlockIdTo, BuildStorage};
@@ -103,7 +103,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block>,
+			,
 {
 	Init::new(
 		backend,
@@ -125,7 +125,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block>,
+			,
 {
 	Init::new(
 		MemDb::new(),
@@ -454,7 +454,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block>,
+			,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
 	type Api = RtApi::RuntimeApi;

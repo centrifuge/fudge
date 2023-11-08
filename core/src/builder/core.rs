@@ -22,7 +22,7 @@ use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{Environment, InherentData, Proposal, Proposer};
 use sp_core::traits::CodeExecutor;
@@ -164,7 +164,7 @@ where
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block>
+
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>

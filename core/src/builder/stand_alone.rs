@@ -19,7 +19,7 @@ use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
@@ -107,7 +107,7 @@ where
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block>
+
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>

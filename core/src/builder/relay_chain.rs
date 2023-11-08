@@ -421,7 +421,6 @@ where
 		+ polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
-		+ ApiExt<PBlock>
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
@@ -944,7 +943,7 @@ where
 	}
 }
 
-fn persisted_validation_data<RtApi, Block>(
+fn persisted_validation_data<RtApi: ApiExt<Block>, Block>(
 	rt_api: &mut ApiRef<RtApi>,
 	parent: Block::Hash,
 	id: Id,
@@ -952,7 +951,7 @@ fn persisted_validation_data<RtApi, Block>(
 ) -> Result<PersistedValidationData, Error>
 where
 	Block: BlockT,
-	RtApi: ParachainHost<Block> + ApiExt<Block>,
+	RtApi: ParachainHost<Block> ,
 {
 	let res = rt_api.execute_in_transaction(|api| {
 		let pvd = api.persisted_validation_data(parent, id, assumption);

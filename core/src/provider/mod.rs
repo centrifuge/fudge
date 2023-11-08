@@ -23,7 +23,7 @@ use sc_service::{
 	ClientConfig, GenesisBlockBuilder, LocalCallExecutor, TFullBackend, TFullClient, TaskManager,
 };
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
@@ -43,7 +43,7 @@ where
 		BlockImport<Block>,
 {
 	type Api: BlockBuilder<Block>
-		+ ApiExt<Block>
+
 		+ BlockBuilderApi<Block>
 		+ TaggedTransactionQueue<Block>;
 	type Client: 'static
@@ -88,7 +88,7 @@ pub trait BackendProvider<Block: BlockT> {
 
 pub trait ClientProvider<Block: BlockT> {
 	type Api: BlockBuilder<Block>
-		+ ApiExt<Block>
+
 		+ BlockBuilderApi<Block>
 		+ TaggedTransactionQueue<Block>;
 	type Backend: 'static + BackendT<Block>;
@@ -154,7 +154,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block>,
+			,
 	Exec: CodeExecutor + RuntimeVersionOf,
 {
 	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;

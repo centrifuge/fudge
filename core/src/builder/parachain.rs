@@ -438,7 +438,7 @@ where
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block>
+
 		+ TaggedTransactionQueue<Block>
 		+ CollectCollationInfo<Block>,
 	C: 'static
