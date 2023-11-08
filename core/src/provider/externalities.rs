@@ -20,7 +20,7 @@ use std::{
 
 use sp_core::Hasher;
 use sp_externalities::Externalities;
-use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges, StorageTransactionCache};
+use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges};
 use sp_storage::StateVersion;
 use thiserror::Error;
 
@@ -49,10 +49,7 @@ where
 	H::Out: codec::Codec + Ord + 'static,
 	B: Backend<H>,
 {
-	overlay: OverlayedChanges,
-	// TODO: Do we need an offchain-db here?
-	//offchain_db: TestPersistentOffchainDB,
-	storage_transaction_cache: StorageTransactionCache<<B as Backend<H>>::Transaction, H>,
+	overlay: OverlayedChanges<H>,
 	backend: &'a B,
 }
 
@@ -66,7 +63,6 @@ where
 	pub fn new(backend: &'a B) -> Self {
 		Self {
 			backend,
-			storage_transaction_cache: StorageTransactionCache::default(),
 			overlay: OverlayedChanges::default(),
 		}
 	}
@@ -75,7 +71,6 @@ where
 	pub fn ext(&mut self) -> Ext<H, B> {
 		Ext::new(
 			&mut self.overlay,
-			&mut self.storage_transaction_cache,
 			&self.backend,
 			None,
 		)
@@ -183,11 +178,11 @@ where
 	pub fn execute_with_mut<R>(
 		&mut self,
 		execute: impl FnOnce() -> R,
-	) -> Result<(R, StorageChanges<B::Transaction, H>), Error> {
+		version: StateVersion,
+	) -> Result<(R, StorageChanges<H>), Error> {
 		let _parent_hash = self.overlay.storage_root(
 			self.backend,
-			&mut self.storage_transaction_cache,
-			StateVersion::V0,
+			version,
 		);
 
 		let mut ext = self.ext();
@@ -206,10 +201,9 @@ where
 		Ok((
 			r,
 			self.overlay
-				.drain_storage_changes::<B, H>(
+				.drain_storage_changes::<B>(
 					self.backend,
-					&mut self.storage_transaction_cache,
-					StateVersion::V0,
+					version,
 				)
 				.map_err(|e| {
 					tracing::error!(

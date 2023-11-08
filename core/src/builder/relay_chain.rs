@@ -21,22 +21,22 @@ use frame_support::{
 };
 use polkadot_core_primitives::{Block as PBlock, CandidateHash};
 use polkadot_node_primitives::Collation;
-use polkadot_parachain::primitives::{
+use polkadot_parachain_primitives::primitives::{
 	HeadData, Id, Id as ParaId, ValidationCode, ValidationCodeHash,
 };
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v4::{
+	v5::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
 	GroupIndex, PersistedValidationData,
 };
 use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
-use polkadot_service::Handle;
+use polkadot_service::{FullClient, Handle};
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
-	TransactionFor, UsageProvider,
+	UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -48,7 +48,6 @@ use scale_info::TypeInfo;
 use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
-use sp_consensus_babe::BabeApi;
 use sp_core::{traits::CodeExecutor, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{
@@ -137,6 +136,7 @@ pub enum Error {
 
 /// Recreating private storage types for easier handling storage access
 pub mod types {
+	use frame_system::pallet_prelude::BlockNumberFor;
 	use super::*;
 
 	pub struct ParaLifecyclesPrefix;
@@ -212,7 +212,7 @@ pub mod types {
 	}
 	#[allow(type_alias_bounds)]
 	pub type PastCodeHash<T: frame_system::Config> =
-		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, T::BlockNumber), ValidationCodeHash>;
+		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, BlockNumberFor<T>), ValidationCodeHash>;
 
 	pub struct PendingAvailabilityPrefix;
 	impl StorageInstance for PendingAvailabilityPrefix {
@@ -227,7 +227,7 @@ pub mod types {
 		PendingAvailabilityPrefix,
 		Twox64Concat,
 		ParaId,
-		CandidatePendingAvailability<T::Hash, T::BlockNumber>,
+		CandidatePendingAvailability<T::Hash, BlockNumberFor<T>>,
 	>;
 
 	pub struct PendingAvailabilityCommitmentsPrefix;
@@ -319,27 +319,7 @@ impl<C, B> Clone for InherentBuilder<C, B> {
 	}
 }
 
-impl<C> InherentBuilder<C, TFullBackend<PBlock>>
-where
-	C::Api: BlockBuilder<PBlock>
-		+ ParachainHost<PBlock>
-		+ BabeApi<PBlock>
-		+ ApiExt<PBlock, StateBackend = <TFullBackend<PBlock> as BackendT<PBlock>>::State>
-		+ TaggedTransactionQueue<PBlock>,
-	C: 'static
-		+ ProvideRuntimeApi<PBlock>
-		+ BlockOf
-		+ Send
-		+ BlockBackend<PBlock>
-		+ BlockIdTo<PBlock>
-		+ Sync
-		+ AuxStore
-		+ UsageProvider<PBlock>
-		+ BlockchainEvents<PBlock>
-		+ HeaderBackend<PBlock>
-		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<TFullBackend<PBlock>, PBlock, C>,
+impl InherentBuilder<FullClient, TFullBackend<PBlock>>
 {
 	pub async fn parachain_inherent(&self) -> Result<ParachainInherentData, Error> {
 		let parent = self.client.info().best_hash;
@@ -441,7 +421,7 @@ where
 		+ polkadot_runtime_parachains::initializer::Config,
 	C::Api: BlockBuilder<Block>
 		+ ParachainHost<Block>
-		+ ApiExt<Block, StateBackend = B::State>
+		+ ApiExt<PBlock>
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
@@ -457,7 +437,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
-	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
+	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error>
@@ -869,7 +849,7 @@ where
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
-				polkadot_runtime_parachains::runtime_api_impl::v4::persisted_validation_data::<
+				polkadot_runtime_parachains::runtime_api_impl::v5::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
 				.ok_or_else(|| {

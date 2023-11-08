@@ -19,8 +19,8 @@ use std::{marker::PhantomData, sync::Arc};
 use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
-	AuxStore, Backend, BlockBackend, BlockOf, TransactionFor, UsageProvider,
+	execution_extensions::{ExecutionExtensions},
+	AuxStore, Backend, BlockBackend, BlockOf,UsageProvider,
 };
 use sc_consensus::BlockImport;
 use sc_executor::{
@@ -103,7 +103,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+			+ ApiExt<Block>,
 {
 	Init::new(
 		backend,
@@ -125,7 +125,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+			+ ApiExt<Block>,
 {
 	Init::new(
 		MemDb::new(),
@@ -176,7 +176,7 @@ where
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
 	CP::Exec: Clone + ReadRuntimeVersion,
-	for<'r> &'r CP::Client: BlockImport<Block, Transaction = TransactionFor<CP::Backend, Block>>,
+	for<'r> &'r CP::Client: BlockImport<Block>,
 {
 	/// Creates a new `Init` instance with some sane defaults:
 	///
@@ -212,8 +212,6 @@ where
 				revalidation: RevalidationType::Full,
 			},
 			execution_extensions: ExecutionExtensions::new(
-				ExecutionStrategies::default(),
-				None,
 				None,
 				Arc::new(exec),
 			),
@@ -271,7 +269,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
-	for<'r> &'r CP::Client: BlockImport<Block, Transaction = TransactionFor<CP::Backend, Block>>,
+	for<'r> &'r CP::Client: BlockImport<Block>,
 {
 	type Api = CP::Api;
 	type Backend = CP::Backend;
@@ -456,7 +454,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+			+ ApiExt<Block>,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
 	type Api = RtApi::RuntimeApi;

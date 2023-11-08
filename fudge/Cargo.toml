@@ -9,10 +9,10 @@ edition = "2021"
 fudge-core = { path = "../core" }
 fudge-companion = { path = "../core/src/builder/companion" }
 
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.43" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.43" }
+polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
+sc-service = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
+sc-executor = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
 
 [features]
 runtime-benchmarks = ["fudge-core/runtime-benchmarks"]

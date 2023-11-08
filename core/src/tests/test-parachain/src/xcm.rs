@@ -11,14 +11,14 @@
 // GNU General Public License for more details.
 
 use ::xcm::{
-	latest::{Instruction, MultiAsset, MultiLocation, XcmContext},
+	v3::{Instruction, MultiAsset, MultiLocation, XcmContext},
 	prelude::{AccountId32, XcmError, X1},
 	v3::{AssetId, NetworkId},
 };
 use codec::{Decode, Encode};
 use frame_support::traits::{Nothing, ProcessMessageError};
 use pallet_xcm::TestWeightInfo;
-use polkadot_parachain::primitives::Sibling;
+use polkadot_parachain_primitives::primitives::Sibling;
 use scale_info::TypeInfo;
 use sp_core::{ConstU32, Get};
 use sp_runtime::traits::Convert;
@@ -31,6 +31,7 @@ use xcm_executor::{
 	traits::{ShouldExecute, TransactAsset, WeightTrader},
 	Assets,
 };
+use xcm_executor::traits::Properties;
 use xcm_primitives::{UtilityAvailableCalls, UtilityEncodeCall, XcmTransact};
 
 use super::*;
@@ -74,6 +75,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalLocation = UniversalLocation;
 	type Weigher = FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type XcmSender = XcmRouter;
+	type Aliasers = ();
 }
 
 pub struct TestBarrier;
@@ -83,7 +85,7 @@ impl ShouldExecute for TestBarrier {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		Ok(())
 	}
@@ -206,7 +208,7 @@ impl WeightTrader for DummyWeightTrader {
 		DummyWeightTrader
 	}
 
-	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(&mut self, _weight: Weight, _payment: Assets, _context: &XcmContext) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
 }

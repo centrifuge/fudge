@@ -14,7 +14,7 @@ use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
-	backend::TransactionFor, blockchain::Backend as BlockchainBackend, AuxStore,
+	blockchain::Backend as BlockchainBackend, AuxStore,
 	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
 	UsageProvider,
 };
@@ -22,7 +22,7 @@ use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TaskManager, TransactionPool};
 use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, HashFor, ProvideRuntimeApi, StorageChanges};
+use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageChanges};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{Environment, InherentData, Proposal, Proposer};
 use sp_core::traits::CodeExecutor;
@@ -36,12 +36,15 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
+use sp_runtime::traits::Header;
 
 use crate::{provider::externalities::ExternalitiesProvider, types::StoragePair};
 
 const DEFAULT_BUILDER_LOG_TARGET: &str = "fudge-builder";
 
 pub type InnerError = Box<dyn std::error::Error>;
+
+pub type HashFor<B> = <<B as BlockT>::Header as Header>::Hashing;
 
 #[derive(Error, Debug)]
 pub enum Error<Block: BlockT> {
@@ -161,7 +164,7 @@ where
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = B::State>
+		+ ApiExt<Block>
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
@@ -176,7 +179,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
-	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
+	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	/// Create a new Builder with provided backend and client.
@@ -252,7 +255,7 @@ where
 
 	pub fn commit_storage_changes(
 		&mut self,
-		changes: StorageChanges<B::State, Block>,
+		changes: StorageChanges<Block>,
 		at: BlockId<Block>,
 	) -> Result<(), Error<Block>> {
 		let mut op = self.backend.begin_operation().map_err(|e| {
@@ -414,7 +417,7 @@ where
 
 					let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 
-					let (r, changes) = ext.execute_with_mut(exec).map_err(|e| {
+					let (r, changes) = ext.execute_with_mut(exec, self.state_version()?).map_err(|e| {
 						tracing::error!(
 							target = DEFAULT_BUILDER_LOG_TARGET,
 							error = ?e,
@@ -460,7 +463,7 @@ where
 	) -> Result<R, Error<Block>> {
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 
-		let (r, changes) = ext.execute_with_mut(exec).map_err(|e| {
+		let (r, changes) = ext.execute_with_mut(exec, self.state_version()?).map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -539,7 +542,7 @@ where
 	fn mutate_normal(
 		&self,
 		op: &mut B::BlockImportOperation,
-		changes: StorageChanges<B::State, Block>,
+		changes: StorageChanges<Block>,
 		at: BlockId<Block>,
 	) -> Result<(), Error<Block>> {
 		let chain_backend = self.backend.blockchain();
@@ -677,7 +680,7 @@ where
 		digest: Digest,
 		time: Duration,
 		limit: usize,
-	) -> Result<Proposal<Block, TransactionFor<B, Block>, StorageProof>, Error<Block>> {
+	) -> Result<Proposal<Block, StorageProof>, Error<Block>> {
 		let mut factory = sc_basic_authorship::ProposerFactory::with_proof_recording(
 			handle,
 			self.client.clone(),
@@ -714,7 +717,7 @@ where
 	/// Import a block, that has been previously built.
 	pub fn import_block(
 		&mut self,
-		params: BlockImportParams<Block, TransactionFor<B, Block>>,
+		params: BlockImportParams<Block>,
 	) -> Result<(), Error<Block>> {
 		let prev_hash = self.latest_block();
 		let ret = match futures::executor::block_on(self.client.as_ref().import_block(params))
