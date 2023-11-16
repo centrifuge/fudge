@@ -19,11 +19,13 @@ use std::{marker::PhantomData, sync::Arc};
 use polkadot_cli::service::HeaderBackend;
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	execution_extensions::ExecutionExtensions, AuxStore, Backend, BlockBackend, BlockOf,
-	TransactionFor, UsageProvider,
+	execution_extensions::{ExecutionExtensions, ExecutionStrategies},
+	AuxStore, Backend, BlockBackend, BlockOf, TransactionFor, UsageProvider,
 };
 use sc_consensus::BlockImport;
-use sc_executor::{RuntimeVersionOf, WasmExecutionMethod, WasmExecutor};
+use sc_executor::{
+	sp_wasm_interface::HostFunctions, HeapAllocStrategy, RuntimeVersionOf, WasmExecutor,
+};
 use sc_service::{
 	ClientConfig, Configuration, GenesisBlockBuilder, KeystoreContainer, LocalCallExecutor,
 	TFullBackend, TFullClient, TaskManager,
@@ -31,7 +33,7 @@ use sc_service::{
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
 use sp_api::{ApiExt, BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata};
-use sp_core::traits::CodeExecutor;
+use sp_core::traits::{CodeExecutor, ReadRuntimeVersion};
 use sp_runtime::{traits::BlockIdTo, BuildStorage};
 use sp_storage::Storage;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -74,6 +76,19 @@ pub struct PoolConfig {
 	revalidation: RevalidationType,
 }
 
+fn build_wasm_executor<H>() -> WasmExecutor<H>
+where
+	H: HostFunctions + Send + Sync,
+{
+	let heap_alloc_strategy = HeapAllocStrategy::Static { extra_pages: 1024 };
+	WasmExecutor::<H>::builder()
+		.with_max_runtime_instances(8)
+		.with_runtime_cache_size(2)
+		.with_onchain_heap_alloc_strategy(heap_alloc_strategy)
+		.with_offchain_heap_alloc_strategy(heap_alloc_strategy)
+		.build()
+}
+
 pub fn default_with<Block, RtApi, BP>(
 	handle: Handle,
 	backend: BP,
@@ -93,7 +108,7 @@ where
 	Init::new(
 		backend,
 		DefaultClient::<Block, RtApi, TWasmExecutor>::new(),
-		WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		build_wasm_executor(),
 		handle,
 	)
 }
@@ -115,7 +130,7 @@ where
 	Init::new(
 		MemDb::new(),
 		DefaultClient::<Block, RtApi, TWasmExecutor>::new(),
-		WasmExecutor::new(WasmExecutionMethod::Interpreted, Some(8), 8, None, 2),
+		build_wasm_executor(),
 		handle,
 	)
 }
@@ -160,6 +175,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
+	CP::Exec: Clone + ReadRuntimeVersion,
 	for<'r> &'r CP::Client: BlockImport<Block, Transaction = TransactionFor<CP::Backend, Block>>,
 {
 	/// Creates a new `Init` instance with some sane defaults:
@@ -188,14 +204,19 @@ where
 			client_provider,
 			genesis: Box::new(Storage::default()),
 			handle,
-			exec,
+			exec: exec.clone(),
 			client_config: ClientConfig::default(),
 			pool_config: PoolConfig {
 				is_validator: true,
 				options: Options::default(),
 				revalidation: RevalidationType::Full,
 			},
-			execution_extensions: ExecutionExtensions::default(),
+			execution_extensions: ExecutionExtensions::new(
+				ExecutionStrategies::default(),
+				None,
+				None,
+				Arc::new(exec),
+			),
 		}
 	}
 
@@ -294,7 +315,6 @@ where
 		let call_executor = LocalCallExecutor::new(
 			backend.clone(),
 			self.exec.clone(),
-			Box::new(task_manager.spawn_handle()),
 			self.client_config.clone(),
 			self.execution_extensions,
 		)

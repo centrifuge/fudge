@@ -248,10 +248,9 @@ impl sp_inherents::InherentDataProvider for CurrTimeProvider {
 			return None;
 		}
 
-		match InherentError::try_from(&INHERENT_IDENTIFIER, error)? {
-			InherentError::ValidAtTimestamp(_valid) => Some(Ok(())),
-			o => Some(Err(sp_inherents::Error::Application(Box::from(o)))),
-		}
+		Some(Err(sp_inherents::Error::Application(Box::from(
+			InherentError::try_from(&INHERENT_IDENTIFIER, error)?,
+		))))
 	}
 }
 

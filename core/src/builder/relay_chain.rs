@@ -26,7 +26,7 @@ use polkadot_parachain::primitives::{
 };
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v2::{
+	v4::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
@@ -130,6 +130,9 @@ pub enum Error {
 
 	#[error("next block not found")]
 	NextBlockNotFound,
+
+	#[error("parachain {0} collation error: {1}")]
+	ParachainCollation(Id, InnerError),
 }
 
 /// Recreating private storage types for easier handling storage access
@@ -274,15 +277,21 @@ pub enum CollationJudgement {
 }
 
 pub trait CollationBuilder {
-	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation>;
+	fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>>;
 
 	fn judge(&self, judgement: CollationJudgement) -> Result<(), Box<dyn std::error::Error>>;
 }
 
 #[cfg(test)]
 impl CollationBuilder for () {
-	fn collation(&self, _validation_data: PersistedValidationData) -> Option<Collation> {
-		None
+	fn collation(
+		&self,
+		_validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		Ok(None)
 	}
 
 	fn judge(&self, _judgement: CollationJudgement) -> Result<(), Box<dyn std::error::Error>> {
@@ -344,11 +353,7 @@ where
 		);
 		let api = self.client.runtime_api();
 		let persisted_validation_data = api
-			.persisted_validation_data(
-				&BlockId::Hash(parent),
-				self.id,
-				OccupiedCoreAssumption::TimedOut,
-			)
+			.persisted_validation_data(parent, self.id, OccupiedCoreAssumption::TimedOut)
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,
@@ -518,6 +523,12 @@ where
 		})
 	}
 
+	pub fn update_para_head(&mut self, id: Id, head: HeadData) -> Result<(), Error> {
+		self.with_mut_state(|| {
+			Heads::insert(&id, head);
+		})
+	}
+
 	pub fn append_transition(&mut self, aux: StoragePair) {
 		self.builder.append_transition(aux);
 	}
@@ -531,16 +542,6 @@ where
 	pub fn pool_state(&self) -> PoolState {
 		self.builder.pool_state()
 	}
-
-	/* TODO: Implement this
-	 pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
-		todo!()
-	}
-
-	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
-		todo!()
-	}
-	 */
 
 	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<C, B> {
 		InherentBuilder {
@@ -751,7 +752,11 @@ where
 				)
 			})??;
 
-			if let Some(collation) = para.collation(pvd) {
+			let parachain_collation = para
+				.collation(pvd)
+				.map_err(|e| Error::ParachainCollation(id.clone(), e))?;
+
+			if let Some(collation) = parachain_collation {
 				// Only collect collations when they are not already collected
 				if !self.collations.iter().any(|(in_id, _, _)| in_id == id) {
 					self.collations.push((*id, collation, parent_head.clone()))
@@ -767,11 +772,8 @@ where
 		let mut rt_api = client.runtime_api();
 		let parent = self.client().info().best_hash;
 		let parent_number = self.client().info().best_number;
-		let collations = self.collations.clone();
 
-		for (collation_index, (id, collation, generation_parent)) in
-			collations.into_iter().enumerate()
-		{
+		for (id, collation, generation_parent) in self.collations.clone().into_iter() {
 			let pvd = self.with_state(|| {
 				persisted_validation_data(&mut rt_api, parent, id, OccupiedCoreAssumption::TimedOut)
 			})??;
@@ -867,7 +869,7 @@ where
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
-				polkadot_runtime_parachains::runtime_api_impl::v2::persisted_validation_data::<
+				polkadot_runtime_parachains::runtime_api_impl::v4::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
 				.ok_or_else(|| {
@@ -913,9 +915,9 @@ where
 
 				Error::ParachainJudgeError(e.into())
 			})?;
-
-			self.collations.remove(collation_index);
 		}
+
+		self.collations = Vec::new();
 
 		Ok(())
 	}
@@ -973,7 +975,7 @@ where
 	RtApi: ParachainHost<Block> + ApiExt<Block>,
 {
 	let res = rt_api.execute_in_transaction(|api| {
-		let pvd = api.persisted_validation_data(&BlockId::Hash(parent), id, assumption);
+		let pvd = api.persisted_validation_data(parent, id, assumption);
 
 		TransactionOutcome::Commit(pvd)
 	});
@@ -1008,7 +1010,7 @@ where
 	RtApi: ParachainHost<Block>,
 {
 	rt_api
-		.validation_code_hash(&BlockId::Hash(parent), id, assumption)
+		.validation_code_hash(parent, id, assumption)
 		.map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_RELAY_CHAIN_BUILDER_LOG_TARGET,

@@ -717,21 +717,16 @@ where
 		params: BlockImportParams<Block, TransactionFor<B, Block>>,
 	) -> Result<(), Error<Block>> {
 		let prev_hash = self.latest_block();
+		let ret = match futures::executor::block_on(self.client.as_ref().import_block(params))
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not import block."
+				);
 
-		let ret = match futures::executor::block_on(
-			self.client
-				.as_ref()
-				.import_block(params, Default::default()),
-		)
-		.map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Could not import block."
-			);
-
-			Error::BlockImporting(e.into())
-		})? {
+				Error::BlockImporting(e.into())
+			})? {
 			ImportResult::Imported(_) => Ok(()),
 			ImportResult::AlreadyInChain => Err(()),
 			ImportResult::KnownBad => Err(()),

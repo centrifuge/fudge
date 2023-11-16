@@ -120,8 +120,14 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 					let collator = companion.#parachain_names.collator();
 
 					companion.#relay_chain_name.onboard_para(para, Box::new(collator)).map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-
 				)*
+
+				{
+					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
+
+					companion.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+					companion.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+				}
 
 				Ok(companion)
 			}
@@ -198,41 +204,25 @@ pub fn expand(def: CompanionDef) -> SynResult<TokenStream> {
 
 			pub fn evolve(&mut self) -> Result<(), BuilderError> {
 				{
-					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
-
-					self.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-					self.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-				}
-
-				{
 					#(
 						__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#parachain_names - BlockBuilding:));
 
+						let para_head = self.#parachain_names.head().map_err(|e| BuilderError::Parachain(e.into()))?;
+
+						self.#relay_chain_name.update_para_head(
+							self.#parachain_names.id(),
+							para_head,
+						).map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+
+						self.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+
 						self.#parachain_names.build_block().map_err(|e| BuilderError::Parachain(e.into())).map(|_| ())?;
+
+						self.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+						self.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+						self.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
+
 						self.#parachain_names.import_block().map_err(|e| BuilderError::Parachain(e.into())).map(|_| ())?;
-					)*
-				}
-
-				{
-					__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - BlockBuilding:));
-
-					self.#relay_chain_name.build_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-					self.#relay_chain_name.import_block().map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
-				}
-
-				{
-					#(
-						__hidden_tracing::enter_span!(sp_tracing::Level::TRACE, std::stringify!(#relay_chain_name - Onboarding(#parachain_names):));
-
-						let para = _hidden_FudgeParaChain {
-							id: _hidden_ParaId::from(#parachain_ids),
-							head: self.#parachain_names.head().map_err(|e| BuilderError::Parachain(e.into()))?,
-							code: self.#parachain_names.code().map_err(|e| BuilderError::Parachain(e.into()))?,
-						};
-
-						let collator = self.#parachain_names.collator();
-
-						self.#relay_chain_name.onboard_para(para, Box::new(collator)).map_err(|e| BuilderError::Relaychain(e.into())).map(|_| ())?;
 					)*
 				}
 

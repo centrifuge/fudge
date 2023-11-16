@@ -14,6 +14,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
+
 use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
@@ -51,8 +52,12 @@ use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use xcm_executor::XcmExecutor;
+
+use crate::xcm::XcmConfig;
 
 mod primitives;
+mod xcm;
 
 pub struct WeightToFee;
 impl WeightToFeePolynomial for WeightToFee {
@@ -184,14 +189,22 @@ parameter_types! {
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
-	type DmpMessageHandler = ();
+	type DmpMessageHandler = DmpQueue;
 	type OnSystemEvent = ();
-	type OutboundXcmpMessageSource = ();
+	type OutboundXcmpMessageSource = XcmpQueue;
 	type ReservedDmpWeight = ReservedDmpWeight;
 	type ReservedXcmpWeight = ReservedXcmpWeight;
 	type RuntimeEvent = RuntimeEvent;
 	type SelfParaId = parachain_info::Pallet<Runtime>;
-	type XcmpMessageHandler = ();
+	type XcmpMessageHandler = XcmpQueue;
+}
+
+// DMP
+
+impl cumulus_pallet_dmp_queue::Config for Runtime {
+	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type RuntimeEvent = RuntimeEvent;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 impl parachain_info::Config for Runtime {}
@@ -243,6 +256,10 @@ impl pallet_balances::Config for Runtime {
 	type DustRemoval = ();
 	/// The minimum amount required to keep an account open.
 	type ExistentialDeposit = ExistentialDeposit;
+	type FreezeIdentifier = ();
+	type HoldIdentifier = ();
+	type MaxFreezes = ();
+	type MaxHolds = ();
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
@@ -360,6 +377,7 @@ impl pallet_aura::Config for Runtime {
 impl pallet_sudo::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
 }
 
 impl cumulus_pallet_aura_ext::Config for Runtime {}
@@ -452,6 +470,13 @@ construct_runtime!(
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 65,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 66,
 
+		// xcm
+		XcmpQueue: cumulus_pallet_xcmp_queue::{Pallet, Call, Storage, Event<T>} = 100,
+		PolkadotXcm: pallet_xcm::{Pallet, Call, Storage, Config, Event<T>, Origin} = 101,
+		DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 102,
+		CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 103,
+		XcmTransactor: pallet_xcm_transactor::{Pallet, Call, Storage, Event<T>} = 104,
+
 		// admin stuff
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>} = 200,
 	}
@@ -509,6 +534,14 @@ impl_runtime_apis! {
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
+		}
+
+		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+			Runtime::metadata_at_version(version)
+		}
+
+		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+			Runtime::metadata_versions()
 		}
 	}
 

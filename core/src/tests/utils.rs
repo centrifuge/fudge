@@ -11,11 +11,15 @@
 // GNU General Public License for more details.
 
 use sp_std::sync::atomic::{AtomicUsize, Ordering};
+use tracing_subscriber::filter::LevelFilter;
+
 static GLOBAL_INIT: AtomicUsize = AtomicUsize::new(UNINITIALIZED);
 
 const UNINITIALIZED: usize = 0;
 const INITIALIZING: usize = 1;
 const INITIALIZED: usize = 2;
+
+const LOG_LEVEL: LevelFilter = LevelFilter::INFO;
 
 pub fn init_logs() {
 	if GLOBAL_INIT
@@ -28,6 +32,8 @@ pub fn init_logs() {
 		.is_ok()
 	{
 		GLOBAL_INIT.store(INITIALIZED, Ordering::SeqCst);
-		tracing_subscriber::fmt::init();
+		tracing_subscriber::fmt::fmt()
+			.with_max_level(LOG_LEVEL)
+			.init();
 	}
 }

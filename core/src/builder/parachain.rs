@@ -75,6 +75,9 @@ pub enum Error<Block: BlockT> {
 	#[error("collation info collection at {0}: {1}")]
 	CollationInfoCollection(BlockId<Block>, InnerError),
 
+	#[error("collation info not found at {0}")]
+	CollationInfoNotFound(BlockId<Block>),
+
 	#[error("inherent data providers creation: {0}")]
 	InherentDataProvidersCreation(Box<dyn std::error::Error + Send + Sync>),
 
@@ -92,6 +95,18 @@ pub enum Error<Block: BlockT> {
 
 	#[error("next import lock is poisoned: {0}")]
 	NextImportLockPoisoned(InnerError),
+
+	#[error("head data decoding: {0}")]
+	HeadDataDecoding(InnerError),
+
+	#[error("compact proof creation: {0}")]
+	CompactProofCreation(InnerError),
+
+	#[error("upward messaging casting")]
+	UpwardMessagingCasting,
+
+	#[error("horizontal messaging casting")]
+	HorizontalMessagingCasting,
 }
 
 pub struct FudgeParaBuild {
@@ -109,8 +124,7 @@ pub struct FudgeParaChain {
 pub struct FudgeCollator<Block, C, B> {
 	client: Arc<C>,
 	backend: Arc<B>,
-	next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+	block_storage: Arc<Mutex<BlockStorage<Block>>>,
 }
 
 impl<Block, C, B> CollationBuilder for FudgeCollator<Block, C, B>
@@ -120,7 +134,10 @@ where
 	C: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	C::Api: CollectCollationInfo<Block>,
 {
-	fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
+	fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
 		self.collation(validation_data)
 	}
 
@@ -142,14 +159,12 @@ where
 	pub fn new(
 		client: Arc<C>,
 		backend: Arc<B>,
-		next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-		next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+		block_storage: Arc<Mutex<BlockStorage<Block>>>,
 	) -> Self {
 		Self {
 			client,
 			backend,
-			next_block,
-			next_import,
+			block_storage,
 		}
 	}
 
@@ -162,7 +177,7 @@ where
 		let block_id = BlockId::Hash(block_hash);
 
 		let api_version = runtime_api
-			.api_version::<dyn CollectCollationInfo<Block>>(&block_id)
+			.api_version::<dyn CollectCollationInfo<Block>>(block_hash)
 			.map_err(|e| {
 				tracing::error!(
 					target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -186,7 +201,7 @@ where
 		let collation_info = if api_version < 2 {
 			#[allow(deprecated)]
 			runtime_api
-				.collect_collation_info_before_version_2(&block_id)
+				.collect_collation_info_before_version_2(block_hash)
 				.map_err(|e| {
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -200,7 +215,7 @@ where
 				.into_latest(header.encode().into())
 		} else {
 			runtime_api
-				.collect_collation_info(&block_id, header)
+				.collect_collation_info(block_hash, header)
 				.map_err(|e| {
 					tracing::error!(
 						target = DEFAULT_COLLATOR_LOG_TARGET,
@@ -216,42 +231,48 @@ where
 		Ok(Some(collation_info))
 	}
 
-	pub fn collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
-		let _state = self.backend.state_at(self.client.info().best_hash).ok()?;
+	pub fn collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		let _state = self.backend.state_at(self.client.info().best_hash)?;
 		self.create_collation(validation_data)
 	}
 
-	fn create_collation(&self, validation_data: PersistedValidationData) -> Option<Collation> {
-		let locked = self.next_block.lock().ok()?;
-		if let Some((block, proof)) = &*locked {
-			let last_head = match Block::Header::decode(&mut &validation_data.parent_head.0[..]) {
-				Ok(x) => x,
-				Err(e) => {
+	fn create_collation(
+		&self,
+		validation_data: PersistedValidationData,
+	) -> Result<Option<Collation>, Box<dyn std::error::Error>> {
+		let next_block = self
+			.block_storage
+			.lock()
+			.map_err(|e| InnerError::from(e.to_string()))?
+			.get_next_block();
+
+		if let Some((block, proof)) = next_block {
+			let last_head = Block::Header::decode(&mut &validation_data.parent_head.0[..])
+				.map_err(|e| {
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not decode the head data."
 					);
 
-					return None;
-				}
-			};
+					Error::<Block>::HeadDataDecoding(e.into())
+				})?;
 
-			let compact_proof = match proof
+			let compact_proof = proof
 				.clone()
 				.into_compact_proof::<HashFor<Block>>(last_head.state_root().clone())
-			{
-				Ok(proof) => proof,
-				Err(e) => {
+				.map_err(|e| {
 					tracing::error!(
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not get compact proof.",
 					);
 
-					return None;
-				}
-			};
+					Error::<Block>::CompactProofCreation(e.into())
+				})?;
 
 			let b = ParachainBlockData::<Block>::new(
 				block.header().clone(),
@@ -268,75 +289,52 @@ where
 						target: DEFAULT_COLLATOR_LOG_TARGET,
 						error = ?e,
 						"Could not collect collation info.",
-					)
-				})
-				.ok()
-				.flatten()?;
+					);
 
-			Some(Collation {
-				upward_messages: collation_info.upward_messages,
+					Error::<Block>::CollationInfoCollection(BlockId::Hash(block_hash), e.into())
+				})?
+				.ok_or_else(|| Error::<Block>::CollationInfoNotFound(BlockId::Hash(block_hash)))?;
+
+			let upward_messages = collation_info.upward_messages.try_into().map_err(|_| {
+				tracing::error!(
+					target: DEFAULT_COLLATOR_LOG_TARGET,
+					"Could not cast upward messages.",
+				);
+
+				Error::<Block>::UpwardMessagingCasting
+			})?;
+
+			let horizontal_messages =
+				collation_info.horizontal_messages.try_into().map_err(|_| {
+					tracing::error!(
+						target: DEFAULT_COLLATOR_LOG_TARGET,
+						"Could not cast horizontal messages.",
+					);
+
+					Error::<Block>::HorizontalMessagingCasting
+				})?;
+
+			Ok(Some(Collation {
+				upward_messages,
 				new_validation_code: collation_info.new_validation_code,
 				processed_downward_messages: collation_info.processed_downward_messages,
-				horizontal_messages: collation_info.horizontal_messages,
+				horizontal_messages,
 				hrmp_watermark: collation_info.hrmp_watermark,
 				head_data: collation_info.head_data,
 				proof_of_validity: MaybeCompressedPoV::Raw(PoV { block_data }),
-			})
+			}))
 		} else {
-			None
+			Ok(None)
 		}
 	}
 
 	pub fn approve(&self) -> Result<(), Box<dyn std::error::Error>> {
-		let build = self
-			.next_block
+		let mut storage = self
+			.block_storage
 			.lock()
-			.map_err(|e| {
-				tracing::error!(
-					target = DEFAULT_COLLATOR_LOG_TARGET,
-					error = ?e,
-					"Lock for next block is poisoned.",
-				);
+			.map_err(|e| Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string())))?;
 
-				Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-			})?
-			.take()
-			.ok_or_else(|| {
-				tracing::error!(
-					target = DEFAULT_COLLATOR_LOG_TARGET,
-					"Next block not found.",
-				);
-
-				Error::<Block>::NextBlockNotFound
-			})?;
-
-		let mut locked_import = self.next_import.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_COLLATOR_LOG_TARGET,
-				error = ?e,
-				"Lock for next import is poisoned.",
-			);
-
-			Error::<Block>::NextImportLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*locked_import = Some(build);
-
-		Ok(())
-	}
-
-	pub fn reject(&self) -> Result<(), Box<dyn std::error::Error>> {
-		let mut locked = self.next_block.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_COLLATOR_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
-
-			Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		let _build = locked.take().ok_or_else(|| {
+		let build = storage.get_next_block().ok_or_else(|| {
 			tracing::error!(
 				target = DEFAULT_COLLATOR_LOG_TARGET,
 				"Next block not found.",
@@ -345,7 +343,54 @@ where
 			Error::<Block>::NextBlockNotFound
 		})?;
 
+		storage.set_next_block(None);
+		storage.set_next_import(Some(build));
+
 		Ok(())
+	}
+
+	pub fn reject(&self) -> Result<(), Box<dyn std::error::Error>> {
+		self.block_storage
+			.lock()
+			.map_err(|e| Error::<Block>::NextBlockLockPoisoned(InnerError::from(e.to_string())))?
+			.set_next_block(None);
+
+		Ok(())
+	}
+}
+
+pub struct BlockStorage<Block> {
+	next_block: Option<(Block, StorageProof)>,
+	next_import: Option<(Block, StorageProof)>,
+}
+
+impl<Block> Default for BlockStorage<Block> {
+	fn default() -> Self {
+		BlockStorage {
+			next_block: None,
+			next_import: None,
+		}
+	}
+}
+
+impl<Block> BlockStorage<Block>
+where
+	Block: BlockT,
+{
+	fn set_next_block(&mut self, block: Option<(Block, StorageProof)>) {
+		self.next_block = block;
+	}
+
+	fn set_next_import(&mut self, import: Option<(Block, StorageProof)>) {
+		self.next_import = import
+	}
+
+	fn get_next_block(&self) -> Option<(Block, StorageProof)> {
+		self.next_block.clone()
+	}
+
+	fn get_next_import(&self) -> Option<(Block, StorageProof)> {
+		self.next_import.clone()
 	}
 }
 
@@ -371,11 +416,11 @@ pub struct ParachainBuilder<
 	C::Api: TaggedTransactionQueue<Block> + CollectCollationInfo<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
+	id: Id,
 	builder: Builder<Block, RtApi, Exec, B, C, A>,
 	cidp: CIDP,
 	dp: DP,
-	next_block: Arc<Mutex<Option<(Block, StorageProof)>>>,
-	next_import: Arc<Mutex<Option<(Block, StorageProof)>>>,
+	block_storage: Arc<Mutex<BlockStorage<Block>>>,
 	imports: Vec<(Block, StorageProof)>,
 	_phantom: PhantomData<ExtraArgs>,
 }
@@ -411,7 +456,7 @@ where
 	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
-	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error<Block>>
+	pub fn new<I, F>(id: Id, initiator: I, setup: F) -> Result<Self, Error<Block>>
 	where
 		I: Initiator<Block, Api = C::Api, Client = C, Backend = B, Pool = A, Executor = Exec>,
 		F: FnOnce(Arc<C>) -> (CIDP, DP),
@@ -429,23 +474,22 @@ where
 		let (cidp, dp) = setup(client.clone());
 
 		Ok(Self {
+			id,
 			builder: Builder::new(client, backend, pool, executor, task_manager),
 			cidp,
 			dp,
-			next_block: Arc::new(Mutex::new(None)),
-			next_import: Arc::new(Mutex::new(None)),
+			block_storage: Arc::new(Mutex::new(BlockStorage::default())),
 			imports: Vec::new(),
 			_phantom: Default::default(),
 		})
 	}
 
+	pub fn id(&self) -> Id {
+		self.id
+	}
+
 	pub fn collator(&self) -> FudgeCollator<Block, C, B> {
-		FudgeCollator::new(
-			self.client(),
-			self.backend(),
-			self.next_block.clone(),
-			self.next_import.clone(),
-		)
+		FudgeCollator::new(self.client(), self.backend(), self.block_storage.clone())
 	}
 
 	pub fn client(&self) -> Arc<C> {
@@ -498,16 +542,6 @@ where
 	pub fn pool_state(&self) -> PoolState {
 		self.builder.pool_state()
 	}
-
-	/* TODO: Implement this
-	 pub fn append_xcm(&mut self, _xcm: Bytes) -> &mut Self {
-		todo!()
-	}
-
-	pub fn append_xcms(&mut self, _xcms: Vec<Bytes>) -> &mut Self {
-		todo!()
-	}
-	 */
 
 	pub fn build_block(&mut self) -> Result<(), Error<Block>> {
 		let provider =
@@ -575,7 +609,7 @@ where
 				tracing::error!(
 					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 					error = ?e,
-					"Could not create inherent data."
+					"Could not create build block."
 				);
 
 				Error::CoreBuilder(e.into())
@@ -589,18 +623,18 @@ where
 
 		self.import_block_with_params(params)?;
 
-		let binding = self.next_block.clone();
-		let mut next_block = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
+		self.block_storage
+			.lock()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Lock for next block is poisoned.",
+				);
 
-			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
-
-		*next_block = Some((block, proof));
+				Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+			})?
+			.set_next_block(Some((block, proof)));
 
 		Ok(())
 	}
@@ -620,8 +654,8 @@ where
 	}
 
 	pub fn import_block(&mut self) -> Result<(), Error<Block>> {
-		let locked = self.next_import.clone();
-		let mut locked = locked.lock().map_err(|e| {
+		let binding = self.block_storage.clone();
+		let mut storage = binding.lock().map_err(|e| {
 			tracing::error!(
 				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
 				error = ?e,
@@ -631,7 +665,9 @@ where
 			Error::NextImportLockPoisoned(InnerError::from(e.to_string()))
 		})?;
 
-		if let Some((block, proof)) = &*locked {
+		let next_import = storage.get_next_import();
+
+		if let Some((block, proof)) = next_import {
 			let (header, body) = block.clone().deconstruct();
 			let mut params = BlockImportParams::new(BlockOrigin::NetworkInitialSync, header);
 			params.body = Some(body);
@@ -643,7 +679,7 @@ where
 
 			self.imports.push((block.clone(), proof.clone()));
 
-			*locked = None;
+			storage.set_next_import(None);
 
 			Ok(())
 		} else {
@@ -657,24 +693,28 @@ where
 	}
 
 	pub fn next_build(&self) -> Result<Option<FudgeParaBuild>, Error<Block>> {
-		let binding = self.next_block.clone();
-		let next_block = binding.lock().map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Lock for next block is poisoned.",
-			);
+		let next_block = self
+			.block_storage
+			.lock()
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_PARACHAIN_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Lock for next block is poisoned.",
+				);
 
-			Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
-		})?;
+				Error::NextBlockLockPoisoned(InnerError::from(e.to_string()))
+			})?
+			.get_next_block();
 
 		let latest_header = self
 			.builder
 			.latest_header()
 			.map_err(|e| Error::CoreBuilder(e.into()))?;
+
 		let code = self.code()?;
 
-		match *next_block {
+		match next_block {
 			Some((ref block, _)) => Ok(Some(FudgeParaBuild {
 				parent_head: HeadData(latest_header.encode()),
 				block: BlockData(block.clone().encode()),
