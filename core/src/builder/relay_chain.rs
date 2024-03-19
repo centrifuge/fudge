@@ -40,7 +40,7 @@ use polkadot_primitives::{
 	CommittedCandidateReceipt, GroupIndex, PersistedValidationData, ValidatorId,
 };
 use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
-use polkadot_service::{FullBackend, FullClient, Handle};
+use polkadot_service::Handle;
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
 	ImportNotifications, UsageProvider,
@@ -48,7 +48,7 @@ use sc_client_api::{
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient};
+use sc_service::{SpawnTaskHandle, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use scale_info::TypeInfo;
