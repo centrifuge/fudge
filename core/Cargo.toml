@@ -22,6 +22,7 @@ tracing = "0.1.37"
 thiserror = "1.0.30"
 tokio = { version = "1.15", features = ["macros"] }
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
+futures-timer = "3.0.2"
 
 # Local dependencies
 fudge-companion = { path = "./src/builder/companion" }
@@ -81,7 +82,7 @@ polkadot-cli = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polk
 
 # Cumulus dependencies
 cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
-cumulus-relay-chain-inprocess-interface = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
+cumulus-relay-chain-interface = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
 cumulus-primitives-core = { git = "https://github.com/paritytech/polkadot-sdk", tag = "polkadot-v1.1.0" }
 
 [dev-dependencies]

@@ -10,16 +10,23 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use std::{collections::BTreeMap, pin::Pin};
+
+use async_trait::async_trait;
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use codec::{Decode, Encode};
+use cumulus_primitives_core::relay_chain::{Hash as PHash, Header as PHeader, SessionIndex};
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
-use cumulus_relay_chain_inprocess_interface::RelayChainInProcessInterface;
+use cumulus_relay_chain_interface::{RelayChainError, RelayChainResult};
 use frame_support::{
 	storage::types::{StorageMap, StorageValue, ValueQuery},
 	traits::StorageInstance,
 	Identity, Twox64Concat,
 };
-use polkadot_core_primitives::{Block as PBlock, CandidateHash};
+use futures::{FutureExt, Stream, StreamExt};
+use polkadot_core_primitives::{
+	Block as PBlock, CandidateHash, InboundDownwardMessage, InboundHrmpMessage,
+};
 use polkadot_node_primitives::Collation;
 use polkadot_parachain_primitives::primitives::{
 	HeadData, Id, Id as ParaId, ValidationCode, ValidationCodeHash,
@@ -30,24 +37,25 @@ use polkadot_primitives::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
-	GroupIndex, PersistedValidationData,
+	CommittedCandidateReceipt, GroupIndex, PersistedValidationData, ValidatorId,
 };
 use polkadot_runtime_parachains::{inclusion::CandidatePendingAvailability, paras, ParaLifecycle};
-use polkadot_service::{FullClient, Handle};
+use polkadot_service::Handle;
 use sc_client_api::{
 	AuxStore, Backend as BackendT, BlockBackend, BlockOf, BlockchainEvents, HeaderBackend,
-	UsageProvider,
+	ImportNotifications, UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
 use sc_executor::RuntimeVersionOf;
-use sc_service::{SpawnTaskHandle, TFullBackend, TFullClient};
+use sc_service::{SpawnTaskHandle, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
 use scale_info::TypeInfo;
 use sp_api::{ApiExt, ApiRef, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi, StorageProof};
 use sp_block_builder::BlockBuilder;
-use sp_consensus::{BlockOrigin, NoNetwork, Proposal};
+use sp_blockchain::BlockStatus;
+use sp_consensus::{BlockOrigin, NoNetwork, Proposal, SyncOracle};
 use sp_core::{traits::CodeExecutor, H256};
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{
@@ -55,6 +63,7 @@ use sp_runtime::{
 	traits::{Block as BlockT, BlockIdTo, Header},
 	TransactionOutcome,
 };
+use sp_state_machine::Backend as StateBackend;
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
@@ -137,6 +146,7 @@ pub enum Error {
 /// Recreating private storage types for easier handling storage access
 pub mod types {
 	use frame_system::pallet_prelude::BlockNumberFor;
+
 	use super::*;
 
 	pub struct ParaLifecyclesPrefix;
@@ -211,8 +221,12 @@ pub mod types {
 		}
 	}
 	#[allow(type_alias_bounds)]
-	pub type PastCodeHash<T: frame_system::Config> =
-		StorageMap<PastCodeHashPrefix, Twox64Concat, (ParaId, BlockNumberFor<T>), ValidationCodeHash>;
+	pub type PastCodeHash<T: frame_system::Config> = StorageMap<
+		PastCodeHashPrefix,
+		Twox64Concat,
+		(ParaId, BlockNumberFor<T>),
+		ValidationCodeHash,
+	>;
 
 	pub struct PendingAvailabilityPrefix;
 	impl StorageInstance for PendingAvailabilityPrefix {
@@ -299,18 +313,18 @@ impl CollationBuilder for () {
 	}
 }
 
-pub struct InherentBuilder<C, B> {
+pub struct InherentBuilder<B, C> {
 	id: Id,
-	client: Arc<C>,
 	backend: Arc<B>,
+	client: Arc<C>,
 }
 
-impl<C, B> Clone for InherentBuilder<C, B> {
+impl<B, C> Clone for InherentBuilder<B, C> {
 	fn clone(&self) -> Self {
 		InherentBuilder {
 			id: self.id.clone(),
-			client: self.client.clone(),
 			backend: self.backend.clone(),
+			client: self.client.clone(),
 		}
 	}
 
@@ -319,13 +333,31 @@ impl<C, B> Clone for InherentBuilder<C, B> {
 	}
 }
 
-impl InherentBuilder<FullClient, TFullBackend<PBlock>>
+impl<B, C> InherentBuilder<B, C>
+where
+	B: BackendT<PBlock>,
+	C::Api: BlockBuilder<PBlock> + ParachainHost<PBlock> + TaggedTransactionQueue<PBlock>,
+	C: 'static
+		+ ProvideRuntimeApi<PBlock>
+		+ BlockOf
+		+ BlockBackend<PBlock>
+		+ BlockIdTo<PBlock>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<PBlock>
+		+ BlockchainEvents<PBlock>
+		+ HeaderBackend<PBlock>
+		+ BlockImport<PBlock>
+		+ CallApiAt<PBlock>
+		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+	for<'r> &'r C: BlockImport<PBlock>,
 {
 	pub async fn parachain_inherent(&self) -> Result<ParachainInherentData, Error> {
 		let parent = self.client.info().best_hash;
 		let (chnl_sndr, _chnl_rcvr) = metered::channel(64);
 		let dummy_handler = Handle::new(chnl_sndr);
-		let relay_interface = RelayChainInProcessInterface::new(
+		let relay_interface = FudgeRelayChainProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
 			Arc::new(NoNetwork {}),
@@ -419,9 +451,7 @@ where
 		+ frame_system::Config
 		+ polkadot_runtime_parachains::session_info::Config
 		+ polkadot_runtime_parachains::initializer::Config,
-	C::Api: BlockBuilder<Block>
-		+ ParachainHost<Block>
-		+ TaggedTransactionQueue<Block>,
+	C::Api: BlockBuilder<Block> + ParachainHost<Block> + TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -522,7 +552,7 @@ where
 		self.builder.pool_state()
 	}
 
-	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<C, B> {
+	pub fn inherent_builder(&self, para_id: Id) -> InherentBuilder<B, C> {
 		InherentBuilder {
 			id: para_id,
 			client: self.builder.client(),
@@ -951,7 +981,7 @@ fn persisted_validation_data<RtApi: ApiExt<Block>, Block>(
 ) -> Result<PersistedValidationData, Error>
 where
 	Block: BlockT,
-	RtApi: ParachainHost<Block> ,
+	RtApi: ParachainHost<Block>,
 {
 	let res = rt_api.execute_in_transaction(|api| {
 		let pvd = api.persisted_validation_data(parent, id, assumption);
@@ -1007,4 +1037,306 @@ where
 
 			Error::ValidationCodeHashNotFound
 		})
+}
+
+/// Provides a generic implementation of the [`RelayChainInterface`] using a local in-process relay chain
+/// node.
+///
+/// NOTE - this was created due to the fact that the [`RelayChainInProcessInterface`] provided in the
+/// cumulus-relay-chain-inprocess-interface crate expects specific implementations of [`TFullBackend`] and [`TFullClient`].
+pub struct FudgeRelayChainProcessInterface<B, C> {
+	full_client: Arc<C>,
+	backend: Arc<B>,
+	sync_oracle: Arc<dyn SyncOracle + Send + Sync>,
+	overseer_handle: Handle,
+}
+
+impl<B, C> FudgeRelayChainProcessInterface<B, C>
+where
+	B: BackendT<PBlock>,
+	C::Api: BlockBuilder<PBlock> + ParachainHost<PBlock> + TaggedTransactionQueue<PBlock>,
+	C: 'static
+		+ ProvideRuntimeApi<PBlock>
+		+ BlockOf
+		+ BlockBackend<PBlock>
+		+ BlockIdTo<PBlock>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<PBlock>
+		+ BlockchainEvents<PBlock>
+		+ HeaderBackend<PBlock>
+		+ BlockImport<PBlock>
+		+ CallApiAt<PBlock>
+		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+	for<'r> &'r C: BlockImport<PBlock>,
+{
+	/// Create a new instance of [`FudgeRelayChainProcessInterface`]
+	pub fn new(
+		full_client: Arc<C>,
+		backend: Arc<B>,
+		sync_oracle: Arc<dyn SyncOracle + Send + Sync>,
+		overseer_handle: Handle,
+	) -> Self {
+		Self {
+			full_client,
+			backend,
+			sync_oracle,
+			overseer_handle,
+		}
+	}
+}
+
+/// The timeout in seconds after that the waiting for a block should be aborted.
+const TIMEOUT_IN_SECONDS: u64 = 6;
+
+#[async_trait]
+impl<B, C> cumulus_relay_chain_interface::RelayChainInterface
+	for FudgeRelayChainProcessInterface<B, C>
+where
+	B: BackendT<PBlock>,
+	C::Api: BlockBuilder<PBlock> + ParachainHost<PBlock> + TaggedTransactionQueue<PBlock>,
+	C: 'static
+		+ ProvideRuntimeApi<PBlock>
+		+ BlockOf
+		+ BlockBackend<PBlock>
+		+ BlockIdTo<PBlock>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<PBlock>
+		+ BlockchainEvents<PBlock>
+		+ HeaderBackend<PBlock>
+		+ BlockImport<PBlock>
+		+ CallApiAt<PBlock>
+		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+	for<'r> &'r C: BlockImport<PBlock>,
+{
+	async fn retrieve_dmq_contents(
+		&self,
+		para_id: ParaId,
+		relay_parent: PHash,
+	) -> RelayChainResult<Vec<InboundDownwardMessage>> {
+		Ok(self
+			.full_client
+			.runtime_api()
+			.dmq_contents(relay_parent, para_id)?)
+	}
+
+	async fn retrieve_all_inbound_hrmp_channel_contents(
+		&self,
+		para_id: ParaId,
+		relay_parent: PHash,
+	) -> RelayChainResult<BTreeMap<ParaId, Vec<InboundHrmpMessage>>> {
+		Ok(self
+			.full_client
+			.runtime_api()
+			.inbound_hrmp_channels_contents(relay_parent, para_id)?)
+	}
+
+	async fn header(
+		&self,
+		block_id: polkadot_core_primitives::BlockId,
+	) -> RelayChainResult<Option<PHeader>> {
+		let hash = match block_id {
+			BlockId::Hash(hash) => hash,
+			BlockId::Number(num) => {
+				if let Some(hash) = self.full_client.hash(num)? {
+					hash
+				} else {
+					return Ok(None);
+				}
+			}
+		};
+		let header = self.full_client.header(hash)?;
+
+		Ok(header)
+	}
+
+	async fn persisted_validation_data(
+		&self,
+		hash: PHash,
+		para_id: ParaId,
+		occupied_core_assumption: OccupiedCoreAssumption,
+	) -> RelayChainResult<Option<PersistedValidationData>> {
+		Ok(self.full_client.runtime_api().persisted_validation_data(
+			hash,
+			para_id,
+			occupied_core_assumption,
+		)?)
+	}
+
+	async fn candidate_pending_availability(
+		&self,
+		hash: PHash,
+		para_id: ParaId,
+	) -> RelayChainResult<Option<CommittedCandidateReceipt>> {
+		Ok(self
+			.full_client
+			.runtime_api()
+			.candidate_pending_availability(hash, para_id)?)
+	}
+
+	async fn session_index_for_child(&self, hash: PHash) -> RelayChainResult<SessionIndex> {
+		Ok(self
+			.full_client
+			.runtime_api()
+			.session_index_for_child(hash)?)
+	}
+
+	async fn validators(&self, hash: PHash) -> RelayChainResult<Vec<ValidatorId>> {
+		Ok(self.full_client.runtime_api().validators(hash)?)
+	}
+
+	async fn import_notification_stream(
+		&self,
+	) -> RelayChainResult<Pin<Box<dyn Stream<Item = PHeader> + Send>>> {
+		let notification_stream = self
+			.full_client
+			.import_notification_stream()
+			.map(|notification| notification.header);
+		Ok(Box::pin(notification_stream))
+	}
+
+	async fn finality_notification_stream(
+		&self,
+	) -> RelayChainResult<Pin<Box<dyn Stream<Item = PHeader> + Send>>> {
+		let notification_stream = self
+			.full_client
+			.finality_notification_stream()
+			.map(|notification| notification.header);
+		Ok(Box::pin(notification_stream))
+	}
+
+	async fn best_block_hash(&self) -> RelayChainResult<PHash> {
+		Ok(self.backend.blockchain().info().best_hash)
+	}
+
+	async fn finalized_block_hash(&self) -> RelayChainResult<PHash> {
+		Ok(self.backend.blockchain().info().finalized_hash)
+	}
+
+	async fn is_major_syncing(&self) -> RelayChainResult<bool> {
+		Ok(self.sync_oracle.is_major_syncing())
+	}
+
+	fn overseer_handle(&self) -> RelayChainResult<Handle> {
+		Ok(self.overseer_handle.clone())
+	}
+
+	async fn get_storage_by_key(
+		&self,
+		relay_parent: PHash,
+		key: &[u8],
+	) -> RelayChainResult<Option<sp_state_machine::StorageValue>> {
+		let state = self.backend.state_at(relay_parent)?;
+		state
+			.storage(key)
+			.map_err(|e| RelayChainError::GenericError(e.to_string()))
+	}
+
+	async fn prove_read(
+		&self,
+		relay_parent: PHash,
+		relevant_keys: &Vec<Vec<u8>>,
+	) -> RelayChainResult<StorageProof> {
+		let state_backend = self.backend.state_at(relay_parent)?;
+
+		sp_state_machine::prove_read(state_backend, relevant_keys)
+			.map_err(RelayChainError::StateMachineError)
+	}
+
+	/// Wait for a given relay chain block in an async way.
+	///
+	/// The caller needs to pass the hash of a block it waits for and the function will return when
+	/// the block is available or an error occurred.
+	///
+	/// The waiting for the block is implemented as follows:
+	///
+	/// 1. Get a read lock on the import lock from the backend.
+	///
+	/// 2. Check if the block is already imported. If yes, return from the function.
+	///
+	/// 3. If the block isn't imported yet, add an import notification listener.
+	///
+	/// 4. Poll the import notification listener until the block is imported or the timeout is
+	/// fired.
+	///
+	/// The timeout is set to 6 seconds. This should be enough time to import the block in the
+	/// current round and if not, the new round of the relay chain already started anyway.
+	async fn wait_for_block(&self, hash: PHash) -> RelayChainResult<()> {
+		let mut listener =
+			match check_block_in_chain(self.backend.clone(), self.full_client.clone(), hash)? {
+				BlockCheckStatus::InChain => return Ok(()),
+				BlockCheckStatus::Unknown(listener) => listener,
+			};
+
+		let mut timeout = futures_timer::Delay::new(Duration::from_secs(TIMEOUT_IN_SECONDS)).fuse();
+
+		loop {
+			futures::select! {
+				_ = timeout => return Err(RelayChainError::WaitTimeout(hash)),
+				evt = listener.next() => match evt {
+					Some(evt) if evt.hash == hash => return Ok(()),
+					// Not the event we waited on.
+					Some(_) => continue,
+					None => return Err(RelayChainError::ImportListenerClosed(hash)),
+				}
+			}
+		}
+	}
+
+	async fn new_best_notification_stream(
+		&self,
+	) -> RelayChainResult<Pin<Box<dyn Stream<Item = PHeader> + Send>>> {
+		let notifications_stream =
+			self.full_client
+				.import_notification_stream()
+				.filter_map(|notification| async move {
+					notification.is_new_best.then_some(notification.header)
+				});
+		Ok(Box::pin(notifications_stream))
+	}
+}
+
+pub enum BlockCheckStatus {
+	/// Block is in chain
+	InChain,
+	/// Block status is unknown, listener can be used to wait for notification
+	Unknown(ImportNotifications<PBlock>),
+}
+
+fn check_block_in_chain<B, C>(
+	backend: Arc<B>,
+	client: Arc<C>,
+	hash: PHash,
+) -> RelayChainResult<BlockCheckStatus>
+where
+	B: BackendT<PBlock>,
+	C::Api: BlockBuilder<PBlock> + ParachainHost<PBlock> + TaggedTransactionQueue<PBlock>,
+	C: 'static
+		+ ProvideRuntimeApi<PBlock>
+		+ BlockOf
+		+ BlockBackend<PBlock>
+		+ BlockIdTo<PBlock>
+		+ Send
+		+ Sync
+		+ AuxStore
+		+ UsageProvider<PBlock>
+		+ BlockchainEvents<PBlock>
+		+ HeaderBackend<PBlock>
+		+ BlockImport<PBlock>
+		+ CallApiAt<PBlock>
+		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+	for<'r> &'r C: BlockImport<PBlock>,
+{
+	let _lock = backend.get_import_lock().read();
+
+	if backend.blockchain().status(hash)? == BlockStatus::InChain {
+		return Ok(BlockCheckStatus::InChain);
+	}
+
+	let listener = client.import_notification_stream();
+
+	Ok(BlockCheckStatus::Unknown(listener))
 }
