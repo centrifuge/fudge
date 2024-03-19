@@ -12,10 +12,7 @@
 
 use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
-use frame_support::{
-	dispatch::GetDispatchInfo,
-	traits::{BuildGenesisConfig, GenesisBuild},
-};
+use frame_support::dispatch::GetDispatchInfo;
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	RuntimeCall as PRuntimeCall, RuntimeEvent as PRuntimeEvent, RuntimeOrigin as PRuntimeOrigin,
