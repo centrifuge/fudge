@@ -15,10 +15,10 @@ use std::sync::Mutex;
 use codec::{Decode, Encode};
 use cumulus_primitives_core::{CollationInfo, CollectCollationInfo, ParachainBlockData};
 use polkadot_node_primitives::{Collation, MaybeCompressedPoV, PoV};
-use polkadot_parachain::primitives::{BlockData, HeadData, Id, ValidationCode};
+use polkadot_parachain_primitives::primitives::{BlockData, HeadData, Id, ValidationCode};
 use polkadot_primitives::PersistedValidationData;
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, TransactionFor,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
 	UsageProvider,
 };
 use sc_client_db::Backend;
@@ -34,7 +34,7 @@ use sp_core::traits::CodeExecutor;
 use sp_inherents::{CreateInherentDataProviders, InherentDataProvider};
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, BlockIdTo, HashFor, Header},
+	traits::{Block as BlockT, BlockIdTo, Header},
 };
 use sp_std::{marker::PhantomData, sync::Arc, time::Duration};
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
@@ -51,6 +51,7 @@ use crate::{
 	provider::Initiator,
 	types::StoragePair,
 };
+use crate::builder::core::HashFor;
 
 const DEFAULT_COLLATOR_LOG_TARGET: &str = "fudge-collator";
 const DEFAULT_PARACHAIN_BUILDER_LOG_TARGET: &str = "fudge-parachain";
@@ -437,7 +438,7 @@ where
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = B::State>
+
 		+ TaggedTransactionQueue<Block>
 		+ CollectCollationInfo<Block>,
 	C: 'static
@@ -453,7 +454,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
-	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
+	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	pub fn new<I, F>(id: Id, initiator: I, setup: F) -> Result<Self, Error<Block>>
@@ -797,7 +798,7 @@ where
 
 	fn import_block_with_params(
 		&mut self,
-		params: BlockImportParams<Block, TransactionFor<B, Block>>,
+		params: BlockImportParams<Block>,
 	) -> Result<(), Error<Block>> {
 		self.builder.import_block(params).map_err(|e| {
 			tracing::error!(

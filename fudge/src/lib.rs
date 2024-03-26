@@ -32,7 +32,7 @@ pub mod primitives {
 		parachain::{FudgeParaBuild, FudgeParaChain},
 		PoolState,
 	};
-	pub use polkadot_parachain::primitives::Id as ParaId;
+	pub use polkadot_parachain_primitives::primitives::Id as ParaId;
 
 	#[derive(Copy, Clone, Eq, PartialOrd, PartialEq, Ord, Hash)]
 	pub enum Chain {

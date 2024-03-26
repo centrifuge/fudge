@@ -31,7 +31,6 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
-use node_primitives::AccountId;
 use pallet_transaction_payment::CurrencyAdapter;
 use polkadot_runtime_common::{impls::DealWithFees, BlockHashCount, SlowAdjustingFeeUpdate};
 pub use primitives::*;
@@ -148,18 +147,14 @@ impl frame_system::Config for Runtime {
 	/// Maximum number of block number to block hash mappings to keep (oldest pruned first).
 	type BlockHashCount = BlockHashCount;
 	type BlockLength = RuntimeBlockLength;
-	/// The index type for blocks.
-	type BlockNumber = BlockNumber;
 	type BlockWeights = RuntimeBlockWeights;
 	type DbWeight = RocksDbWeight;
 	/// The type for hashing blocks and tries.
 	type Hash = Hash;
 	/// The hashing algorithm used.
 	type Hashing = BlakeTwo256;
-	/// The header type.
-	type Header = Header;
 	/// The index type for storing how many extrinsics an account has signed.
-	type Index = Index;
+	type Nonce = Index;
 	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
 	type Lookup = sp_runtime::traits::AccountIdLookup<AccountId, ()>;
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
@@ -180,6 +175,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	/// Get the chain's current version.
 	type Version = Version;
+	type Block = Block;
 }
 
 parameter_types! {
@@ -257,7 +253,6 @@ impl pallet_balances::Config for Runtime {
 	/// The minimum amount required to keep an account open.
 	type ExistentialDeposit = ExistentialDeposit;
 	type FreezeIdentifier = ();
-	type HoldIdentifier = ();
 	type MaxFreezes = ();
 	type MaxHolds = ();
 	type MaxLocks = MaxLocks;
@@ -266,6 +261,7 @@ impl pallet_balances::Config for Runtime {
 	/// The overarching event type.
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = ();
+	type RuntimeHoldReason = ();
 }
 
 // We only use find_author to pay in anchor pallet
@@ -371,6 +367,7 @@ impl pallet_aura::Config for Runtime {
 	type AuthorityId = AuraId;
 	type DisabledValidators = ();
 	type MaxAuthorities = MaxAuthorities;
+	type AllowMultipleBlocksPerSlot = ();
 }
 
 // admin stuff
@@ -427,7 +424,6 @@ impl pallet_collator_selection::Config for Runtime {
 	type KickThreshold = Period;
 	type MaxCandidates = MaxCandidates;
 	type MaxInvulnerables = MaxInvulnerables;
-	type MinCandidates = MinCandidates;
 	type PotId = PotId;
 	type RuntimeEvent = RuntimeEvent;
 	type UpdateOrigin = EnsureRoot<AccountId>;
@@ -435,22 +431,20 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
 	type WeightInfo = ();
+	type MinEligibleCollators = MinCandidates;
 }
 
 // Frame Order in this block dictates the index of each one in the metadata
 // Any addition should be done at the bottom
 // Any deletion affects the following frames during runtime upgrades
 construct_runtime!(
-	pub enum Runtime where
-		Block = Block,
-		NodeBlock = node_primitives::Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
+	pub enum Runtime
 	{
 		// basic system stuff
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>} = 0,
-		ParachainSystem: cumulus_pallet_parachain_system::{Pallet, Call, Config, Storage, Inherent, Event<T>} = 1,
+		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>} = 0,
+		ParachainSystem: cumulus_pallet_parachain_system::{Pallet, Call, Config<T>, Storage, Inherent, Event<T>} = 1,
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
-		ParachainInfo: parachain_info::{Pallet, Storage, Config} = 4,
+		ParachainInfo: parachain_info::{Pallet, Storage, Config<T>} = 4,
 
 		// money stuff
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 20,
@@ -462,17 +456,17 @@ construct_runtime!(
 		Authorship: pallet_authorship::{Pallet, Storage} = 30,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 31,
 		Aura: pallet_aura::{Pallet, Storage, Config<T>} = 32,
-		AuraExt: cumulus_pallet_aura_ext::{Pallet, Storage, Config} = 33,
+		AuraExt: cumulus_pallet_aura_ext::{Pallet, Storage, Config<T>} = 33,
 
 		// substrate pallets
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 63,
 		Identity: pallet_identity::{Pallet, Call, Storage, Event<T>} = 64,
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 65,
-		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 66,
+		Treasury: pallet_treasury::{Pallet, Call, Storage, Config<T>, Event<T>} = 66,
 
 		// xcm
 		XcmpQueue: cumulus_pallet_xcmp_queue::{Pallet, Call, Storage, Event<T>} = 100,
-		PolkadotXcm: pallet_xcm::{Pallet, Call, Storage, Config, Event<T>, Origin} = 101,
+		PolkadotXcm: pallet_xcm::{Pallet, Call, Storage, Config<T>, Event<T>, Origin} = 101,
 		DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 102,
 		CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 103,
 		XcmTransactor: pallet_xcm_transactor::{Pallet, Call, Storage, Event<T>} = 104,
