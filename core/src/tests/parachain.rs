@@ -12,7 +12,7 @@
 
 use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
-use frame_support::{dispatch::GetDispatchInfo, traits::GenesisBuild};
+use frame_support::dispatch::GetDispatchInfo;
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	RuntimeCall as PRuntimeCall, RuntimeEvent as PRuntimeEvent, RuntimeOrigin as PRuntimeOrigin,
@@ -20,7 +20,7 @@ use fudge_test_runtime::{
 };
 use pallet_xcm_transactor::{Currency, CurrencyPayment, TransactWeights};
 use polkadot_core_primitives::Block as RTestBlock;
-use polkadot_parachain::primitives::{Id, Sibling};
+use polkadot_parachain_primitives::primitives::{Id, Sibling};
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime::{
 	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
@@ -33,7 +33,7 @@ use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{
 	traits::{AccountIdConversion, BlakeTwo256, Hash},
-	Storage,
+	BuildStorage, Storage,
 };
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
@@ -64,8 +64,8 @@ fn default_para_builder(
 	handle: Handle,
 	genesis: Storage,
 	inherent_builder: InherentBuilder<
-		TFullClient<RTestBlock, RTestRtApi, TWasmExecutor>,
 		TFullBackend<RTestBlock>,
+		TFullClient<RTestBlock, RTestRtApi, TWasmExecutor>,
 	>,
 ) -> ParachainBuilder<
 	PTestBlock,
@@ -89,11 +89,11 @@ fn default_para_builder(
 		.unwrap();
 	state
 		.insert_storage(
-			<parachain_info::GenesisConfig as GenesisBuild<PRuntime>>::build_storage(
-				&parachain_info::GenesisConfig {
-					parachain_id: Id::from(para_id),
-				},
-			)
+			parachain_info::GenesisConfig::<PRuntime> {
+				_config: Default::default(),
+				parachain_id: Id::from(para_id),
+			}
+			.build_storage()
 			.unwrap(),
 		)
 		.unwrap();
@@ -116,10 +116,10 @@ fn default_para_builder(
 				.expect("Instance is initialized. qed");
 
 			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-					timestamp.current_time(),
-					SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
-				);
+                sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                    timestamp.current_time(),
+                    SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+                );
 			let inherent = inherent_builder_clone.parachain_inherent().await.unwrap();
 			let relay_para_inherent = FudgeInherentParaParachain::new(inherent);
 			Ok((timestamp, slot, relay_para_inherent))
@@ -167,10 +167,10 @@ fn cidp_and_dp_relay(
 					.expect("Instance is initialized. qed");
 
 				let slot =
-					sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-						timestamp.current_time(),
-						SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
-					);
+                    sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+                        timestamp.current_time(),
+                        SlotDuration::from_millis(std::time::Duration::from_secs(6).as_millis() as u64),
+                    );
 
 				let relay_para_inherent = FudgeDummyInherentRelayParachain::new(parent_header);
 				Ok((timestamp, slot, relay_para_inherent))

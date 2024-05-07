@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, TransactionFor,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
 	UsageProvider,
 };
 use sc_client_db::Backend;
@@ -19,7 +19,7 @@ use sc_executor::RuntimeVersionOf;
 use sc_service::{SpawnTaskHandle, TFullClient};
 use sc_transaction_pool::FullPool;
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_consensus::{BlockOrigin, Proposal};
 use sp_core::traits::CodeExecutor;
@@ -107,7 +107,7 @@ where
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
 	C::Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = B::State>
+
 		+ TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
@@ -122,7 +122,7 @@ where
 		+ BlockImport<Block>
 		+ CallApiAt<Block>
 		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
-	for<'r> &'r C: BlockImport<Block, Transaction = TransactionFor<B, Block>>,
+	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
 	pub fn new<I, F>(initiator: I, setup: F) -> Result<Self, Error>

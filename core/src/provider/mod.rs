@@ -14,7 +14,7 @@ use std::{error::Error as StdError, marker::PhantomData, sync::Arc};
 
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sc_client_api::{
-	AuxStore, Backend as BackendT, Backend, BlockBackend, BlockOf, HeaderBackend, TransactionFor,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
 	UsageProvider,
 };
 use sc_consensus::BlockImport;
@@ -23,7 +23,7 @@ use sc_service::{
 	ClientConfig, GenesisBlockBuilder, LocalCallExecutor, TFullBackend, TFullClient, TaskManager,
 };
 use sc_transaction_pool_api::{MaintainedTransactionPool, TransactionPool};
-use sp_api::{ApiExt, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_block_builder::BlockBuilder;
 use sp_core::traits::{CodeExecutor, SpawnNamed};
 use sp_runtime::traits::{Block as BlockT, BlockIdTo};
@@ -40,10 +40,10 @@ pub type InnerError = Box<dyn StdError>;
 pub trait Initiator<Block: BlockT>
 where
 	for<'r> &'r Self::Client:
-		BlockImport<Block, Transaction = TransactionFor<Self::Backend, Block>>,
+		BlockImport<Block>,
 {
 	type Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+
 		+ BlockBuilderApi<Block>
 		+ TaggedTransactionQueue<Block>;
 	type Client: 'static
@@ -88,7 +88,7 @@ pub trait BackendProvider<Block: BlockT> {
 
 pub trait ClientProvider<Block: BlockT> {
 	type Api: BlockBuilder<Block>
-		+ ApiExt<Block, StateBackend = <Self::Backend as BackendT<Block>>::State>
+
 		+ BlockBuilderApi<Block>
 		+ TaggedTransactionQueue<Block>;
 	type Backend: 'static + BackendT<Block>;
@@ -154,7 +154,7 @@ where
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
 		TaggedTransactionQueue<Block>
 			+ BlockBuilderApi<Block>
-			+ ApiExt<Block, StateBackend = <TFullBackend<Block> as Backend<Block>>::State>,
+			,
 	Exec: CodeExecutor + RuntimeVersionOf,
 {
 	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;

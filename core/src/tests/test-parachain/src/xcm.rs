@@ -11,14 +11,13 @@
 // GNU General Public License for more details.
 
 use ::xcm::{
-	latest::{Instruction, MultiAsset, MultiLocation, XcmContext},
 	prelude::{AccountId32, XcmError, X1},
-	v3::{AssetId, NetworkId},
+	v3::{AssetId, Instruction, MultiAsset, MultiLocation, NetworkId, XcmContext},
 };
 use codec::{Decode, Encode};
 use frame_support::traits::{Nothing, ProcessMessageError};
 use pallet_xcm::TestWeightInfo;
-use polkadot_parachain::primitives::Sibling;
+use polkadot_parachain_primitives::primitives::Sibling;
 use scale_info::TypeInfo;
 use sp_core::{ConstU32, Get};
 use sp_runtime::traits::Convert;
@@ -28,7 +27,7 @@ use xcm_builder::{
 	SiblingParachainConvertsVia, SignedToAccountId32, SovereignSignedViaLocation,
 };
 use xcm_executor::{
-	traits::{ShouldExecute, TransactAsset, WeightTrader},
+	traits::{Properties, ShouldExecute, TransactAsset, WeightTrader},
 	Assets,
 };
 use xcm_primitives::{UtilityAvailableCalls, UtilityEncodeCall, XcmTransact};
@@ -51,6 +50,7 @@ parameter_types! {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
+	type Aliasers = ();
 	type AssetClaims = PolkadotXcm;
 	type AssetExchanger = ();
 	type AssetLocker = ();
@@ -83,7 +83,7 @@ impl ShouldExecute for TestBarrier {
 		_origin: &MultiLocation,
 		_instructions: &mut [Instruction<RuntimeCall>],
 		_max_weight: Weight,
-		_weight_credit: &mut Weight,
+		_properties: &mut Properties,
 	) -> Result<(), ProcessMessageError> {
 		Ok(())
 	}
@@ -174,7 +174,6 @@ impl pallet_xcm_transactor::Config for Runtime {
 	type CurrencyId = AssetId;
 	type CurrencyIdToMultiLocation = CurrencyIdConvert;
 	type DerivativeAddressRegistrationOrigin = EnsureRoot<AccountId>;
-	type HrmpEncoder = moonbeam_relay_encoder::westend::WestendEncoder;
 	type HrmpManipulatorOrigin = EnsureRoot<AccountId>;
 	type MaxHrmpFee = xcm_builder::Case<MaxHrmpRelayFee>;
 	type ReserveProvider = xcm_primitives::AbsoluteAndRelativeReserve<SelfLocation>;
@@ -206,7 +205,12 @@ impl WeightTrader for DummyWeightTrader {
 		DummyWeightTrader
 	}
 
-	fn buy_weight(&mut self, _weight: Weight, _payment: Assets) -> Result<Assets, XcmError> {
+	fn buy_weight(
+		&mut self,
+		_weight: Weight,
+		_payment: Assets,
+		_context: &XcmContext,
+	) -> Result<Assets, XcmError> {
 		Ok(Assets::default())
 	}
 }
