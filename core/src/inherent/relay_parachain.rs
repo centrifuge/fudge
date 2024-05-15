@@ -9,7 +9,7 @@
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-use polkadot_primitives::v5::{
+use polkadot_primitives::v6::{
 	BackedCandidate, InherentData as ParachainsInherentData, PARACHAINS_INHERENT_IDENTIFIER,
 };
 use sp_inherents::{Error, InherentData, InherentDataProvider, InherentIdentifier};

@@ -18,8 +18,12 @@
 use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
+	pallet_prelude::ConstU32,
 	parameter_types,
-	traits::{EqualPrivilegeOnly, Everything},
+	traits::{
+		tokens::{PayFromAccount, UnityAssetBalanceConversion},
+		EnqueueWithOrigin, EqualPrivilegeOnly, Everything,
+	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight},
 		ConstantMultiplier, Weight, WeightToFeeCoefficient, WeightToFeeCoefficients,
@@ -31,6 +35,7 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot,
 };
+use pallet_identity::legacy::IdentityInfo;
 use pallet_transaction_payment::CurrencyAdapter;
 use polkadot_runtime_common::{impls::DealWithFees, BlockHashCount, SlowAdjustingFeeUpdate};
 pub use primitives::*;
@@ -43,17 +48,15 @@ use sp_inherents::{CheckInherentsResult, InherentData};
 pub use sp_runtime::BuildStorage;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{BlakeTwo256, Block as BlockT},
+	traits::{BlakeTwo256, Block as BlockT, IdentityLookup, Verify},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, Perbill,
+	ApplyExtrinsicResult, MultiSignature, Perbill,
 };
 use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use xcm_executor::XcmExecutor;
-
-use crate::xcm::XcmConfig;
 
 mod primitives;
 mod xcm;
@@ -144,6 +147,7 @@ impl frame_system::Config for Runtime {
 	/// The identifier used to distinguish between accounts.
 	type AccountId = AccountId;
 	type BaseCallFilter = Everything;
+	type Block = Block;
 	/// Maximum number of block number to block hash mappings to keep (oldest pruned first).
 	type BlockHashCount = BlockHashCount;
 	type BlockLength = RuntimeBlockLength;
@@ -153,11 +157,11 @@ impl frame_system::Config for Runtime {
 	type Hash = Hash;
 	/// The hashing algorithm used.
 	type Hashing = BlakeTwo256;
-	/// The index type for storing how many extrinsics an account has signed.
-	type Nonce = Index;
 	/// The lookup mechanism to get account ID from whatever is passed in dispatchers.
 	type Lookup = sp_runtime::traits::AccountIdLookup<AccountId, ()>;
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	/// The index type for storing how many extrinsics an account has signed.
+	type Nonce = Index;
 	/// A function that is invoked when an account has been determined to be dead.
 	/// All resources should be cleaned up associated with the given account.
 	type OnKilledAccount = ();
@@ -171,11 +175,11 @@ impl frame_system::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	/// The ubiquitous origin type.
 	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeTask = ();
 	type SS58Prefix = SS58Prefix;
 	type SystemWeightInfo = ();
 	/// Get the chain's current version.
 	type Version = Version;
-	type Block = Block;
 }
 
 parameter_types! {
@@ -185,25 +189,26 @@ parameter_types! {
 
 impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
-	type DmpMessageHandler = DmpQueue;
+	type DmpQueue = EnqueueWithOrigin<(), sp_core::ConstU8<0>>;
 	type OnSystemEvent = ();
 	type OutboundXcmpMessageSource = XcmpQueue;
 	type ReservedDmpWeight = ReservedDmpWeight;
 	type ReservedXcmpWeight = ReservedXcmpWeight;
 	type RuntimeEvent = RuntimeEvent;
-	type SelfParaId = parachain_info::Pallet<Runtime>;
+	type SelfParaId = staging_parachain_info::Pallet<Runtime>;
+	type WeightInfo = ();
 	type XcmpMessageHandler = XcmpQueue;
 }
 
 // DMP
 
 impl cumulus_pallet_dmp_queue::Config for Runtime {
-	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type DmpSink = EnqueueWithOrigin<(), sp_core::ConstU8<0>>;
 	type RuntimeEvent = RuntimeEvent;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type WeightInfo = ();
 }
 
-impl parachain_info::Config for Runtime {}
+impl staging_parachain_info::Config for Runtime {}
 
 parameter_types! {
 	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
@@ -254,14 +259,14 @@ impl pallet_balances::Config for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ();
-	type MaxHolds = ();
 	type MaxLocks = MaxLocks;
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	/// The overarching event type.
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
+	type RuntimeFreezeReason = ();
 	type RuntimeHoldReason = ();
+	type WeightInfo = ();
 }
 
 // We only use find_author to pay in anchor pallet
@@ -272,24 +277,29 @@ impl pallet_authorship::Config for Runtime {
 
 parameter_types! {
 	pub const MaxSubAccounts: u32 = 100;
-	pub const MaxAdditionalFields: u32 = 100;
 	pub const BasicDeposit: Balance = 100 * CUR;
-	pub const FieldDeposit: Balance = 25 * CUR;
+	pub const ByteDeposit: Balance = 100 * CUR;
 	pub const SubAccountDeposit: Balance = 20 * CUR;
 	pub const MaxRegistrars: u32 = 20;
 }
 impl pallet_identity::Config for Runtime {
 	type BasicDeposit = BasicDeposit;
+	type ByteDeposit = ByteDeposit;
 	type Currency = Balances;
-	type FieldDeposit = FieldDeposit;
 	type ForceOrigin = EnsureRoot<AccountId>;
-	type MaxAdditionalFields = MaxAdditionalFields;
+	type IdentityInformation = IdentityInfo<ConstU32<2>>;
 	type MaxRegistrars = MaxRegistrars;
 	type MaxSubAccounts = MaxSubAccounts;
+	type MaxSuffixLength = ConstU32<7>;
+	type MaxUsernameLength = ConstU32<32>;
+	type OffchainSignature = MultiSignature;
+	type PendingUsernameExpiration = ConstU32<100>;
 	type RegistrarOrigin = EnsureRoot<AccountId>;
 	type RuntimeEvent = RuntimeEvent;
+	type SigningPublicKey = <MultiSignature as Verify>::Signer;
 	type Slashed = Treasury;
 	type SubAccountDeposit = SubAccountDeposit;
+	type UsernameAuthorityOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = ();
 }
 
@@ -301,11 +311,16 @@ parameter_types! {
 	pub const Burn: Permill = Permill::from_percent(0);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 	pub const MaxApprovals: u32 = 100;
+	pub TreasuryAccount: AccountId = Treasury::account_id();
 }
 
 impl pallet_treasury::Config for Runtime {
 	// either democracy or 50% of council votes
 	type ApproveOrigin = EnsureRoot<AccountId>;
+	type AssetKind = ();
+	type BalanceConverter = UnityAssetBalanceConversion;
+	type Beneficiary = Self::AccountId;
+	type BeneficiaryLookup = IdentityLookup<Self::AccountId>;
 	type Burn = Burn;
 	// we burn and dont handle the unbalance
 	type BurnDestination = ();
@@ -314,6 +329,8 @@ impl pallet_treasury::Config for Runtime {
 	// slashed amount goes to treasury account
 	type OnSlash = Treasury;
 	type PalletId = TreasuryPalletId;
+	type Paymaster = PayFromAccount<Balances, TreasuryAccount>;
+	type PayoutPeriod = ConstU32<0>;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMaximum = ProposalBondMaximum;
 	type ProposalBondMinimum = ProposalBondMinimum;
@@ -332,8 +349,7 @@ parameter_types! {
 	pub PreimageByteDeposit: Balance = 100 * CUR;
 }
 impl pallet_preimage::Config for Runtime {
-	type BaseDeposit = PreimageBaseDeposit;
-	type ByteDeposit = PreimageByteDeposit;
+	type Consideration = ();
 	type Currency = Balances;
 	type ManagerOrigin = EnsureRoot<AccountId>;
 	type RuntimeEvent = RuntimeEvent;
@@ -364,10 +380,10 @@ parameter_types! {
 }
 
 impl pallet_aura::Config for Runtime {
+	type AllowMultipleBlocksPerSlot = ();
 	type AuthorityId = AuraId;
 	type DisabledValidators = ();
 	type MaxAuthorities = MaxAuthorities;
-	type AllowMultipleBlocksPerSlot = ();
 }
 
 // admin stuff
@@ -424,6 +440,7 @@ impl pallet_collator_selection::Config for Runtime {
 	type KickThreshold = Period;
 	type MaxCandidates = MaxCandidates;
 	type MaxInvulnerables = MaxInvulnerables;
+	type MinEligibleCollators = MinCandidates;
 	type PotId = PotId;
 	type RuntimeEvent = RuntimeEvent;
 	type UpdateOrigin = EnsureRoot<AccountId>;
@@ -431,7 +448,6 @@ impl pallet_collator_selection::Config for Runtime {
 	type ValidatorIdOf = pallet_collator_selection::IdentityCollator;
 	type ValidatorRegistration = Session;
 	type WeightInfo = ();
-	type MinEligibleCollators = MinCandidates;
 }
 
 // Frame Order in this block dictates the index of each one in the metadata
@@ -444,7 +460,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Config<T>, Storage, Event<T>} = 0,
 		ParachainSystem: cumulus_pallet_parachain_system::{Pallet, Call, Config<T>, Storage, Inherent, Event<T>} = 1,
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 3,
-		ParachainInfo: parachain_info::{Pallet, Storage, Config<T>} = 4,
+		ParachainInfo: staging_parachain_info::{Pallet, Storage, Config<T>} = 4,
 
 		// money stuff
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 20,

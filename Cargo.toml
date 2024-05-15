@@ -87,6 +87,6 @@ sp-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "rel
 sp-staking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 sp-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
-[patch."https://github.com/moonbeam-foundation/open-runtime-module-library"]
-orml-traits = { version = "0.7.0" }
-orml-utilities = { version = "0.7.0" }
+#[patch."https://github.com/moonbeam-foundation/open-runtime-module-library"]
+#orml-traits = { version = "0.8.0" }
+#orml-utilities = { version = "0.8.0" }

@@ -18,8 +18,7 @@ use polkadot_node_primitives::{Collation, MaybeCompressedPoV, PoV};
 use polkadot_parachain_primitives::primitives::{BlockData, HeadData, Id, ValidationCode};
 use polkadot_primitives::PersistedValidationData;
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
-	UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -42,7 +41,7 @@ use thiserror::Error;
 
 use crate::{
 	builder::{
-		core::{Builder, InnerError, Operation},
+		core::{Builder, HashFor, InnerError, Operation},
 		relay_chain::{CollationBuilder, CollationJudgement},
 		PoolState,
 	},
@@ -51,7 +50,6 @@ use crate::{
 	provider::Initiator,
 	types::StoragePair,
 };
-use crate::builder::core::HashFor;
 
 const DEFAULT_COLLATOR_LOG_TARGET: &str = "fudge-collator";
 const DEFAULT_PARACHAIN_BUILDER_LOG_TARGET: &str = "fudge-parachain";
@@ -437,10 +435,7 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	C::Api: BlockBuilder<Block>
-
-		+ TaggedTransactionQueue<Block>
-		+ CollectCollationInfo<Block>,
+	C::Api: BlockBuilder<Block> + TaggedTransactionQueue<Block> + CollectCollationInfo<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -452,8 +447,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+		+ CallApiAt<Block>,
 	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
