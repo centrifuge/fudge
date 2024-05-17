@@ -11,10 +11,12 @@
 // GNU General Public License for more details.
 
 use fudge_test_runtime::WASM_BINARY as PARA_CODE;
+use polkadot_core_primitives::BlockId;
 use polkadot_parachain_primitives::primitives::{HeadData, Id, ValidationCode};
-use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
+use polkadot_test_runtime::{
+	Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE,
+};
 use sc_service::{TFullBackend, TFullClient};
-use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;

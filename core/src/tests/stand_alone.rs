@@ -11,15 +11,15 @@
 // GNU General Public License for more details.
 
 use std::path::PathBuf;
-use sp_runtime::BuildStorage;
+
 use frame_benchmarking::account;
+use polkadot_core_primitives::BlockId;
 use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
 use sc_service::{TFullBackend, TFullClient};
-use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::{AccountId32, MultiAddress, Storage};
+use sp_runtime::{AccountId32, BuildStorage, MultiAddress, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 

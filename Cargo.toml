@@ -2,10 +2,10 @@
 resolver = '2'
 members = [
   "core",
-  "core/src/builder/companion",
-  "core/src/tests/test-parachain",
-  "fudge",
-  "integration_test",
+#  "core/src/builder/companion",
+#  "core/src/tests/test-parachain",
+#  "fudge",
+#  "integration_test",
 ]
 
 #

@@ -12,7 +12,9 @@ fudge-test-runtime = { path = "../core/src/tests/test-parachain" }
 codec = { package = "parity-scale-codec", version = "3.0.0", features = [
   "derive",
 ] }
+#polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", rev = "59172d5fb8feea2646490618bead3b2b4fb06220" }
 polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", tag = "v1.2.0" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }

@@ -10,12 +10,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use std::sync::Arc;
-
 use ::xcm::{
 	prelude::{AccountId32, Parachain, XcmError},
 	v4::{
-		Asset, AssetId, Assets, Instruction, InteriorLocation, Junctions::X1, Location, NetworkId,
+		Asset, AssetId, Instruction, InteriorLocation, Junctions::X1, Location, NetworkId,
 		XcmContext,
 	},
 };
