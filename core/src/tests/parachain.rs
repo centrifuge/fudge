@@ -22,11 +22,11 @@ use pallet_xcm_transactor::{Currency, CurrencyPayment, TransactWeights};
 use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain_primitives::primitives::{Id, Sibling};
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
-use polkadot_runtime::{
+use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
+use polkadot_test_runtime::{
 	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
 	WASM_BINARY as RCODE,
 };
-use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::{crypto::AccountId32, ByteArray, H256};
@@ -39,8 +39,8 @@ use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 use xcm::{
 	prelude::XCM_VERSION,
-	v3::{Junction, Junctions, MultiLocation, Weight},
-	VersionedMultiLocation, VersionedXcm,
+	v4::{Junction, Junctions, Location, Weight},
+	VersionedLocation, VersionedXcm,
 };
 
 ///! Test for the ParachainBuilder
@@ -601,22 +601,22 @@ async fn multi_parachains_can_send_xcm_messages() {
 		remark: remark.clone(),
 	});
 
-	let para_1_location = VersionedMultiLocation::from(MultiLocation::new(
+	let para_1_location = VersionedLocation::from(Location::new(
 		1,
-		Junctions::X1(Junction::Parachain(PARA_ID_1)),
+		Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_1)])),
 	));
-	let para_2_location = VersionedMultiLocation::from(MultiLocation::new(
+	let para_2_location = VersionedLocation::from(Location::new(
 		1,
-		Junctions::X1(Junction::Parachain(PARA_ID_2)),
+		Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_2)])),
 	));
 
 	para_1_builder
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(MultiLocation::new(
+				Box::new(Location::new(
 					1,
-					Junctions::X1(Junction::Parachain(PARA_ID_2)),
+					Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_2)])),
 				)),
 				XCM_VERSION,
 			)
@@ -628,9 +628,9 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(MultiLocation::new(
+				Box::new(Location::new(
 					1,
-					Junctions::X1(Junction::Parachain(PARA_ID_1)),
+					Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_1)])),
 				)),
 				XCM_VERSION,
 			)
@@ -723,8 +723,8 @@ async fn multi_parachains_can_send_xcm_messages() {
 				Box::new(para_2_location),
 				Sibling::from(PARA_ID_1).into_account_truncating(),
 				CurrencyPayment {
-					currency: Currency::AsMultiLocation(Box::new(VersionedMultiLocation::from(
-						MultiLocation::new(1, Junctions::X1(Junction::Parachain(PARA_ID_2))),
+					currency: Currency::AsMultiLocation(Box::new(VersionedLocation::from(
+						Location::new(1, Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_2)]))),
 					))),
 					fee_amount: Some(1_000),
 				},
@@ -788,8 +788,8 @@ async fn multi_parachains_can_send_xcm_messages() {
 				Box::new(para_1_location),
 				Sibling::from(PARA_ID_2).into_account_truncating(),
 				CurrencyPayment {
-					currency: Currency::AsMultiLocation(Box::new(VersionedMultiLocation::from(
-						MultiLocation::new(1, Junctions::X1(Junction::Parachain(PARA_ID_1))),
+					currency: Currency::AsMultiLocation(Box::new(VersionedLocation::from(
+						Location::new(1, Junctions::X1(Arc::new([Junction::Parachain(PARA_ID_1)]))),
 					))),
 					fee_amount: Some(1_000),
 				},

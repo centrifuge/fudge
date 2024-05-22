@@ -486,6 +486,7 @@ construct_runtime!(
 		DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 102,
 		CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 103,
 		XcmTransactor: pallet_xcm_transactor::{Pallet, Call, Storage, Event<T>} = 104,
+		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 105,
 
 		// admin stuff
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>} = 200,

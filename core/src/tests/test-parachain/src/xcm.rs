@@ -18,13 +18,9 @@ use ::xcm::{
 	},
 };
 use codec::{Decode, Encode};
-use cumulus_pallet_xcmp_queue::Pallet;
-use cumulus_primitives_core::ParaId;
-use frame_support::{
-	traits::{EnqueueMessage, Nothing, ProcessMessageError, QueueFootprint},
-	BoundedSlice,
-};
-use pallet_message_queue::OnQueueChanged;
+use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
+use frame_support::traits::TransformOrigin;
+use frame_support::traits::{Nothing, ProcessMessageError};
 use pallet_xcm::TestWeightInfo;
 use polkadot_parachain_primitives::primitives::Sibling;
 use scale_info::TypeInfo;
@@ -123,54 +119,6 @@ pub type XcmRouter = (
 /////////// Other pallets
 
 parameter_types! {
-	pub static EnqueuedMessages: Vec<(ParaId, Vec<u8>)> = Default::default();
-}
-
-/// An `EnqueueMessage` implementation that puts all messages in thread-local storage.
-pub struct EnqueueToLocalStorage<T>(PhantomData<T>);
-
-impl<T: OnQueueChanged<ParaId>> EnqueueMessage<ParaId> for EnqueueToLocalStorage<T> {
-	type MaxMessageLen = sp_core::ConstU32<65_536>;
-
-	fn enqueue_message(message: BoundedSlice<u8, Self::MaxMessageLen>, origin: ParaId) {
-		let mut msgs = EnqueuedMessages::get();
-		msgs.push((origin, message.to_vec()));
-		EnqueuedMessages::set(msgs);
-		T::on_queue_changed(origin, Self::footprint(origin));
-	}
-
-	fn enqueue_messages<'a>(
-		iter: impl Iterator<Item = BoundedSlice<'a, u8, Self::MaxMessageLen>>,
-		origin: ParaId,
-	) {
-		let mut msgs = EnqueuedMessages::get();
-		msgs.extend(iter.map(|m| (origin, m.to_vec())));
-		EnqueuedMessages::set(msgs);
-		T::on_queue_changed(origin, Self::footprint(origin));
-	}
-
-	fn sweep_queue(origin: ParaId) {
-		let mut msgs = EnqueuedMessages::get();
-		msgs.retain(|(o, _)| o != &origin);
-		EnqueuedMessages::set(msgs);
-		T::on_queue_changed(origin, Self::footprint(origin));
-	}
-
-	fn footprint(origin: ParaId) -> QueueFootprint {
-		let msgs = EnqueuedMessages::get();
-		let mut footprint = QueueFootprint::default();
-		for (o, m) in msgs {
-			if o == origin {
-				footprint.storage.count += 1;
-				footprint.storage.size += m.len() as u64;
-			}
-		}
-		footprint.pages = footprint.storage.size as u32 / 16; // Number does not matter
-		footprint
-	}
-}
-
-parameter_types! {
 	pub const RelayChain: Location = Location::parent();
 
 	/// The asset ID for the asset that we use to pay for message delivery fees.
@@ -188,6 +136,35 @@ pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender:
 	XcmpQueue,
 >;
 
+parameter_types! {
+	pub const HeapSize: u32 = 24;
+	pub const MaxStale: u32 = 2;
+	pub const ServiceWeight: Option<Weight> = Some(Weight::from_parts(100, 100));
+}
+
+impl pallet_message_queue::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type MessageProcessor = xcm_builder::ProcessXcmMessage<
+		AggregateMessageOrigin,
+		xcm_executor::XcmExecutor<XcmConfig>,
+		RuntimeCall,
+	>;
+	type Size = u32;
+	type QueueChangeHandler = ();
+	type QueuePausedQuery = ();
+	type HeapSize = HeapSize;
+	type MaxStale = MaxStale;
+	type ServiceWeight = ServiceWeight;
+}
+
+pub struct ParaIdToSibling;
+impl sp_runtime::traits::Convert<ParaId, AggregateMessageOrigin> for ParaIdToSibling {
+	fn convert(para_id: ParaId) -> AggregateMessageOrigin {
+		AggregateMessageOrigin::Sibling(para_id)
+	}
+}
+
 impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type ChannelInfo = ParachainSystem;
 	type ControllerOrigin = EnsureRoot<AccountId>;
@@ -197,7 +174,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type VersionWrapper = PolkadotXcm;
 	type WeightInfo = ();
-	type XcmpQueue = EnqueueToLocalStorage<Pallet<Runtime>>;
+	type XcmpQueue = TransformOrigin<MessageQueue, AggregateMessageOrigin, ParaId, ParaIdToSibling>;
 }
 
 impl pallet_xcm::Config for Runtime {

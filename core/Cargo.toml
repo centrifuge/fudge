@@ -90,9 +90,7 @@ cumulus-client-parachain-inherent = { git = "https://github.com/paritytech/polka
 [dev-dependencies]
 staging-parachain-info = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
-#polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", tag = "v1.2.0" }
-#polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", rev = "59172d5fb8feea2646490618bead3b2b4fb06220" }
-polkadot-test-runtime = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+polkadot-test-runtime = { git = "https://github.com/paritytech/polkadot-sdk", default-features = true, branch = "release-polkadot-v1.7.2" }
 frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 pallet-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
