@@ -13,8 +13,7 @@
 use std::path::PathBuf;
 
 use frame_benchmarking::account;
-use frame_support::traits::Currency;
-use polkadot_core_primitives::BlockId;
+use frame_support::traits::{Currency, ExistenceRequirement};
 use polkadot_test_runtime::{
 	Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE,
 };
@@ -22,7 +21,8 @@ use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::{AccountId32, BuildStorage, MultiAddress, Storage};
+use sp_runtime::generic::BlockId;
+use sp_runtime::{AccountId32, BuildStorage, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -136,9 +136,10 @@ async fn mutating_genesis_works() {
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
 			polkadot_test_runtime::Balances::transfer(
-				polkadot_test_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+				&AccountId32::new([0u8; 32]),
+				&account("test", 0, 0),
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 
@@ -238,9 +239,10 @@ async fn opening_state_from_db_path_works() {
 	let (send_data_post_20, recv_data_post_20) = builder
 		.with_mut_state(|| {
 			polkadot_test_runtime::Balances::transfer(
-				polkadot_test_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+				&AccountId32::new([0u8; 32]),
+				&account("test", 0, 0),
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 
@@ -347,9 +349,10 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
 			polkadot_test_runtime::Balances::transfer(
-				polkadot_test_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+				&AccountId32::new([0u8; 32]),
+				&account("test", 0, 0),
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 

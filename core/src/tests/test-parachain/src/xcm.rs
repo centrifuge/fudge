@@ -142,9 +142,54 @@ parameter_types! {
 	pub const ServiceWeight: Option<Weight> = Some(Weight::from_parts(100, 100));
 }
 
+pub struct MessageQueueWeightInfo;
+
+// As of this version, the current implementation of WeightInfo for (), has weights that are bigger than 0.
+impl pallet_message_queue::WeightInfo for MessageQueueWeightInfo {
+	fn ready_ring_knit() -> Weight {
+		Weight::zero()
+	}
+
+	fn ready_ring_unknit() -> Weight {
+		Weight::zero()
+	}
+
+	fn service_queue_base() -> Weight {
+		Weight::zero()
+	}
+
+	fn service_page_base_completion() -> Weight {
+		Weight::zero()
+	}
+
+	fn service_page_base_no_completion() -> Weight {
+		Weight::zero()
+	}
+
+	fn service_page_item() -> Weight {
+		Weight::zero()
+	}
+
+	fn bump_service_head() -> Weight {
+		Weight::zero()
+	}
+
+	fn reap_page() -> Weight {
+		Weight::zero()
+	}
+
+	fn execute_overweight_page_removed() -> Weight {
+		Weight::zero()
+	}
+
+	fn execute_overweight_page_updated() -> Weight {
+		Weight::zero()
+	}
+}
+
 impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
+	type WeightInfo = MessageQueueWeightInfo;
 	type MessageProcessor = xcm_builder::ProcessXcmMessage<
 		AggregateMessageOrigin,
 		xcm_executor::XcmExecutor<XcmConfig>,
