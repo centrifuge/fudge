@@ -137,7 +137,7 @@ pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender:
 >;
 
 parameter_types! {
-	pub const HeapSize: u32 = 24;
+	pub const HeapSize: u32 = 1024;
 	pub const MaxStale: u32 = 2;
 	pub const ServiceWeight: Option<Weight> = Some(Weight::from_parts(100, 100));
 }
