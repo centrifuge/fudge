@@ -80,7 +80,6 @@ pallet-message-queue = { git = "https://github.com/cdamian/polkadot-sdk", defaul
 xcm = { package = "staging-xcm", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 pallet-xcm = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 cumulus-pallet-xcm = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-cumulus-pallet-dmp-queue = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 cumulus-pallet-xcmp-queue = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 xcm-builder = { package = "staging-xcm-builder", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 xcm-executor = { package = "staging-xcm-executor", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
@@ -100,7 +99,6 @@ std = [
     "xcm/std",
     "pallet-xcm/std",
     "cumulus-pallet-xcm/std",
-    "cumulus-pallet-dmp-queue/std",
     "cumulus-pallet-xcmp-queue/std",
     "xcm-builder/std",
     "xcm-executor/std",

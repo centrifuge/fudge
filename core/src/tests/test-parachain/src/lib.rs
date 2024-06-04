@@ -15,6 +15,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use cumulus_primitives_core::AggregateMessageOrigin;
 use frame_support::{
 	construct_runtime,
 	dispatch::DispatchClass,
@@ -187,9 +188,13 @@ parameter_types! {
 	pub const ReservedDmpWeight: Weight = MAXIMUM_BLOCK_WEIGHT.saturating_div(4);
 }
 
+parameter_types! {
+	pub const RelayOrigin: AggregateMessageOrigin = AggregateMessageOrigin::Parent;
+}
+
 impl cumulus_pallet_parachain_system::Config for Runtime {
 	type CheckAssociatedRelayNumber = cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
-	type DmpQueue = EnqueueWithOrigin<(), sp_core::ConstU8<0>>;
+	type DmpQueue = EnqueueWithOrigin<MessageQueue, RelayOrigin>;
 	type OnSystemEvent = ();
 	type OutboundXcmpMessageSource = XcmpQueue;
 	type ReservedDmpWeight = ReservedDmpWeight;
@@ -198,14 +203,6 @@ impl cumulus_pallet_parachain_system::Config for Runtime {
 	type SelfParaId = staging_parachain_info::Pallet<Runtime>;
 	type WeightInfo = ();
 	type XcmpMessageHandler = XcmpQueue;
-}
-
-// DMP
-
-impl cumulus_pallet_dmp_queue::Config for Runtime {
-	type DmpSink = EnqueueWithOrigin<(), sp_core::ConstU8<0>>;
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = ();
 }
 
 impl staging_parachain_info::Config for Runtime {}
@@ -483,7 +480,6 @@ construct_runtime!(
 		// xcm
 		XcmpQueue: cumulus_pallet_xcmp_queue::{Pallet, Call, Storage, Event<T>} = 100,
 		PolkadotXcm: pallet_xcm::{Pallet, Call, Storage, Config<T>, Event<T>, Origin} = 101,
-		DmpQueue: cumulus_pallet_dmp_queue::{Pallet, Call, Storage, Event<T>} = 102,
 		CumulusXcm: cumulus_pallet_xcm::{Pallet, Event<T>, Origin} = 103,
 		XcmTransactor: pallet_xcm_transactor::{Pallet, Call, Storage, Event<T>} = 104,
 		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 105,

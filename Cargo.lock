@@ -1632,24 +1632,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cumulus-pallet-dmp-queue"
-version = "0.7.0"
-source = "git+https://github.com/cdamian/polkadot-sdk?branch=release-polkadot-v1.7.2-xcm-test-runtime#db62739103d2ed88de6128c0739102cde2d3ea42"
-dependencies = [
- "cumulus-primitives-core",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-io",
- "sp-runtime",
- "sp-std 14.0.0 (git+https://github.com/cdamian/polkadot-sdk?branch=release-polkadot-v1.7.2-xcm-test-runtime)",
- "staging-xcm",
-]
-
-[[package]]
 name = "cumulus-pallet-parachain-system"
 version = "0.7.0"
 source = "git+https://github.com/cdamian/polkadot-sdk?branch=release-polkadot-v1.7.2-xcm-test-runtime#db62739103d2ed88de6128c0739102cde2d3ea42"
@@ -3123,7 +3105,6 @@ name = "fudge-test-runtime"
 version = "0.10.12"
 dependencies = [
  "cumulus-pallet-aura-ext",
- "cumulus-pallet-dmp-queue",
  "cumulus-pallet-parachain-system",
  "cumulus-pallet-xcm",
  "cumulus-pallet-xcmp-queue",
