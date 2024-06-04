@@ -401,7 +401,7 @@ where
 				Error::PersistedValidationDataNotFound
 			})?;
 
-		ParachainInherentDataProvider::create_at(
+		let pid = ParachainInherentDataProvider::create_at(
 			parent,
 			&relay_interface,
 			&persisted_validation_data,
@@ -415,7 +415,9 @@ where
 			);
 
 			Error::ParachainInherentDataCreation
-		})
+		});
+
+		pid
 	}
 }
 

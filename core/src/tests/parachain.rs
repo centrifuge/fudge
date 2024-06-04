@@ -13,6 +13,10 @@
 use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::dispatch::GetDispatchInfo;
+use fudge_test_relay::{
+	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
+	WASM_BINARY as RCODE,
+};
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	RuntimeCall as PRuntimeCall, RuntimeEvent as PRuntimeEvent, RuntimeOrigin as PRuntimeOrigin,
@@ -20,19 +24,15 @@ use fudge_test_runtime::{
 };
 use pallet_xcm_transactor::{Currency, CurrencyPayment, TransactWeights};
 use polkadot_core_primitives::Block as RTestBlock;
-use polkadot_parachain_primitives::primitives::{Id, Sibling};
+use polkadot_parachain_primitives::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
-use polkadot_test_runtime::{
-	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
-	WASM_BINARY as RCODE,
-};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{
-	traits::{AccountIdConversion, BlakeTwo256, Hash},
+	traits::{BlakeTwo256, Hash},
 	BuildStorage, Storage,
 };
 use sp_std::sync::Arc;
@@ -226,10 +226,13 @@ fn default_relay_builder(
 				keys: vec![(
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
-					polkadot_test_runtime::SessionKeys {
-						grandpa: pallet_grandpa::AuthorityId::from_slice([0u8; 32].as_slice())
+					fudge_test_relay::SessionKeys {
+						grandpa: sp_consensus_grandpa::AuthorityId::from_slice(
+							[0u8; 32].as_slice(),
+						)
+						.unwrap(),
+						babe: sp_consensus_babe::AuthorityId::from_slice([0u8; 32].as_slice())
 							.unwrap(),
-						babe: pallet_babe::AuthorityId::from_slice([0u8; 32].as_slice()).unwrap(),
 						para_validator: ValidatorId::from_slice([0u8; 32].as_slice()).unwrap(),
 						para_assignment: AssignmentId::from_slice([0u8; 32].as_slice()).unwrap(),
 						authority_discovery: AuthorityDiscoveryId::from_slice([0u8; 32].as_slice())
@@ -456,6 +459,16 @@ async fn parachain_can_process_downward_message() {
 			.unwrap();
 		})
 		.unwrap();
+
+	relay_builder.build_block().unwrap();
+
+	para_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_builder.import_block().unwrap();
 
 	relay_builder.build_block().unwrap();
 
@@ -760,6 +773,16 @@ async fn multi_parachains_can_send_xcm_messages() {
 
 	para_2_builder.import_block().unwrap();
 
+	relay_builder.build_block().unwrap();
+
+	para_2_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_2_builder.import_block().unwrap();
+
 	para_2_builder
 		.with_state(|| {
 			let events = frame_system::Pallet::<PRuntime>::events();
@@ -816,6 +839,16 @@ async fn multi_parachains_can_send_xcm_messages() {
 	relay_builder.import_block().unwrap();
 
 	para_2_builder.import_block().unwrap();
+
+	relay_builder.build_block().unwrap();
+
+	para_1_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_1_builder.import_block().unwrap();
 
 	relay_builder.build_block().unwrap();
 

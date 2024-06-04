@@ -1,11 +1,12 @@
 [workspace]
 resolver = '2'
 members = [
-  "core",
-#  "core/src/builder/companion",
-#  "core/src/tests/test-parachain",
-#  "fudge",
-#  "integration_test",
+    "core",
+    #  "core/src/builder/companion",
+    "core/src/tests/test-parachain",
+    "core/src/tests/test-relay",
+    #  "fudge",
+    #  "integration_test",
 ]
 
 #
@@ -21,68 +22,68 @@ members = [
 # - pallet-xcm-transactor
 # - xcm-primitives
 [patch."https://github.com/moonbeam-foundation/polkadot-sdk"]
-frame-support = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-frame-system = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-staking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-io = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-keystore = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-debug-derive = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-metadata-ir = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-storage = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-runtime-interface-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-wasm-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-weights = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-api = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-api-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-state-machine = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-panic-handler = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-trie = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-version = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-version-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-cumulus-primitives-core = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-staging-xcm = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-staging-xcm-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-staging-xcm-executor = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-frame-election-provider-solution-type = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-frame-election-provider-support = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-asset-rate = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-authorship = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-babe = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-broker = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-fast-unstake = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-identity = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-message-queue = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-staking-reward-fn = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-treasury = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-vesting = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-pallet-xcm-benchmarks = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-runtime-metrics = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-slot-range-helper = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-inherents = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-staking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+frame-support = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+frame-system = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+frame-benchmarking = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-staking = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-balances = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-timestamp = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-io = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-keystore = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-runtime = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-std = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-core = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-debug-derive = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-externalities = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-metadata-ir = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-storage = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-runtime-interface = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-runtime-interface-proc-macro = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-tracing = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-wasm-interface = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-weights = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-arithmetic = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-api = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-api-proc-macro = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-state-machine = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-panic-handler = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-trie = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-version = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-version-proc-macro = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+cumulus-primitives-core = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+staging-xcm = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+staging-xcm-builder = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+staging-xcm-executor = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+frame-election-provider-solution-type = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+frame-election-provider-support = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-asset-rate = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-authority-discovery = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-authorship = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-babe = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-broker = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-election-provider-multi-phase = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-election-provider-support-benchmarking = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-fast-unstake = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-identity = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-message-queue = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-session = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-staking-reward-fn = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-transaction-payment = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-treasury = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-vesting = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-xcm-benchmarks = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-core-primitives = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-parachain-primitives = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-runtime-common = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-primitives = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-runtime-metrics = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-runtime-parachains = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+slot-range-helper = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-application-crypto = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-authority-discovery = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-consensus-slots = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-inherents = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-npos-elections = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-session = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-staking = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-timestamp = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }

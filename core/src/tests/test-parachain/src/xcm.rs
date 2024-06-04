@@ -19,8 +19,7 @@ use ::xcm::{
 };
 use codec::{Decode, Encode};
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
-use frame_support::traits::TransformOrigin;
-use frame_support::traits::{Nothing, ProcessMessageError};
+use frame_support::traits::{Nothing, ProcessMessageError, TransformOrigin};
 use pallet_xcm::TestWeightInfo;
 use polkadot_parachain_primitives::primitives::Sibling;
 use scale_info::TypeInfo;
@@ -139,7 +138,7 @@ pub type PriceForSiblingParachainDelivery = polkadot_runtime_common::xcm_sender:
 parameter_types! {
 	pub const HeapSize: u32 = 1024;
 	pub const MaxStale: u32 = 2;
-	pub const ServiceWeight: Option<Weight> = Some(Weight::from_parts(100, 100));
+	pub const ServiceWeight: Option<Weight> = Some(Weight::from_parts(100_000_000_000, 100_000_000_000));
 }
 
 pub struct MessageQueueWeightInfo;
@@ -188,23 +187,20 @@ impl pallet_message_queue::WeightInfo for MessageQueueWeightInfo {
 }
 
 impl pallet_message_queue::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = MessageQueueWeightInfo;
-	type MessageProcessor = xcm_builder::ProcessXcmMessage<
-		AggregateMessageOrigin,
-		xcm_executor::XcmExecutor<XcmConfig>,
-		RuntimeCall,
-	>;
-	type Size = u32;
-	type QueueChangeHandler = ();
-	type QueuePausedQuery = ();
 	type HeapSize = HeapSize;
 	type MaxStale = MaxStale;
+	type MessageProcessor =
+		xcm_builder::ProcessXcmMessage<AggregateMessageOrigin, XcmExecutor<XcmConfig>, RuntimeCall>;
+	type QueueChangeHandler = ();
+	type QueuePausedQuery = ();
+	type RuntimeEvent = RuntimeEvent;
 	type ServiceWeight = ServiceWeight;
+	type Size = u32;
+	type WeightInfo = MessageQueueWeightInfo;
 }
 
 pub struct ParaIdToSibling;
-impl sp_runtime::traits::Convert<ParaId, AggregateMessageOrigin> for ParaIdToSibling {
+impl Convert<ParaId, AggregateMessageOrigin> for ParaIdToSibling {
 	fn convert(para_id: ParaId) -> AggregateMessageOrigin {
 		AggregateMessageOrigin::Sibling(para_id)
 	}

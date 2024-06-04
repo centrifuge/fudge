@@ -10,14 +10,14 @@ fudge = { path = "../fudge" }
 fudge-core = { path = "../core" }
 fudge-test-runtime = { path = "../core/src/tests/test-parachain" }
 codec = { package = "parity-scale-codec", version = "3.0.0", features = [
-  "derive",
+    "derive",
 ] }
 #polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", rev = "59172d5fb8feea2646490618bead3b2b4fb06220" }
 polkadot-runtime = { git = "https://github.com/polkadot-fellows/runtimes", tag = "v1.2.0" }
-polkadot-service = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-inherents = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+polkadot-service = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-core-primitives = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-consensus-babe = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-std = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-tracing = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+sp-inherents = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
 thiserror = "1.0.30"
