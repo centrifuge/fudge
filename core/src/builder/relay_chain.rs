@@ -14,7 +14,6 @@ use std::{collections::BTreeMap, pin::Pin};
 
 use async_trait::async_trait;
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use codec::{Decode, Encode};
 use cumulus_client_parachain_inherent::ParachainInherentDataProvider;
 use cumulus_primitives_core::relay_chain::{Hash as PHash, Header as PHeader, SessionIndex};
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
@@ -25,6 +24,7 @@ use frame_support::{
 	Identity, Twox64Concat,
 };
 use futures::{FutureExt, Stream, StreamExt};
+use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::{
 	Block as PBlock, CandidateHash, Hash, InboundDownwardMessage, InboundHrmpMessage,
 };

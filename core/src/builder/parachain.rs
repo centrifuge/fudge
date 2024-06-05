@@ -12,8 +12,8 @@
 
 use std::sync::Mutex;
 
-use codec::{Decode, Encode};
 use cumulus_primitives_core::{CollationInfo, CollectCollationInfo, ParachainBlockData};
+use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{Collation, MaybeCompressedPoV, PoV};
 use polkadot_parachain_primitives::primitives::{BlockData, HeadData, Id, ValidationCode};
 use polkadot_primitives::PersistedValidationData;

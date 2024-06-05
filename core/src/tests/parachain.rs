@@ -10,7 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::dispatch::GetDispatchInfo;
 use fudge_test_runtime::{
@@ -19,6 +18,7 @@ use fudge_test_runtime::{
 	WASM_BINARY as PCODE,
 };
 use pallet_xcm_transactor::{Currency, CurrencyPayment, TransactWeights};
+use parity_scale_codec::Encode;
 use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain_primitives::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};

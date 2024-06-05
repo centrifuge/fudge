@@ -17,10 +17,10 @@ use ::xcm::{
 		XcmContext,
 	},
 };
-use codec::{Decode, Encode};
 use cumulus_primitives_core::{AggregateMessageOrigin, ParaId};
 use frame_support::traits::{Nothing, ProcessMessageError, TransformOrigin};
 use pallet_xcm::TestWeightInfo;
+use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain_primitives::primitives::Sibling;
 use scale_info::TypeInfo;
 use sp_core::Get;

@@ -6,13 +6,13 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fudge-core = { path = "../core" }
-fudge-companion = { path = "../core/src/builder/companion" }
+fudge-core = { workspace = true }
+fudge-companion = { workspace = true }
 
-polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sc-service = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sc-executor = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
-sp-io = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+polkadot-parachain-primitives = { workspace = true }
+sc-service = { workspace = true }
+sc-executor = { workspace = true }
+sp-io = { workspace = true }
 
 [features]
 runtime-benchmarks = ["fudge-core/runtime-benchmarks"]

@@ -10,7 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use codec::Encode;
+use parity_scale_codec::Encode;
 use sp_consensus_babe::{
 	digests::{PreDigest, SecondaryPlainPreDigest},
 	inherents::BabeInherentData,
