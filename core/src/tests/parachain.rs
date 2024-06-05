@@ -13,10 +13,6 @@
 use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::dispatch::GetDispatchInfo;
-use fudge_test_relay::{
-	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
-	WASM_BINARY as RCODE,
-};
 use fudge_test_runtime::{
 	AuraId, Block as PTestBlock, Runtime as PRuntime, RuntimeApi as PTestRtApi,
 	RuntimeCall as PRuntimeCall, RuntimeEvent as PRuntimeEvent, RuntimeOrigin as PRuntimeOrigin,
@@ -27,6 +23,10 @@ use polkadot_core_primitives::Block as RTestBlock;
 use polkadot_parachain_primitives::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
 use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
+use polkadot_test_runtime::{
+	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
+	WASM_BINARY as RCODE,
+};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::{crypto::AccountId32, ByteArray, H256};
@@ -226,7 +226,7 @@ fn default_relay_builder(
 				keys: vec![(
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
-					fudge_test_relay::SessionKeys {
+					polkadot_test_runtime::SessionKeys {
 						grandpa: sp_consensus_grandpa::AuthorityId::from_slice(
 							[0u8; 32].as_slice(),
 						)

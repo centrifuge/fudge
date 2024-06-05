@@ -677,7 +677,7 @@ dependencies = [
  "dleq_vrf",
  "fflonk",
  "merlin",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rand_core 0.6.4",
  "ring 0.1.0",
  "sha2 0.10.8",
@@ -1252,7 +1252,7 @@ dependencies = [
  "fflonk",
  "getrandom_or_panic",
  "merlin",
- "rand_chacha 0.3.1",
+ "rand_chacha",
 ]
 
 [[package]]
@@ -2943,6 +2943,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fudge"
+version = "0.0.10"
+dependencies = [
+ "fudge-companion",
+ "fudge-core",
+ "polkadot-parachain-primitives",
+ "sc-executor",
+ "sc-service",
+ "sp-io",
+]
+
+[[package]]
 name = "fudge-companion"
 version = "0.0.7"
 dependencies = [
@@ -2966,7 +2978,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "fudge-companion",
- "fudge-test-relay",
  "fudge-test-runtime",
  "futures",
  "futures-timer",
@@ -2992,6 +3003,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "polkadot-service",
+ "polkadot-test-runtime",
  "prioritized-metered-channel 0.2.0",
  "sc-basic-authorship",
  "sc-block-builder",
@@ -3032,72 +3044,6 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber 0.2.25",
-]
-
-[[package]]
-name = "fudge-test-relay"
-version = "0.10.12"
-dependencies = [
- "bitvec",
- "frame-election-provider-support",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "hex-literal 0.4.1",
- "log",
- "pallet-authority-discovery",
- "pallet-authorship",
- "pallet-babe",
- "pallet-balances",
- "pallet-grandpa",
- "pallet-indices",
- "pallet-offences",
- "pallet-session",
- "pallet-staking",
- "pallet-staking-reward-curve",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "pallet-vesting",
- "pallet-xcm",
- "parity-scale-codec",
- "polkadot-parachain-primitives",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
- "rustc-hex",
- "scale-info",
- "serde",
- "serde_derive",
- "serde_json",
- "smallvec",
- "sp-api",
- "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-consensus-beefy",
- "sp-core",
- "sp-genesis-builder",
- "sp-inherents",
- "sp-io",
- "sp-keyring",
- "sp-mmr-primitives",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
- "sp-transaction-pool",
- "sp-trie",
- "sp-version",
- "staging-xcm",
- "staging-xcm-builder",
- "staging-xcm-executor",
- "substrate-wasm-builder",
- "test-relay-constants",
- "tiny-keccak",
 ]
 
 [[package]]
@@ -3890,6 +3836,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
  "num-traits",
+]
+
+[[package]]
+name = "integration_test"
+version = "0.1.0"
+dependencies = [
+ "fudge",
+ "fudge-core",
+ "fudge-test-runtime",
+ "parity-scale-codec",
+ "polkadot-core-primitives",
+ "polkadot-service",
+ "polkadot-test-runtime",
+ "sp-consensus-babe",
+ "sp-inherents",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
+ "sp-tracing 16.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
+ "thiserror",
 ]
 
 [[package]]
@@ -5063,7 +5027,7 @@ dependencies = [
  "log",
  "parking_lot 0.12.2",
  "rand",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rand_distr",
  "subtle 2.5.0",
  "thiserror",
@@ -6085,7 +6049,6 @@ dependencies = [
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
- "rand_chacha 0.2.2",
  "scale-info",
  "serde",
  "sp-application-crypto",
@@ -6760,7 +6723,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "rand",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "sc-network",
  "sc-network-common",
  "sp-application-crypto",
@@ -6831,7 +6794,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "rand",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rand_core 0.6.4",
  "sc-keystore",
  "schnellru",
@@ -7385,7 +7348,6 @@ dependencies = [
  "log",
  "pallet-asset-rate",
  "pallet-authorship",
- "pallet-babe",
  "pallet-balances",
  "pallet-broker",
  "pallet-election-provider-multi-phase",
@@ -7464,7 +7426,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-metrics",
  "rand",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rustc-hex",
  "scale-info",
  "serde",
@@ -7479,10 +7441,8 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
- "sp-tracing 16.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
  "staging-xcm",
  "staging-xcm-executor",
- "static_assertions",
 ]
 
 [[package]]
@@ -7632,6 +7592,68 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "tracing-gum",
+]
+
+[[package]]
+name = "polkadot-test-runtime"
+version = "1.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2#0d7ca59fd4b4d15f9400971f32bc6a51b2fe837f"
+dependencies = [
+ "bitvec",
+ "frame-election-provider-support",
+ "frame-executive",
+ "frame-support",
+ "frame-system",
+ "frame-system-rpc-runtime-api",
+ "log",
+ "pallet-authority-discovery",
+ "pallet-authorship",
+ "pallet-babe",
+ "pallet-balances",
+ "pallet-grandpa",
+ "pallet-indices",
+ "pallet-offences",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-staking-reward-curve",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-vesting",
+ "pallet-xcm",
+ "parity-scale-codec",
+ "polkadot-parachain-primitives",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "polkadot-runtime-parachains",
+ "rustc-hex",
+ "scale-info",
+ "serde",
+ "serde_derive",
+ "smallvec",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-consensus-babe",
+ "sp-consensus-beefy",
+ "sp-core",
+ "sp-genesis-builder",
+ "sp-inherents",
+ "sp-io",
+ "sp-mmr-primitives",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2)",
+ "sp-transaction-pool",
+ "sp-version",
+ "staging-xcm",
+ "staging-xcm-builder",
+ "staging-xcm-executor",
+ "substrate-wasm-builder",
+ "test-runtime-constants",
 ]
 
 [[package]]
@@ -8104,18 +8126,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
  "libc",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rand_core 0.6.4",
-]
-
-[[package]]
-name = "rand_chacha"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4c8ed856279c9737206bf725bf36935d8666ead7aa69b52be55af369d193402"
-dependencies = [
- "ppv-lite86",
- "rand_core 0.5.1",
 ]
 
 [[package]]
@@ -10533,7 +10545,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.10.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -10595,7 +10607,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -10616,7 +10628,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.25.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -10834,7 +10846,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "24.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -10866,7 +10878,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "17.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "Inflector",
  "expander 2.1.0",
@@ -10959,7 +10971,7 @@ source = "git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 
 [[package]]
 name = "sp-storage"
@@ -10977,7 +10989,7 @@ dependencies = [
 [[package]]
 name = "sp-storage"
 version = "19.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -11014,7 +11026,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "16.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "parity-scale-codec",
  "tracing",
@@ -11114,7 +11126,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "20.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk#cbe45121c9a7bb956101bf28e6bb23f0efd3cbbf"
+source = "git+https://github.com/paritytech/polkadot-sdk#8ffe22903a37f4dab2aa1b15ec899f2c38439f60"
 dependencies = [
  "impl-trait-for-tuples",
  "log",
@@ -11573,8 +11585,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3369f5ac52d5eb6ab48c6b4ffdc8efbcad6b89c765749064ba298f2c68a16a76"
 
 [[package]]
-name = "test-relay-constants"
-version = "0.10.12"
+name = "test-runtime-constants"
+version = "1.0.0"
+source = "git+https://github.com/paritytech/polkadot-sdk?branch=release-polkadot-v1.7.2#0d7ca59fd4b4d15f9400971f32bc6a51b2fe837f"
 dependencies = [
  "frame-support",
  "polkadot-primitives",
@@ -11583,7 +11596,6 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-weights",
- "staging-xcm-builder",
 ]
 
 [[package]]
@@ -12321,7 +12333,7 @@ dependencies = [
  "constcat",
  "digest 0.10.7",
  "rand",
- "rand_chacha 0.3.1",
+ "rand_chacha",
  "rand_core 0.6.4",
  "sha2 0.10.8",
  "sha3",

@@ -88,6 +88,8 @@ cumulus-primitives-core = { git = "https://github.com/paritytech/polkadot-sdk", 
 cumulus-client-parachain-inherent = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
 [dev-dependencies]
+polkadot-test-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+
 staging-parachain-info = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
 sp-consensus-beefy = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
@@ -99,7 +101,6 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/polkadot-sdk
 tracing-subscriber = "0.2"
 pallet-aura = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 fudge-test-runtime = { path = "./src/tests/test-parachain", default-features = true }
-fudge-test-relay = { path = "./src/tests/test-relay", default-features = true }
 pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", features = [
     "historical",
 ], branch = "release-polkadot-v1.7.2" }

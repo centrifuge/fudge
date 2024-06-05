@@ -10,11 +10,11 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use fudge_test_relay::{
+use polkadot_parachain_primitives::primitives::{HeadData, Id, ValidationCode};
+use polkadot_test_runtime::{
 	Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as PARA_CODE,
 	WASM_BINARY as CODE,
 };
-use polkadot_parachain_primitives::primitives::{HeadData, Id, ValidationCode};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
