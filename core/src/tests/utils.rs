@@ -11,7 +11,7 @@
 // GNU General Public License for more details.
 
 use sp_std::sync::atomic::{AtomicUsize, Ordering};
-use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+use tracing_subscriber::filter::LevelFilter;
 
 static GLOBAL_INIT: AtomicUsize = AtomicUsize::new(UNINITIALIZED);
 

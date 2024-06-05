@@ -16,18 +16,22 @@
 
 //! New governance configurations for the Polkadot runtime.
 
-use super::*;
-use crate::xcm_config::CollectivesLocation;
 use frame_support::{parameter_types, traits::EitherOf};
 use frame_system::EnsureRootWithSuccess;
-use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
-use xcm::latest::BodyId;
+
+use super::*;
 
 mod origins;
 pub use origins::{
 	pallet_custom_origins, AuctionAdmin, FellowshipAdmin, GeneralAdmin, LeaseAdmin,
 	ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
 };
+use primitives::Balance;
+
+pub const DOTS: Balance = 1_000_000_000_000;
+pub const DOLLARS: Balance = DOTS;
+pub const CENTS: Balance = DOLLARS / 100;
+pub const MILLICENTS: Balance = CENTS / 1_000;
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;

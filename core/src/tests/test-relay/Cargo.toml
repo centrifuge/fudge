@@ -15,64 +15,64 @@ serde = { version = "1.0.195", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-api = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-inherents = { package = "sp-inherents", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-std = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-io = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-runtime = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-staking = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-core = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-genesis-builder = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-mmr-primitives = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-session = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-version = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-frame-election-provider-support = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-api = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-std = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-staking = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-genesis-builder = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-session = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+sp-version = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+frame-election-provider-support = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 
-pallet-authority-discovery = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-authorship = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-babe = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-balances = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-transaction-payment = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-frame-executive = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-grandpa = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-indices = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-offences = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-session = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-frame-support = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-staking = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-staking-reward-curve = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-frame-system = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-frame-system-rpc-runtime-api = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-test-runtime-constants = { package = "test-runtime-constants", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-timestamp = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-sudo = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-vesting = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-authorship = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-babe = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+frame-executive = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-grandpa = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-indices = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-offences = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+frame-support = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-staking = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+frame-system = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-sudo = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-vesting = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 
-runtime-common = { package = "polkadot-runtime-common", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-primitives = { package = "polkadot-primitives", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-pallet-xcm = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-polkadot-parachain-primitives = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-polkadot-runtime-parachains = { git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-xcm-builder = { package = "staging-xcm-builder", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-xcm-executor = { package = "staging-xcm-executor", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-xcm = { package = "staging-xcm", git = "https://github.com/cdamian/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+runtime-common = { package = "polkadot-runtime-common", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+primitives = { package = "polkadot-primitives", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+pallet-xcm = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+polkadot-runtime-parachains = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+xcm-builder = { package = "staging-xcm-builder", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+xcm-executor = { package = "staging-xcm-executor", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+xcm = { package = "staging-xcm", git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
+test-relay-constants = { path = "constants", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.4.1"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-keyring = { package = "sp-keyring", git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-trie = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+sp-trie = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 serde_json = "1.0.111"
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
 [features]
 default = ["std"]
@@ -131,7 +131,6 @@ std = [
     "sp-staking/std",
     "sp-std/std",
     "sp-version/std",
-    "test-runtime-constants/std",
     "tx-pool-api/std",
     "xcm-builder/std",
     "xcm-executor/std",

@@ -9,10 +9,10 @@ edition = "2021"
 fudge-core = { path = "../core" }
 fudge-companion = { path = "../core/src/builder/companion" }
 
-polkadot-parachain-primitives = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sc-service = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sc-executor = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
-sp-io = { git = "https://github.com/cdamian/polkadot-sdk", branch = "release-polkadot-v1.7.2-xcm-test-runtime" }
+polkadot-parachain-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+sc-service = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+sc-executor = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+sp-io = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 
 [features]
 runtime-benchmarks = ["fudge-core/runtime-benchmarks"]

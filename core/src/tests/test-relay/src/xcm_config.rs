@@ -16,14 +16,6 @@
 
 //! XCM configuration for Polkadot.
 
-use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, Xcm,
-};
-use crate::{
-	governance::{FellowshipAdmin, GeneralAdmin, StakingAdmin, Treasurer},
-	weights::{PolkadotXcmWeight, XcmBalancesWeight, XcmGeneric},
-};
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Equals, Everything, Nothing},
@@ -37,7 +29,7 @@ use runtime_common::{
 	ToAuthor,
 };
 use sp_core::ConstU32;
-use test_runtime_constants::currency::CENTS;
+use test_relay_constants::currency::CENTS;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -48,6 +40,15 @@ use xcm_builder::{
 	SovereignSignedViaLocation, TakeWeightCredit, TrailingSetTopicAsId, UsingComponents,
 	WeightInfoBounds, WithComputedOrigin, WithUniqueTopic, XcmFeeManagerFromComponents,
 	XcmFeeToAccount,
+};
+
+use super::{
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, Xcm,
+};
+use crate::{
+	governance::{FellowshipAdmin, GeneralAdmin, StakingAdmin, Treasurer},
+	weights::PolkadotXcmWeight,
 };
 
 parameter_types! {
@@ -156,8 +157,17 @@ impl Contains<Location> for CollectivesOrFellows {
 	fn contains(loc: &Location) -> bool {
 		matches!(
 			loc.unpack(),
-			(0, [Parachain(COLLECTIVES_ID)]) |
-				(0, [Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }])
+			(0, [Parachain(COLLECTIVES_ID)])
+				| (
+					0,
+					[
+						Parachain(COLLECTIVES_ID),
+						Plurality {
+							id: BodyId::Technical,
+							..
+						}
+					]
+				)
 		)
 	}
 }
@@ -204,38 +214,38 @@ pub type WaivedLocations = (SystemParachains, Equals<RootLocation>, LocalPlurali
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type RuntimeCall = RuntimeCall;
-	type XcmSender = XcmRouter;
-	type AssetTransactor = LocalAssetTransactor;
-	type OriginConverter = LocalOriginConverter;
-	// Polkadot Relay recognises no chains which act as reserves.
-	type IsReserve = ();
-	type IsTeleporter = ();
-	type UniversalLocation = UniversalLocation;
-	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<PolkadotXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
-	// The weight trader piggybacks on the existing transaction-fee conversion logic.
-	type Trader =
-		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = Xcm;
-	type AssetTrap = Xcm;
-	type AssetLocker = ();
-	type AssetExchanger = ();
+	type Aliasers = Nothing;
 	type AssetClaims = Xcm;
-	type SubscriptionService = Xcm;
-	type PalletInstancesInfo = AllPalletsWithSystem;
-	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type AssetExchanger = ();
+	type AssetLocker = ();
+	type AssetTransactor = LocalAssetTransactor;
+	type AssetTrap = Xcm;
+	type Barrier = Barrier;
+	type CallDispatcher = RuntimeCall;
 	type FeeManager = XcmFeeManagerFromComponents<
 		WaivedLocations,
 		XcmFeeToAccount<Self::AssetTransactor, AccountId, CheckAccount>,
 	>;
+	// Polkadot Relay recognises no chains which act as reserves.
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
 	// No bridges yet...
 	type MessageExporter = ();
-	type UniversalAliases = Nothing;
-	type CallDispatcher = RuntimeCall;
+	type OriginConverter = LocalOriginConverter;
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type ResponseHandler = Xcm;
+	type RuntimeCall = RuntimeCall;
 	type SafeCallFilter = Everything;
-	type Aliasers = Nothing;
+	type SubscriptionService = Xcm;
+	// The weight trader piggybacks on the existing transaction-fee conversion logic.
+	type Trader =
+		UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type TransactionalProcessor = FrameTransactionalProcessor;
+	type UniversalAliases = Nothing;
+	type UniversalLocation = UniversalLocation;
+	type Weigher = WeightInfoBounds<PolkadotXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
+	type XcmSender = XcmRouter;
 }
 
 pub const FELLOWSHIP_ADMIN_INDEX: u32 = 1;
@@ -287,31 +297,35 @@ pub type LocalPalletOriginToLocation = (
 );
 
 impl pallet_xcm::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	// We only allow the root, the general admin, the fellowship admin and the staking admin to send
-	// messages.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	// ...but they must match our filter, which rejects all.
-	type XcmExecuteFilter = Nothing; // == Deny All
-	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything; // == Allow All
-	type XcmReserveTransferFilter = Everything; // == Allow All
-	type Weigher = WeightInfoBounds<PolkadotXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
-	type UniversalLocation = UniversalLocation;
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdminOrigin = EnsureRoot<AccountId>;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 	type Currency = Balances;
 	type CurrencyMatcher = ();
-	type TrustedLockers = ();
-	type SovereignAccountOf = SovereignAccountOf;
+	// Anyone can execute XCM messages locally...
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type MaxLockers = ConstU32<8>;
 	type MaxRemoteLockConsumers = ConstU32<0>;
 	type RemoteLockConsumerIdentifier = ();
+	type RuntimeCall = RuntimeCall;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	// We only allow the root, the general admin, the fellowship admin and the staking admin to send
+	// messages.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
+	type SovereignAccountOf = SovereignAccountOf;
+	type TrustedLockers = ();
+	type UniversalLocation = UniversalLocation;
+	// == Allow All
+	type Weigher = WeightInfoBounds<PolkadotXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
-	type AdminOrigin = EnsureRoot<AccountId>;
+	// ...but they must match our filter, which rejects all.
+	type XcmExecuteFilter = Nothing;
+	// == Deny All
+	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
+	// == Allow All
+	type XcmReserveTransferFilter = Everything;
+	type XcmRouter = XcmRouter;
+	type XcmTeleportFilter = Everything;
+
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 }
