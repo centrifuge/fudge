@@ -210,7 +210,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type ChannelInfo = ParachainSystem;
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = ();
-	type MaxInboundSuspended = ();
+	type MaxInboundSuspended = ConstU32<1000u32>;
 	type PriceForSiblingDelivery = PriceForSiblingParachainDelivery;
 	type RuntimeEvent = RuntimeEvent;
 	type VersionWrapper = PolkadotXcm;
