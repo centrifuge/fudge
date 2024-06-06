@@ -8,13 +8,13 @@ edition = "2021"
 [dependencies]
 fudge = { workspace = true }
 fudge-core = { workspace = true }
-fudge-test-runtime = { workspace = true }
-polkadot-test-runtime = { workspace = true }
-parity-scale-codec = { workspace = true }
-polkadot-service = { workspace = true }
-polkadot-core-primitives = { workspace = true }
-sp-consensus-babe = { workspace = true }
-sp-std = { workspace = true }
-sp-tracing = { workspace = true }
-sp-inherents = { workspace = true }
-thiserror = { workspace = true }
+fudge-test-runtime = { workspace = true, features = ["std"] }
+polkadot-test-runtime = { workspace = true, features = ["std"] }
+parity-scale-codec = { workspace = true, features = ["std"] }
+polkadot-service = { workspace = true, default-features = true }
+polkadot-core-primitives = { workspace = true, features = ["std"] }
+sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-tracing = { workspace = true, features = ["std"] }
+sp-inherents = { workspace = true, features = ["std"] }
+thiserror = { workspace = true, default-features = true }

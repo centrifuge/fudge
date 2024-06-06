@@ -117,17 +117,7 @@ impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
 }
 
 /// HostFunctions that do not include benchmarking specific host functions
-#[cfg(not(feature = "runtime-benchmarks"))]
 pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
-
-/// Host functions that include benchmarking specific functionalities
-#[cfg(feature = "runtime-benchmarks")]
-pub type TWasmExecutor = WasmExecutor<
-	sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-		sp_io::SubstrateHostFunctions,
-		frame_benchmarking::benchmarking::HostFunctions,
-	>,
->;
 
 const DEFAULT_CLIENT_PROVIDER_LOG_TARGET: &str = "fudge-client-provider";
 
