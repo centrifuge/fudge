@@ -19,7 +19,7 @@ const UNINITIALIZED: usize = 0;
 const INITIALIZING: usize = 1;
 const INITIALIZED: usize = 2;
 
-const LOG_LEVEL: LevelFilter = LevelFilter::DEBUG;
+const LOG_LEVEL: LevelFilter = LevelFilter::INFO;
 
 pub fn init_logs() {
 	if GLOBAL_INIT
@@ -34,7 +34,7 @@ pub fn init_logs() {
 		GLOBAL_INIT.store(INITIALIZED, Ordering::SeqCst);
 		tracing_subscriber::fmt::fmt()
 			.with_max_level(LOG_LEVEL)
-			.with_env_filter("debug,cranelift_codegen=off,wasmtime_cranelift=off,wasm_overrides=off,wasm-heap=off,polkadot_overseer=off,xcm::process-message=trace")
+			// .with_env_filter("debug,cranelift_codegen=off,wasmtime_cranelift=off,wasm_overrides=off,wasm-heap=off,polkadot_overseer=off,xcm::process-message=trace")
 			.init();
 	}
 }
