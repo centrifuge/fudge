@@ -14,7 +14,7 @@ use std::{collections::BTreeMap, pin::Pin};
 
 use async_trait::async_trait;
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use codec::{Decode, Encode};
+use cumulus_client_parachain_inherent::ParachainInherentDataProvider;
 use cumulus_primitives_core::relay_chain::{Hash as PHash, Header as PHeader, SessionIndex};
 use cumulus_primitives_parachain_inherent::ParachainInherentData;
 use cumulus_relay_chain_interface::{RelayChainError, RelayChainResult};
@@ -24,16 +24,18 @@ use frame_support::{
 	Identity, Twox64Concat,
 };
 use futures::{FutureExt, Stream, StreamExt};
+use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::{
-	Block as PBlock, CandidateHash, InboundDownwardMessage, InboundHrmpMessage,
+	Block as PBlock, CandidateHash, Hash, InboundDownwardMessage, InboundHrmpMessage,
 };
 use polkadot_node_primitives::Collation;
+use polkadot_overseer::{dummy::dummy_overseer_builder, HeadSupportsParachains};
 use polkadot_parachain_primitives::primitives::{
 	HeadData, Id, Id as ParaId, ValidationCode, ValidationCodeHash,
 };
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v5::{
+	v6::{
 		CandidateCommitments, CandidateDescriptor, CandidateReceipt, CoreIndex,
 		OccupiedCoreAssumption,
 	},
@@ -313,6 +315,15 @@ impl CollationBuilder for () {
 	}
 }
 
+struct MockSupportsParachains;
+
+#[async_trait]
+impl HeadSupportsParachains for MockSupportsParachains {
+	async fn head_supports_parachains(&self, _head: &Hash) -> bool {
+		true
+	}
+}
+
 pub struct InherentBuilder<B, C> {
 	id: Id,
 	backend: Arc<B>,
@@ -349,14 +360,20 @@ where
 		+ BlockchainEvents<PBlock>
 		+ HeaderBackend<PBlock>
 		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+		+ CallApiAt<PBlock>,
 	for<'r> &'r C: BlockImport<PBlock>,
 {
 	pub async fn parachain_inherent(&self) -> Result<ParachainInherentData, Error> {
 		let parent = self.client.info().best_hash;
-		let (chnl_sndr, _chnl_rcvr) = metered::channel(64);
-		let dummy_handler = Handle::new(chnl_sndr);
+
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		let (_overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
+			.unwrap()
+			.build()
+			.unwrap();
+
+		let dummy_handler = Handle::new(handle);
 		let relay_interface = FudgeRelayChainProcessInterface::new(
 			self.client.clone(),
 			self.backend.clone(),
@@ -384,7 +401,7 @@ where
 				Error::PersistedValidationDataNotFound
 			})?;
 
-		ParachainInherentData::create_at(
+		let pid = ParachainInherentDataProvider::create_at(
 			parent,
 			&relay_interface,
 			&persisted_validation_data,
@@ -398,7 +415,9 @@ where
 			);
 
 			Error::ParachainInherentDataCreation
-		})
+		});
+
+		pid
 	}
 }
 
@@ -464,8 +483,7 @@ where
 		+ BlockchainEvents<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+		+ CallApiAt<Block>,
 	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
@@ -878,7 +896,7 @@ where
 				);
 
 				// NOTE: Calling this with OccupiedCoreAssumption::Included, force_enacts the para
-				polkadot_runtime_parachains::runtime_api_impl::v5::persisted_validation_data::<
+				polkadot_runtime_parachains::runtime_api_impl::v7::persisted_validation_data::<
 					Runtime,
 				>(id, OccupiedCoreAssumption::Included)
 				.ok_or_else(|| {
@@ -1067,8 +1085,7 @@ where
 		+ BlockchainEvents<PBlock>
 		+ HeaderBackend<PBlock>
 		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+		+ CallApiAt<PBlock>,
 	for<'r> &'r C: BlockImport<PBlock>,
 {
 	/// Create a new instance of [`FudgeRelayChainProcessInterface`]
@@ -1108,8 +1125,7 @@ where
 		+ BlockchainEvents<PBlock>
 		+ HeaderBackend<PBlock>
 		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+		+ CallApiAt<PBlock>,
 	for<'r> &'r C: BlockImport<PBlock>,
 {
 	async fn retrieve_dmq_contents(
@@ -1326,8 +1342,7 @@ where
 		+ BlockchainEvents<PBlock>
 		+ HeaderBackend<PBlock>
 		+ BlockImport<PBlock>
-		+ CallApiAt<PBlock>
-		+ sc_block_builder::BlockBuilderProvider<B, PBlock, C>,
+		+ CallApiAt<PBlock>,
 	for<'r> &'r C: BlockImport<PBlock>,
 {
 	let _lock = backend.get_import_lock().read();

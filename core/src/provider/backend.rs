@@ -14,7 +14,7 @@ use std::{marker::PhantomData, path::PathBuf, sync::Arc};
 
 use sc_client_db::{BlocksPruning, DatabaseSettings, DatabaseSource, PruningMode};
 use sc_service::TFullBackend;
-use sp_api::BlockT;
+use sp_runtime::traits::Block as BlockT;
 
 use crate::provider::BackendProvider;
 

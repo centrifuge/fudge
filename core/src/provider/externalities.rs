@@ -18,6 +18,7 @@ use std::{
 	panic::{AssertUnwindSafe, UnwindSafe},
 };
 
+use parity_scale_codec::Codec;
 use sp_core::Hasher;
 use sp_externalities::Externalities;
 use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageChanges};
@@ -46,7 +47,7 @@ pub enum Error {
 pub struct ExternalitiesProvider<'a, H, B>
 where
 	H: Hasher,
-	H::Out: codec::Codec + Ord + 'static,
+	H::Out: Codec + Ord + 'static,
 	B: Backend<H>,
 {
 	overlay: OverlayedChanges<H>,
@@ -56,7 +57,7 @@ where
 impl<'a, H, B> ExternalitiesProvider<'a, H, B>
 where
 	H: Hasher,
-	H::Out: codec::Codec + Ord + 'static,
+	H::Out: Codec + Ord + 'static,
 	B: Backend<H>,
 {
 	/// Create a new `ExternalitiesProvider`.
@@ -69,11 +70,7 @@ where
 
 	/// Get externalities implementation.
 	pub fn ext(&mut self) -> Ext<H, B> {
-		Ext::new(
-			&mut self.overlay,
-			&self.backend,
-			None,
-		)
+		Ext::new(&mut self.overlay, &self.backend, None)
 	}
 
 	/*
@@ -180,10 +177,7 @@ where
 		execute: impl FnOnce() -> R,
 		version: StateVersion,
 	) -> Result<(R, StorageChanges<H>), Error> {
-		let _parent_hash = self.overlay.storage_root(
-			self.backend,
-			version,
-		);
+		let _parent_hash = self.overlay.storage_root(self.backend, version);
 
 		let mut ext = self.ext();
 		ext.storage_start_transaction();
@@ -201,10 +195,7 @@ where
 		Ok((
 			r,
 			self.overlay
-				.drain_storage_changes::<B>(
-					self.backend,
-					version,
-				)
+				.drain_storage_changes::<B>(self.backend, version)
 				.map_err(|e| {
 					tracing::error!(
 						target = DEFAULT_EXTERNALITIES_PROVIDER_LOG_TARGET,

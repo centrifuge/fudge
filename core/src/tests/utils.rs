@@ -34,6 +34,7 @@ pub fn init_logs() {
 		GLOBAL_INIT.store(INITIALIZED, Ordering::SeqCst);
 		tracing_subscriber::fmt::fmt()
 			.with_max_level(LOG_LEVEL)
+			// .with_env_filter("debug,cranelift_codegen=off,wasmtime_cranelift=off,wasm_overrides=off,wasm-heap=off,polkadot_overseer=off,xcm::process-message=trace")
 			.init();
 	}
 }

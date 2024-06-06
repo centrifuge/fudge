@@ -14,9 +14,8 @@ use std::{collections::hash_map::DefaultHasher, marker::PhantomData, sync::Arc};
 
 use frame_support::{pallet_prelude::TransactionSource, sp_runtime::traits::NumberFor};
 use sc_client_api::{
-	blockchain::Backend as BlockchainBackend, AuxStore,
-	Backend as BackendT, BlockBackend, BlockImportOperation, BlockOf, HeaderBackend, NewBlockState,
-	UsageProvider,
+	blockchain::Backend as BlockchainBackend, AuxStore, Backend as BackendT, BlockBackend,
+	BlockImportOperation, BlockOf, HeaderBackend, NewBlockState, UsageProvider,
 };
 use sc_consensus::{BlockImport, BlockImportParams, ImportResult};
 use sc_executor::RuntimeVersionOf;
@@ -28,7 +27,7 @@ use sp_consensus::{Environment, InherentData, Proposal, Proposer};
 use sp_core::traits::CodeExecutor;
 use sp_runtime::{
 	generic::BlockId,
-	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, One, Zero},
+	traits::{Block as BlockT, BlockIdTo, Hash as HashT, Header as HeaderT, Header, One, Zero},
 	Digest,
 };
 use sp_state_machine::StorageProof;
@@ -36,7 +35,6 @@ use sp_std::time::Duration;
 use sp_storage::StateVersion;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
-use sp_runtime::traits::Header;
 
 use crate::{provider::externalities::ExternalitiesProvider, types::StoragePair};
 
@@ -163,9 +161,7 @@ where
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, C> + Send,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
-	C::Api: BlockBuilder<Block>
-
-		+ TaggedTransactionQueue<Block>,
+	C::Api: BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -177,8 +173,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+		+ CallApiAt<Block>,
 	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {
@@ -417,19 +412,21 @@ where
 
 					let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 
-					let (r, changes) = ext.execute_with_mut(exec, self.state_version()?).map_err(|e| {
-						tracing::error!(
-							target = DEFAULT_BUILDER_LOG_TARGET,
-							error = ?e,
-							"Could not execute externalities at {:?}.",
-							at,
-						);
+					let (r, changes) =
+						ext.execute_with_mut(exec, self.state_version()?)
+							.map_err(|e| {
+								tracing::error!(
+									target = DEFAULT_BUILDER_LOG_TARGET,
+									error = ?e,
+									"Could not execute externalities at {:?}.",
+									at,
+								);
 
-						Error::ExternalitiesExecution(
-							Some(BlockId::<Block>::Hash(block_hash)),
-							e.into(),
-						)
-					})?;
+								Error::ExternalitiesExecution(
+									Some(BlockId::<Block>::Hash(block_hash)),
+									e.into(),
+								)
+							})?;
 
 					self.mutate_normal(&mut op, changes, BlockId::<Block>::Hash(block_hash))?;
 
@@ -463,15 +460,17 @@ where
 	) -> Result<R, Error<Block>> {
 		let mut ext = ExternalitiesProvider::<HashFor<Block>, B::State>::new(&state);
 
-		let (r, changes) = ext.execute_with_mut(exec, self.state_version()?).map_err(|e| {
-			tracing::error!(
-				target = DEFAULT_BUILDER_LOG_TARGET,
-				error = ?e,
-				"Could not execute externalities.",
-			);
+		let (r, changes) = ext
+			.execute_with_mut(exec, self.state_version()?)
+			.map_err(|e| {
+				tracing::error!(
+					target = DEFAULT_BUILDER_LOG_TARGET,
+					error = ?e,
+					"Could not execute externalities.",
+				);
 
-			Error::ExternalitiesExecution(Some(BlockId::Number(Zero::zero())), e.into())
-		})?;
+				Error::ExternalitiesExecution(Some(BlockId::Number(Zero::zero())), e.into())
+			})?;
 
 		let (main_sc, child_sc, _, tx, root, tx_index) = changes.into_inner();
 
@@ -647,7 +646,7 @@ where
 	/// Caches a given extrinsic in the builder. The extrinsic will be
 	pub fn append_extrinsic(&mut self, ext: Block::Extrinsic) -> Result<Block::Hash, Error<Block>> {
 		let fut = self.pool.submit_one(
-			&BlockId::Hash(self.client.info().best_hash),
+			self.client.info().best_hash,
 			TransactionSource::External,
 			ext,
 		);
@@ -715,10 +714,7 @@ where
 	}
 
 	/// Import a block, that has been previously built.
-	pub fn import_block(
-		&mut self,
-		params: BlockImportParams<Block>,
-	) -> Result<(), Error<Block>> {
+	pub fn import_block(&mut self, params: BlockImportParams<Block>) -> Result<(), Error<Block>> {
 		let prev_hash = self.latest_block();
 		let ret = match futures::executor::block_on(self.client.as_ref().import_block(params))
 			.map_err(|e| {

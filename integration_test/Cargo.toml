@@ -6,16 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-fudge = { path = "../fudge" }
-fudge-core = { path = "../core" }
-fudge-test-runtime = { path = "../core/src/tests/test-parachain" }
-codec = { package = "parity-scale-codec", version = "3.0.0", features = [
-  "derive",
-] }
-polkadot-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-polkadot-core-primitives = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-sp-inherents = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.1.0" }
-thiserror = "1.0.30"
+fudge = { workspace = true }
+fudge-core = { workspace = true }
+fudge-test-runtime = { workspace = true, features = ["std"] }
+polkadot-test-runtime = { workspace = true, features = ["std"] }
+parity-scale-codec = { workspace = true, features = ["std"] }
+polkadot-service = { workspace = true, default-features = true }
+polkadot-core-primitives = { workspace = true, features = ["std"] }
+sp-consensus-babe = { workspace = true, features = ["std"] }
+sp-std = { workspace = true, features = ["std"] }
+sp-tracing = { workspace = true, features = ["std"] }
+sp-inherents = { workspace = true, features = ["std"] }
+thiserror = { workspace = true, default-features = true }

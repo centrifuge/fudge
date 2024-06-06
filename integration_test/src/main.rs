@@ -25,7 +25,7 @@ use fudge::{
 };
 use fudge_test_runtime::{Block as PBlock, RuntimeApi as PRtApi};
 use polkadot_core_primitives::{Block as RBlock, Header as RHeader};
-use polkadot_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi};
+use polkadot_test_runtime::{Runtime as RRuntime, RuntimeApi as RRtApi};
 
 #[allow(dead_code)]
 type RCidp = Box<

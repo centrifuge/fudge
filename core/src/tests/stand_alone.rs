@@ -11,15 +11,16 @@
 // GNU General Public License for more details.
 
 use std::path::PathBuf;
-use sp_runtime::BuildStorage;
-use frame_benchmarking::account;
-use polkadot_runtime::{Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE};
+
+use frame_support::traits::{Currency, ExistenceRequirement};
+use polkadot_test_runtime::{
+	Block as TestBlock, Runtime, RuntimeApi as TestRtApi, WASM_BINARY as CODE,
+};
 use sc_service::{TFullBackend, TFullClient};
-use sp_api::BlockId;
 use sp_consensus_babe::SlotDuration;
 use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
-use sp_runtime::{AccountId32, MultiAddress, Storage};
+use sp_runtime::{generic::BlockId, AccountId32, BuildStorage, Storage};
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 
@@ -120,9 +121,11 @@ fn default_builder_disk(
 async fn mutating_genesis_works() {
 	super::utils::init_logs();
 
+	let test_acc = AccountId32::new([1u8; 32]);
+
 	let genesis = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
-			(account("test", 0, 0), 10_000_000_000_000u128),
+			(test_acc.clone(), 10_000_000_000_000u128),
 			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
 		],
 	}
@@ -132,16 +135,17 @@ async fn mutating_genesis_works() {
 	let mut builder = default_builder(Handle::current(), genesis);
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
-			polkadot_runtime::Balances::transfer(
-				polkadot_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+			polkadot_test_runtime::Balances::transfer(
+				&AccountId32::new([0u8; 32]),
+				&test_acc,
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc.clone()),
 			)
 		})
 		.unwrap();
@@ -150,7 +154,7 @@ async fn mutating_genesis_works() {
 		.with_state(|| {
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc),
 			)
 		})
 		.unwrap();
@@ -164,6 +168,8 @@ async fn opening_state_from_db_path_works() {
 	use std::fs::{create_dir_all, remove_dir_all};
 
 	super::utils::init_logs();
+
+	let test_acc = AccountId32::new([1u8; 32]);
 
 	// We need some temp folder here for testing
 	let mut path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -180,7 +186,7 @@ async fn opening_state_from_db_path_works() {
 
 	let genesis = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
-			(account("test", 0, 0), 10_000_000_000_000u128),
+			(test_acc.clone(), 10_000_000_000_000u128),
 			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
 		],
 	}
@@ -198,7 +204,7 @@ async fn opening_state_from_db_path_works() {
 		.with_state_at(BlockId::Number(1), || {
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc.clone()),
 			)
 		})
 		.unwrap();
@@ -207,7 +213,7 @@ async fn opening_state_from_db_path_works() {
 		.with_state_at(BlockId::Number(20), || {
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc.clone()),
 			)
 		})
 		.unwrap();
@@ -224,26 +230,27 @@ async fn opening_state_from_db_path_works() {
 		.into_iter()
 		.map(|record| record.event.clone())
 		.collect::<Vec<_>>()
-		.contains(&polkadot_runtime::RuntimeEvent::Balances(
+		.contains(&polkadot_test_runtime::RuntimeEvent::Balances(
 			pallet_balances::Event::<Runtime>::Transfer {
 				from: AccountId32::new([0u8; 32]),
-				to: account::<AccountId32>("test", 0, 0),
+				to: test_acc.clone(),
 				amount: 1_000_000_000_000u128
 			}
 		)));
 
 	let (send_data_post_20, recv_data_post_20) = builder
 		.with_mut_state(|| {
-			polkadot_runtime::Balances::transfer(
-				polkadot_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+			polkadot_test_runtime::Balances::transfer(
+				&AccountId32::new([0u8; 32]),
+				&test_acc,
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc.clone()),
 			)
 		})
 		.unwrap();
@@ -266,10 +273,10 @@ async fn opening_state_from_db_path_works() {
 		.iter()
 		.map(|record| record.event.clone())
 		.collect::<Vec<_>>()
-		.contains(&polkadot_runtime::RuntimeEvent::Balances(
+		.contains(&polkadot_test_runtime::RuntimeEvent::Balances(
 			pallet_balances::Event::<Runtime>::Transfer {
 				from: AccountId32::new([0u8; 32]),
-				to: account::<AccountId32>("test", 0, 0),
+				to: test_acc,
 				amount: 1_000_000_000_000u128
 			}
 		)));
@@ -317,9 +324,11 @@ async fn build_relay_block_works() {
 async fn build_relay_block_works_and_mut_is_build_upon() {
 	super::utils::init_logs();
 
+	let test_acc = AccountId32::new([1u8; 32]);
+
 	let genesis = pallet_balances::GenesisConfig::<Runtime> {
 		balances: vec![
-			(account("test", 0, 0), 10_000_000_000_000u128),
+			(test_acc.clone(), 10_000_000_000_000u128),
 			(AccountId32::new([0u8; 32]), 10_000_000_000_000u128),
 		],
 	}
@@ -343,16 +352,17 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 
 	let (send_data_pre, recv_data_pre) = builder
 		.with_mut_state(|| {
-			polkadot_runtime::Balances::transfer(
-				polkadot_runtime::RuntimeOrigin::signed(AccountId32::new([0u8; 32])),
-				MultiAddress::Id(account("test", 0, 0)),
+			polkadot_test_runtime::Balances::transfer(
+				&AccountId32::new([0u8; 32]),
+				&test_acc,
 				1_000_000_000_000u128,
+				ExistenceRequirement::AllowDeath,
 			)
 			.unwrap();
 
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc.clone()),
 			)
 		})
 		.unwrap();
@@ -374,7 +384,7 @@ async fn build_relay_block_works_and_mut_is_build_upon() {
 		.with_state(|| {
 			(
 				frame_system::Account::<Runtime>::get(AccountId32::new([0u8; 32])),
-				frame_system::Account::<Runtime>::get(account::<AccountId32>("test", 0, 0)),
+				frame_system::Account::<Runtime>::get(test_acc),
 			)
 		})
 		.unwrap();

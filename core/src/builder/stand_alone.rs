@@ -10,8 +10,7 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
-	UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_client_db::Backend;
 use sc_consensus::{BlockImport, BlockImportParams, ForkChoiceStrategy};
@@ -106,9 +105,7 @@ where
 	CIDP::InherentDataProviders: Send,
 	DP: DigestCreator<Block>,
 	ExtraArgs: ArgsProvider<ExtraArgs>,
-	C::Api: BlockBuilder<Block>
-
-		+ TaggedTransactionQueue<Block>,
+	C::Api: BlockBuilder<Block> + TaggedTransactionQueue<Block>,
 	C: 'static
 		+ ProvideRuntimeApi<Block>
 		+ BlockOf
@@ -120,8 +117,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ sc_block_builder::BlockBuilderProvider<B, Block, C>,
+		+ CallApiAt<Block>,
 	for<'r> &'r C: BlockImport<Block>,
 	A: TransactionPool<Block = Block, Hash = Block::Hash> + MaintainedTransactionPool + 'static,
 {

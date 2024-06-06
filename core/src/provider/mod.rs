@@ -12,10 +12,9 @@
 
 use std::{error::Error as StdError, marker::PhantomData, sync::Arc};
 
-use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_block_builder::BlockBuilderApi;
 use sc_client_api::{
-	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend,
-	UsageProvider,
+	AuxStore, Backend as BackendT, BlockBackend, BlockOf, HeaderBackend, UsageProvider,
 };
 use sc_consensus::BlockImport;
 use sc_executor::{RuntimeVersionOf, WasmExecutor};
@@ -39,13 +38,9 @@ pub type InnerError = Box<dyn StdError>;
 
 pub trait Initiator<Block: BlockT>
 where
-	for<'r> &'r Self::Client:
-		BlockImport<Block>,
+	for<'r> &'r Self::Client: BlockImport<Block>,
 {
-	type Api: BlockBuilder<Block>
-
-		+ BlockBuilderApi<Block>
-		+ TaggedTransactionQueue<Block>;
+	type Api: BlockBuilder<Block> + BlockBuilderApi<Block> + TaggedTransactionQueue<Block>;
 	type Client: 'static
 		+ ProvideRuntimeApi<Block, Api = Self::Api>
 		+ BlockOf
@@ -57,8 +52,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+		+ CallApiAt<Block>;
 	type Backend: 'static + BackendT<Block>;
 	type Pool: 'static
 		+ TransactionPool<Block = Block, Hash = Block::Hash>
@@ -87,10 +81,7 @@ pub trait BackendProvider<Block: BlockT> {
 }
 
 pub trait ClientProvider<Block: BlockT> {
-	type Api: BlockBuilder<Block>
-
-		+ BlockBuilderApi<Block>
-		+ TaggedTransactionQueue<Block>;
+	type Api: BlockBuilder<Block> + BlockBuilderApi<Block> + TaggedTransactionQueue<Block>;
 	type Backend: 'static + BackendT<Block>;
 	type Client: 'static
 		+ ProvideRuntimeApi<Block, Api = Self::Api>
@@ -103,8 +94,7 @@ pub trait ClientProvider<Block: BlockT> {
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<Self::Backend, Block, Self::Client>;
+		+ CallApiAt<Block>;
 	type Exec: CodeExecutor + RuntimeVersionOf + 'static;
 	type Error: 'static + StdError;
 
@@ -127,17 +117,7 @@ impl<Block, RtApi, Exec> DefaultClient<Block, RtApi, Exec> {
 }
 
 /// HostFunctions that do not include benchmarking specific host functions
-#[cfg(not(feature = "runtime-benchmarks"))]
 pub type TWasmExecutor = WasmExecutor<sp_io::SubstrateHostFunctions>;
-
-/// Host functions that include benchmarking specific functionalities
-#[cfg(feature = "runtime-benchmarks")]
-pub type TWasmExecutor = WasmExecutor<
-	sc_executor::sp_wasm_interface::ExtendedHostFunctions<
-		sp_io::SubstrateHostFunctions,
-		frame_benchmarking::benchmarking::HostFunctions,
-	>,
->;
 
 const DEFAULT_CLIENT_PROVIDER_LOG_TARGET: &str = "fudge-client-provider";
 
@@ -152,9 +132,7 @@ where
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send + Sync + 'static,
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
-		TaggedTransactionQueue<Block>
-			+ BlockBuilderApi<Block>
-			,
+		TaggedTransactionQueue<Block> + BlockBuilderApi<Block>,
 	Exec: CodeExecutor + RuntimeVersionOf,
 {
 	type Api = <TFullClient<Block, RtApi, Exec> as ProvideRuntimeApi<Block>>::Api;

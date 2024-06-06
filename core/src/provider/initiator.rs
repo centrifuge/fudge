@@ -17,10 +17,10 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use polkadot_cli::service::HeaderBackend;
-use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sc_block_builder::BlockBuilderApi;
 use sc_client_api::{
-	execution_extensions::{ExecutionExtensions},
-	AuxStore, Backend, BlockBackend, BlockOf,UsageProvider,
+	execution_extensions::ExecutionExtensions, AuxStore, Backend, BlockBackend, BlockOf,
+	UsageProvider,
 };
 use sc_consensus::BlockImport;
 use sc_executor::{
@@ -31,10 +31,13 @@ use sc_service::{
 	TFullBackend, TFullClient, TaskManager,
 };
 use sc_transaction_pool::{FullChainApi, FullPool, Options, RevalidationType};
-use sp_api::{BlockT, CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderMetadata};
 use sp_core::traits::{CodeExecutor, ReadRuntimeVersion};
-use sp_runtime::{traits::BlockIdTo, BuildStorage};
+use sp_runtime::{
+	traits::{Block as BlockT, BlockIdTo},
+	BuildStorage,
+};
 use sp_storage::Storage;
 use sp_transaction_pool::runtime_api::TaggedTransactionQueue;
 use thiserror::Error;
@@ -101,9 +104,7 @@ where
 		+ Sync
 		+ 'static,
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
-		TaggedTransactionQueue<Block>
-			+ BlockBuilderApi<Block>
-			,
+		TaggedTransactionQueue<Block> + BlockBuilderApi<Block>,
 {
 	Init::new(
 		backend,
@@ -123,9 +124,7 @@ where
 		+ Sync
 		+ 'static,
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, TWasmExecutor>>>::RuntimeApi:
-		TaggedTransactionQueue<Block>
-			+ BlockBuilderApi<Block>
-			,
+		TaggedTransactionQueue<Block> + BlockBuilderApi<Block>,
 {
 	Init::new(
 		MemDb::new(),
@@ -173,8 +172,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
+		+ CallApiAt<Block>,
 	CP::Exec: Clone + ReadRuntimeVersion,
 	for<'r> &'r CP::Client: BlockImport<Block>,
 {
@@ -211,10 +209,7 @@ where
 				options: Options::default(),
 				revalidation: RevalidationType::Full,
 			},
-			execution_extensions: ExecutionExtensions::new(
-				None,
-				Arc::new(exec),
-			),
+			execution_extensions: ExecutionExtensions::new(None, Arc::new(exec)),
 		}
 	}
 
@@ -267,8 +262,7 @@ where
 		+ UsageProvider<Block>
 		+ HeaderBackend<Block>
 		+ BlockImport<Block>
-		+ CallApiAt<Block>
-		+ BlockBuilderProvider<CP::Backend, Block, CP::Client>,
+		+ CallApiAt<Block>,
 	for<'r> &'r CP::Client: BlockImport<Block>,
 {
 	type Api = CP::Api;
@@ -452,9 +446,7 @@ where
 	Block: BlockT,
 	RtApi: ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>> + Send + Sync + 'static,
 	<RtApi as ConstructRuntimeApi<Block, TFullClient<Block, RtApi, Exec>>>::RuntimeApi:
-		TaggedTransactionQueue<Block>
-			+ BlockBuilderApi<Block>
-			,
+		TaggedTransactionQueue<Block> + BlockBuilderApi<Block>,
 	Exec: CodeExecutor + RuntimeVersionOf + Clone + 'static,
 {
 	type Api = RtApi::RuntimeApi;

@@ -10,7 +10,6 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-use codec::Encode;
 use cumulus_primitives_core::{Instruction, OriginKind, Transact, Xcm};
 use frame_support::dispatch::GetDispatchInfo;
 use fudge_test_runtime::{
@@ -19,28 +18,29 @@ use fudge_test_runtime::{
 	WASM_BINARY as PCODE,
 };
 use pallet_xcm_transactor::{Currency, CurrencyPayment, TransactWeights};
+use parity_scale_codec::Encode;
 use polkadot_core_primitives::Block as RTestBlock;
-use polkadot_parachain_primitives::primitives::{Id, Sibling};
+use polkadot_parachain_primitives::primitives::Id;
 use polkadot_primitives::{AssignmentId, AuthorityDiscoveryId, ValidatorId};
-use polkadot_runtime::{
+use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
+use polkadot_test_runtime::{
 	Runtime as RRuntime, RuntimeApi as RTestRtApi, RuntimeOrigin as RRuntimeOrigin,
 	WASM_BINARY as RCODE,
 };
-use polkadot_runtime_parachains::{configuration, configuration::HostConfiguration, dmp};
 use sc_service::{TFullBackend, TFullClient};
 use sp_consensus_babe::SlotDuration;
 use sp_core::{crypto::AccountId32, ByteArray, H256};
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::{
-	traits::{AccountIdConversion, BlakeTwo256, Hash},
+	traits::{BlakeTwo256, Hash},
 	BuildStorage, Storage,
 };
 use sp_std::sync::Arc;
 use tokio::runtime::Handle;
 use xcm::{
 	prelude::XCM_VERSION,
-	v3::{Junction, Junctions, MultiLocation, Weight},
-	VersionedMultiLocation, VersionedXcm,
+	v4::{Junction, Location, Weight},
+	VersionedLocation, VersionedXcm,
 };
 
 ///! Test for the ParachainBuilder
@@ -89,7 +89,7 @@ fn default_para_builder(
 		.unwrap();
 	state
 		.insert_storage(
-			parachain_info::GenesisConfig::<PRuntime> {
+			staging_parachain_info::GenesisConfig::<PRuntime> {
 				_config: Default::default(),
 				parachain_id: Id::from(para_id),
 			}
@@ -226,14 +226,13 @@ fn default_relay_builder(
 				keys: vec![(
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
 					AccountId32::from_slice([0u8; 32].as_slice()).unwrap(),
-					polkadot_runtime::SessionKeys {
-						grandpa: pallet_grandpa::AuthorityId::from_slice([0u8; 32].as_slice())
-							.unwrap(),
-						babe: pallet_babe::AuthorityId::from_slice([0u8; 32].as_slice()).unwrap(),
-						im_online: pallet_im_online::sr25519::AuthorityId::from_slice(
+					polkadot_test_runtime::SessionKeys {
+						grandpa: sp_consensus_grandpa::AuthorityId::from_slice(
 							[0u8; 32].as_slice(),
 						)
 						.unwrap(),
+						babe: sp_consensus_babe::AuthorityId::from_slice([0u8; 32].as_slice())
+							.unwrap(),
 						para_validator: ValidatorId::from_slice([0u8; 32].as_slice()).unwrap(),
 						para_assignment: AssignmentId::from_slice([0u8; 32].as_slice()).unwrap(),
 						authority_discovery: AuthorityDiscoveryId::from_slice([0u8; 32].as_slice())
@@ -471,6 +470,16 @@ async fn parachain_can_process_downward_message() {
 
 	para_builder.import_block().unwrap();
 
+	relay_builder.build_block().unwrap();
+
+	para_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_builder.import_block().unwrap();
+
 	let events = para_builder
 		.with_state(|| frame_system::Pallet::<PRuntime>::events())
 		.unwrap();
@@ -563,7 +572,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.with_mut_state(|| {
 			polkadot_runtime_parachains::hrmp::Pallet::<RRuntime>::force_process_hrmp_open(
 				RRuntimeOrigin::root(),
-				0,
+				2,
 			)
 			.unwrap();
 		})
@@ -601,23 +610,14 @@ async fn multi_parachains_can_send_xcm_messages() {
 		remark: remark.clone(),
 	});
 
-	let para_1_location = VersionedMultiLocation::from(MultiLocation::new(
-		1,
-		Junctions::X1(Junction::Parachain(PARA_ID_1)),
-	));
-	let para_2_location = VersionedMultiLocation::from(MultiLocation::new(
-		1,
-		Junctions::X1(Junction::Parachain(PARA_ID_2)),
-	));
+	let para_1_location = VersionedLocation::from(Location::new(1, Junction::Parachain(PARA_ID_1)));
+	let para_2_location = VersionedLocation::from(Location::new(1, Junction::Parachain(PARA_ID_2)));
 
 	para_1_builder
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(MultiLocation::new(
-					1,
-					Junctions::X1(Junction::Parachain(PARA_ID_2)),
-				)),
+				Box::new(Location::new(1, Junction::Parachain(PARA_ID_2))),
 				XCM_VERSION,
 			)
 			.unwrap();
@@ -628,10 +628,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(MultiLocation::new(
-					1,
-					Junctions::X1(Junction::Parachain(PARA_ID_1)),
-				)),
+				Box::new(Location::new(1, Junction::Parachain(PARA_ID_1))),
 				XCM_VERSION,
 			)
 			.unwrap();
@@ -721,10 +718,10 @@ async fn multi_parachains_can_send_xcm_messages() {
 			pallet_xcm_transactor::Pallet::<PRuntime>::transact_through_sovereign(
 				PRuntimeOrigin::root(),
 				Box::new(para_2_location),
-				Sibling::from(PARA_ID_1).into_account_truncating(),
+				None,
 				CurrencyPayment {
-					currency: Currency::AsMultiLocation(Box::new(VersionedMultiLocation::from(
-						MultiLocation::new(1, Junctions::X1(Junction::Parachain(PARA_ID_2))),
+					currency: Currency::AsMultiLocation(Box::new(VersionedLocation::from(
+						Location::new(1, Junction::Parachain(PARA_ID_2)),
 					))),
 					fee_amount: Some(1_000),
 				},
@@ -764,9 +761,21 @@ async fn multi_parachains_can_send_xcm_messages() {
 
 	para_2_builder.import_block().unwrap();
 
+	relay_builder.build_block().unwrap();
+
+	para_2_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_2_builder.import_block().unwrap();
+
 	para_2_builder
 		.with_state(|| {
-			frame_system::Pallet::<PRuntime>::events()
+			let events = frame_system::Pallet::<PRuntime>::events();
+
+			events
 				.into_iter()
 				.find(|e| match e.event {
 					PRuntimeEvent::System(frame_system::Event::<PRuntime>::Remarked {
@@ -786,10 +795,10 @@ async fn multi_parachains_can_send_xcm_messages() {
 			pallet_xcm_transactor::Pallet::<PRuntime>::transact_through_sovereign(
 				PRuntimeOrigin::root(),
 				Box::new(para_1_location),
-				Sibling::from(PARA_ID_2).into_account_truncating(),
+				None,
 				CurrencyPayment {
-					currency: Currency::AsMultiLocation(Box::new(VersionedMultiLocation::from(
-						MultiLocation::new(1, Junctions::X1(Junction::Parachain(PARA_ID_1))),
+					currency: Currency::AsMultiLocation(Box::new(VersionedLocation::from(
+						Location::new(1, Junction::Parachain(PARA_ID_1)),
 					))),
 					fee_amount: Some(1_000),
 				},
@@ -829,9 +838,21 @@ async fn multi_parachains_can_send_xcm_messages() {
 
 	para_1_builder.import_block().unwrap();
 
+	relay_builder.build_block().unwrap();
+
+	para_1_builder.build_block().unwrap();
+
+	relay_builder.import_block().unwrap();
+	relay_builder.build_block().unwrap();
+	relay_builder.import_block().unwrap();
+
+	para_1_builder.import_block().unwrap();
+
 	para_1_builder
 		.with_state(|| {
-			frame_system::Pallet::<PRuntime>::events()
+			let events = frame_system::Pallet::<PRuntime>::events();
+
+			events
 				.into_iter()
 				.find(|e| match e.event {
 					PRuntimeEvent::System(frame_system::Event::<PRuntime>::Remarked {
