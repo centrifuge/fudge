@@ -16,4 +16,3 @@ sp-io = { workspace = true, default-features = false }
 
 [features]
 default = []
-runtime-benchmarks = ["fudge-core/runtime-benchmarks"]

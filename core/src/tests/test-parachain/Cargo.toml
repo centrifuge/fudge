@@ -52,7 +52,6 @@ sp-consensus-aura = { workspace = true }
 frame-executive = { workspace = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
-frame-benchmarking = { workspace = true }
 frame-system-rpc-runtime-api = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-balances = { workspace = true }
@@ -138,7 +137,6 @@ std = [
     "pallet-preimage/std",
     "pallet-identity/std",
     "pallet-sudo/std",
-    "frame-benchmarking/std",
     "frame-system-rpc-runtime-api/std",
     "pallet-sudo/std",
     "pallet-xcm-transactor/std",

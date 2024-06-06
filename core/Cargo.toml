@@ -61,7 +61,6 @@ node-primitives = { workspace = true, default-features = true }
 frame-system = { workspace = true, default-features = true }
 frame-support = { workspace = true, default-features = true }
 pallet-babe = { workspace = true, default-features = true }
-frame-benchmarking = { workspace = true, default-features = true }
 
 # Polkadot dependencies
 polkadot-core-primitives = { workspace = true, default-features = true }
@@ -86,7 +85,6 @@ polkadot-test-runtime = { workspace = true, default-features = true }
 staging-parachain-info = { workspace = true, default-features = true }
 
 sp-consensus-beefy = { workspace = true, default-features = true }
-frame-benchmarking = { workspace = true, default-features = true }
 pallet-timestamp = { workspace = true, default-features = true }
 pallet-balances = { workspace = true, default-features = true }
 sc-keystore = { workspace = true }
@@ -105,4 +103,3 @@ pallet-xcm-transactor = { workspace = true, default-features = true }
 
 [features]
 default = []
-runtime-benchmarks = ['frame-benchmarking/runtime-benchmarks']
