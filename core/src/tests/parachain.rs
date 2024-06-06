@@ -617,10 +617,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(Location::new(
-					1,
-					Junction::Parachain(PARA_ID_2),
-				)),
+				Box::new(Location::new(1, Junction::Parachain(PARA_ID_2))),
 				XCM_VERSION,
 			)
 			.unwrap();
@@ -631,10 +628,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 		.with_mut_state(|| {
 			pallet_xcm::Pallet::<PRuntime>::force_xcm_version(
 				PRuntimeOrigin::root(),
-				Box::new(Location::new(
-					1,
-					Junction::Parachain(PARA_ID_1),
-				)),
+				Box::new(Location::new(1, Junction::Parachain(PARA_ID_1))),
 				XCM_VERSION,
 			)
 			.unwrap();
@@ -804,7 +798,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 				None,
 				CurrencyPayment {
 					currency: Currency::AsMultiLocation(Box::new(VersionedLocation::from(
-						Location::new(1, Junction::Parachain(PARA_ID_1),
+						Location::new(1, Junction::Parachain(PARA_ID_1)),
 					))),
 					fee_amount: Some(1_000),
 				},

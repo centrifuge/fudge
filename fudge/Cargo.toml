@@ -15,4 +15,5 @@ sc-executor = { workspace = true }
 sp-io = { workspace = true }
 
 [features]
+default = []
 runtime-benchmarks = ["fudge-core/runtime-benchmarks"]
