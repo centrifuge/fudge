@@ -6,78 +6,78 @@ build = "build.rs"
 license = "LGPL-3.0"
 
 [dependencies]
-parity-scale-codec = { workspace = true, default-features = false }
-scale-info = { workspace = true, default-features = false }
-integer-sqrt = { workspace = true, default-features = false }
-safe-mix = { workspace = true, default-features = false }
-smallvec = { workspace = true, default-features = false }
-static_assertions = { workspace = true, default-features = false }
-hex-literal = { workspace = true, default-features = false }
-rustc-hex = { workspace = true, optional = true, default-features = false }
-serde = { workspace = true, optional = true, default-features = false }
+parity-scale-codec = { workspace = true }
+scale-info = { workspace = true }
+integer-sqrt = { workspace = true }
+safe-mix = { workspace = true }
+smallvec = { workspace = true }
+static_assertions = { workspace = true }
+hex-literal = { workspace = true }
+rustc-hex = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
 
 # parachain
-staging-parachain-info = { workspace = true, default-features = false }
-cumulus-pallet-parachain-system = { workspace = true, default-features = false }
-cumulus-primitives-core = { workspace = true, default-features = false }
-cumulus-primitives-utility = { workspace = true, default-features = false }
-cumulus-pallet-aura-ext = { workspace = true, default-features = false }
-cumulus-primitives-timestamp = { workspace = true, default-features = false }
-pallet-collator-selection = { workspace = true, default-features = false }
+staging-parachain-info = { workspace = true }
+cumulus-pallet-parachain-system = { workspace = true }
+cumulus-primitives-core = { workspace = true }
+cumulus-primitives-utility = { workspace = true }
+cumulus-pallet-aura-ext = { workspace = true }
+cumulus-primitives-timestamp = { workspace = true }
+pallet-collator-selection = { workspace = true }
 
 # polkadot dependencies
-polkadot-parachain-primitives = { workspace = true, default-features = false }
-polkadot-runtime-common = { workspace = true, default-features = false }
+polkadot-parachain-primitives = { workspace = true }
+polkadot-runtime-common = { workspace = true }
 
 # primitives
-sp-authority-discovery = { workspace = true, default-features = false }
-sp-consensus-babe = { workspace = true, default-features = false }
-sp-block-builder = { workspace = true, default-features = false }
-sp-inherents = { workspace = true, default-features = false }
-node-primitives = { workspace = true, default-features = false }
-sp-offchain = { workspace = true, default-features = false }
-sp-core = { workspace = true, default-features = false }
-sp-io = { workspace = true, default-features = false }
-sp-std = { workspace = true, default-features = false }
-sp-api = { workspace = true, default-features = false }
-sp-runtime = { workspace = true, default-features = false }
-sp-staking = { workspace = true, default-features = false }
-sp-session = { workspace = true, default-features = false }
-sp-transaction-pool = { workspace = true, default-features = false }
-sp-version = { workspace = true, default-features = false }
-sp-arithmetic = { workspace = true, default-features = false }
-sp-consensus-aura = { workspace = true, default-features = false }
+sp-authority-discovery = { workspace = true }
+sp-consensus-babe = { workspace = true }
+sp-block-builder = { workspace = true }
+sp-inherents = { workspace = true }
+node-primitives = { workspace = true }
+sp-offchain = { workspace = true }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-std = { workspace = true }
+sp-api = { workspace = true }
+sp-runtime = { workspace = true }
+sp-staking = { workspace = true }
+sp-session = { workspace = true }
+sp-transaction-pool = { workspace = true }
+sp-version = { workspace = true }
+sp-arithmetic = { workspace = true }
+sp-consensus-aura = { workspace = true }
 
 # frame dependencies
-frame-executive = { workspace = true, default-features = false }
-frame-support = { workspace = true, default-features = false }
-frame-system = { workspace = true, default-features = false }
-frame-benchmarking = { workspace = true, default-features = false }
-frame-system-rpc-runtime-api = { workspace = true, default-features = false }
-pallet-authorship = { workspace = true, default-features = false }
-pallet-balances = { workspace = true, default-features = false }
-pallet-insecure-randomness-collective-flip = { workspace = true, default-features = false }
-pallet-session = { workspace = true, default-features = false }
-pallet-timestamp = { workspace = true, default-features = false }
-pallet-transaction-payment = { workspace = true, default-features = false }
-pallet-identity = { workspace = true, default-features = false }
-pallet-scheduler = { workspace = true, default-features = false }
-pallet-aura = { workspace = true, default-features = false }
-pallet-sudo = { workspace = true, default-features = false }
-pallet-preimage = { workspace = true, default-features = false }
-pallet-treasury = { workspace = true, default-features = false }
-pallet-message-queue = { workspace = true, default-features = false }
+frame-executive = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+frame-benchmarking = { workspace = true }
+frame-system-rpc-runtime-api = { workspace = true }
+pallet-authorship = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-insecure-randomness-collective-flip = { workspace = true }
+pallet-session = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-identity = { workspace = true }
+pallet-scheduler = { workspace = true }
+pallet-aura = { workspace = true }
+pallet-sudo = { workspace = true }
+pallet-preimage = { workspace = true }
+pallet-treasury = { workspace = true }
+pallet-message-queue = { workspace = true }
 
 
 # xcm
-xcm = { workspace = true, default-features = false }
-pallet-xcm = { workspace = true, default-features = false }
-cumulus-pallet-xcm = { workspace = true, default-features = false }
-cumulus-pallet-xcmp-queue = { workspace = true, default-features = false }
-xcm-builder = { workspace = true, default-features = false }
-xcm-executor = { workspace = true, default-features = false }
-xcm-primitives = { workspace = true, default-features = false }
-pallet-xcm-transactor = { workspace = true, default-features = false }
+xcm = { workspace = true }
+pallet-xcm = { workspace = true }
+cumulus-pallet-xcm = { workspace = true }
+cumulus-pallet-xcmp-queue = { workspace = true }
+xcm-builder = { workspace = true }
+xcm-executor = { workspace = true }
+xcm-primitives = { workspace = true }
+pallet-xcm-transactor = { workspace = true }
 
 [build-dependencies]
 substrate-wasm-builder = { workspace = true }
