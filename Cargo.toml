@@ -227,3 +227,7 @@ sp-npos-elections = { git = "https://github.com/paritytech/polkadot-sdk", branch
 sp-session = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 sp-staking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
 sp-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", branch = "release-polkadot-v1.7.2" }
+
+# Check issue: https://github.com/paritytech/arkworks-substrate/issues/9
+[patch."https://github.com/paritytech/polkadot-sdk"]
+sp-crypto-ec-utils = { git = "https://github.com/paritytech//polkadot-sdk", branch = "release-polkadot-v1.7.2" }

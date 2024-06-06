@@ -611,7 +611,7 @@ async fn multi_parachains_can_send_xcm_messages() {
 	});
 
 	let para_1_location = VersionedLocation::from(Location::new(1, Junction::Parachain(PARA_ID_1)));
-	let para_2_location = VersionedLocation::from(Location::new(1, Junction::Parachain(PARA_ID_1)));
+	let para_2_location = VersionedLocation::from(Location::new(1, Junction::Parachain(PARA_ID_2)));
 
 	para_1_builder
 		.with_mut_state(|| {
