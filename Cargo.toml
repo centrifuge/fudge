@@ -93,9 +93,7 @@ sp-arithmetic = { git = "https://github.com/paritytech/polkadot-sdk", default-fe
 sc-executor = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 sc-client-db = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
-sc-service = { git = "https://github.com/paritytech/polkadot-sdk", features = [
-    "test-helpers",
-], branch = "release-polkadot-v1.7.2" }
+sc-service = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 sc-offchain = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 sc-consensus = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 sc-basic-authorship = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
@@ -112,9 +110,7 @@ pallet-timestamp = { git = "https://github.com/paritytech/polkadot-sdk", default
 pallet-balances = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 pallet-aura = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
-pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", features = [
-    "historical",
-], branch = "release-polkadot-v1.7.2" }
+pallet-session = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 pallet-grandpa = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 pallet-im-online = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }
 pallet-collator-selection = { git = "https://github.com/paritytech/polkadot-sdk", default-features = false, branch = "release-polkadot-v1.7.2" }

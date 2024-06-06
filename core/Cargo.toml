@@ -6,79 +6,79 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-scale-info = { workspace = true }
-bitvec = { workspace = true }
-parity-scale-codec = { workspace = true }
-futures = { workspace = true }
-async-trait = { workspace = true }
-parking_lot = { workspace = true }
-lazy_static = { workspace = true }
-tracing = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true }
-metered = { workspace = true }
-futures-timer = { workspace = true }
+scale-info = { workspace = true, default-features = true }
+bitvec = { workspace = true, default-features = true }
+parity-scale-codec = { workspace = true, default-features = true }
+futures = { workspace = true, default-features = true }
+async-trait = { workspace = true, default-features = true }
+parking_lot = { workspace = true, default-features = true }
+lazy_static = { workspace = true, default-features = true }
+tracing = { workspace = true, default-features = true }
+thiserror = { workspace = true, default-features = true }
+tokio = { workspace = true, default-features = true }
+metered = { workspace = true, default-features = true }
+futures-timer = { workspace = true, default-features = true }
 
 # Local dependencies
-fudge-companion = { workspace = true }
+fudge-companion = { workspace = true, default-features = true }
 
 # Substrate primitives dependencies
-sp-std = { workspace = true }
-sp-core = { workspace = true }
-sp-io = { workspace = true }
-sp-api = { workspace = true }
-sp-runtime = { workspace = true }
-sp-storage = { workspace = true }
-sp-inherents = { workspace = true }
-sp-block-builder = { workspace = true }
-sp-blockchain = { workspace = true }
-sp-consensus-aura = { workspace = true }
-sp-consensus-grandpa = { workspace = true }
-sp-consensus = { workspace = true }
-sp-state-machine = { workspace = true }
-sp-externalities = { workspace = true }
-sp-database = { workspace = true }
-sp-transaction-pool = { workspace = true }
-sp-keystore = { workspace = true }
-sp-timestamp = { workspace = true }
-sp-consensus-babe = { workspace = true }
+sp-std = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-io = { workspace = true, default-features = true }
+sp-api = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+sp-storage = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus-aura = { workspace = true, default-features = true }
+sp-consensus-grandpa = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-state-machine = { workspace = true, default-features = true }
+sp-externalities = { workspace = true, default-features = true }
+sp-database = { workspace = true, default-features = true }
+sp-transaction-pool = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-timestamp = { workspace = true, default-features = true }
+sp-consensus-babe = { workspace = true, default-features = true }
 
 # Substarte client dependencies
-sc-client-db = { workspace = true }
-sc-client-api = { workspace = true }
-sc-service = { workspace = true }
-sc-executor = { workspace = true }
-sc-offchain = { workspace = true }
-sc-consensus = { workspace = true }
-sc-basic-authorship = { workspace = true }
-sc-block-builder = { workspace = true }
-sc-transaction-pool-api = { workspace = true }
-sc-transaction-pool = { workspace = true }
-sc-consensus-aura = { workspace = true }
-node-primitives = { workspace = true }
+sc-client-db = { workspace = true, default-features = true }
+sc-client-api = { workspace = true, default-features = true }
+sc-service = { workspace = true, default-features = true }
+sc-executor = { workspace = true, default-features = true }
+sc-offchain = { workspace = true, default-features = true }
+sc-consensus = { workspace = true, default-features = true }
+sc-basic-authorship = { workspace = true, default-features = true }
+sc-block-builder = { workspace = true, default-features = true }
+sc-transaction-pool-api = { workspace = true, default-features = true }
+sc-transaction-pool = { workspace = true, default-features = true }
+sc-consensus-aura = { workspace = true, default-features = true }
+node-primitives = { workspace = true, default-features = true }
 
 # Substrate frame dependencies
-frame-system = { workspace = true }
-frame-support = { workspace = true }
-pallet-babe = { workspace = true }
-frame-benchmarking = { workspace = true }
+frame-system = { workspace = true, default-features = true }
+frame-support = { workspace = true, default-features = true }
+pallet-babe = { workspace = true, default-features = true }
+frame-benchmarking = { workspace = true, default-features = true }
 
 # Polkadot dependencies
-polkadot-core-primitives = { workspace = true }
-polkadot-node-primitives = { workspace = true }
-polkadot-primitives = { workspace = true }
-polkadot-parachain-primitives = { workspace = true }
-polkadot-runtime-parachains = { workspace = true }
-polkadot-service = { workspace = true }
-polkadot-overseer = { workspace = true }
+polkadot-core-primitives = { workspace = true, default-features = true }
+polkadot-node-primitives = { workspace = true, default-features = true }
+polkadot-primitives = { workspace = true, default-features = true }
+polkadot-parachain-primitives = { workspace = true, default-features = true }
+polkadot-runtime-parachains = { workspace = true, default-features = true }
+polkadot-service = { workspace = true, default-features = true }
+polkadot-overseer = { workspace = true, default-features = true }
 ## Currently only needed to make cumulus-relay-chain-inprocess-interface compile, not sure why cumulus works though
-polkadot-cli = { workspace = true }
+polkadot-cli = { workspace = true, default-features = true }
 
 # Cumulus dependencies
-cumulus-primitives-parachain-inherent = { workspace = true }
-cumulus-relay-chain-interface = { workspace = true }
-cumulus-primitives-core = { workspace = true }
-cumulus-client-parachain-inherent = { workspace = true }
+cumulus-primitives-parachain-inherent = { workspace = true, default-features = true }
+cumulus-relay-chain-interface = { workspace = true, default-features = true }
+cumulus-primitives-core = { workspace = true, default-features = true }
+cumulus-client-parachain-inherent = { workspace = true, default-features = true }
 
 [dev-dependencies]
 polkadot-test-runtime = { workspace = true, features = ["std"] }
