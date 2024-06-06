@@ -9,10 +9,10 @@ edition = "2021"
 fudge-core = { workspace = true }
 fudge-companion = { workspace = true }
 
-polkadot-parachain-primitives = { workspace = true }
-sc-service = { workspace = true }
-sc-executor = { workspace = true }
-sp-io = { workspace = true }
+polkadot-parachain-primitives = { workspace = true, default-features = false }
+sc-service = { workspace = true, default-features = false }
+sc-executor = { workspace = true, default-features = false }
+sp-io = { workspace = true, default-features = false }
 
 [features]
 default = []

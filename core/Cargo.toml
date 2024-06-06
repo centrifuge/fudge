@@ -81,27 +81,27 @@ cumulus-primitives-core = { workspace = true, default-features = true }
 cumulus-client-parachain-inherent = { workspace = true, default-features = true }
 
 [dev-dependencies]
-polkadot-test-runtime = { workspace = true, features = ["std"] }
+polkadot-test-runtime = { workspace = true, default-features = true }
 
-staging-parachain-info = { workspace = true, features = ["std"] }
+staging-parachain-info = { workspace = true, default-features = true }
 
-sp-consensus-beefy = { workspace = true, features = ["std"] }
-frame-benchmarking = { workspace = true, features = ["std"] }
-pallet-timestamp = { workspace = true, features = ["std"] }
-pallet-balances = { workspace = true, features = ["std"] }
+sp-consensus-beefy = { workspace = true, default-features = true }
+frame-benchmarking = { workspace = true, default-features = true }
+pallet-timestamp = { workspace = true, default-features = true }
+pallet-balances = { workspace = true, default-features = true }
 sc-keystore = { workspace = true }
-pallet-transaction-payment = { workspace = true, features = ["std"] }
+pallet-transaction-payment = { workspace = true, default-features = true }
 tracing-subscriber = { workspace = true }
-pallet-aura = { workspace = true, features = ["std"] }
-fudge-test-runtime = { workspace = true, features = ["std"] }
-pallet-session = { workspace = true, features = ["std"] }
-pallet-grandpa = { workspace = true, features = ["std"] }
-pallet-im-online = { workspace = true, features = ["std"] }
+pallet-aura = { workspace = true, default-features = true }
+fudge-test-runtime = { workspace = true, default-features = true }
+pallet-session = { workspace = true, default-features = true }
+pallet-grandpa = { workspace = true, default-features = true }
+pallet-im-online = { workspace = true, default-features = true }
 
 
-xcm = { workspace = true, features = ["std"] }
-pallet-xcm = { workspace = true, features = ["std"] }
-pallet-xcm-transactor = { workspace = true, features = ["std"] }
+xcm = { workspace = true, default-features = true }
+pallet-xcm = { workspace = true, default-features = true }
+pallet-xcm-transactor = { workspace = true, default-features = true }
 
 [features]
 default = []
