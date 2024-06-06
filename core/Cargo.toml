@@ -93,7 +93,7 @@ sc-keystore = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 tracing-subscriber = { workspace = true }
 pallet-aura = { workspace = true }
-fudge-test-runtime = { workspace = true }
+fudge-test-runtime = { workspace = true, features = ["std"] }
 pallet-session = { workspace = true }
 pallet-grandpa = { workspace = true }
 pallet-im-online = { workspace = true }
